@@ -1,0 +1,18 @@
+const List<String> defaultInterests = [
+  'Gaming',
+  'Coffee',
+  'Music',
+  'Movies',
+  'Sports',
+  'Study',
+  'Art',
+  'Technology',
+  'Reading',
+  'Food',
+  'Traveling',
+  'Photography',
+  'Dancing',
+  'Cooking',
+  'Fitness',
+  'Nature',
+];
