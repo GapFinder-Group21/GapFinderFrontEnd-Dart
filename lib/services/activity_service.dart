@@ -18,6 +18,18 @@ class ActivityService {
     return data.map((json) => Activity.fromJson(json)).toList();
   }
 
+  // BQ 6: get the activity the user chose most often when creating open tables
+  // GET /analytics/open-tables/favorite-activity/user/{userId}
+  // Returns null when the user has no tables yet (404) or the request fails
+  Future<int?> getFavoriteActivityId(int userId) async {
+    final res = await ApiClient.get('/analytics/open-tables/favorite-activity/user/$userId');
+
+    if (res.statusCode != 200) return null;
+
+    final data = jsonDecode(utf8.decode(res.bodyBytes));
+    return data['activityId'] as int?;
+  }
+
   // Get an activity by id - GET /activities/{id}
   Future<Activity> getActivity(int id) async {
     final res = await ApiClient.get('/activities/$id');

@@ -94,7 +94,8 @@ class CreateOpenTableViewModel extends ChangeNotifier {
       _buildings = catalogs[1] as List<Building>;
 
       if (_activities.isNotEmpty) {
-        _selectedActivity = _activities.first;
+        // BQ 6: preselect the user's favorite activity, or the first one if they have none
+        _selectedActivity = await _findFavoriteActivity() ?? _activities.first;
         _durationMinutes = _selectedActivity!.durationMinutes;
       }
 
@@ -106,6 +107,23 @@ class CreateOpenTableViewModel extends ChangeNotifier {
       _isLoading = false;
       _notify();
     }
+  }
+
+  // BQ 6: finds the user's favorite activity in the loaded list
+  // If it fails, the form still works with the default activity
+  Future<Activity?> _findFavoriteActivity() async {
+    try {
+      final userId = await TokenStorage.getUserId();
+      if (userId == null) return null;
+
+      final favoriteId = await _activityService.getFavoriteActivityId(userId);
+      for (final activity in _activities) {
+        if (activity.id == favoriteId) return activity;
+      }
+    } catch (e) {
+      debugPrint('Favorite activity not loaded: $e');
+    }
+    return null;
   }
 
   // Marks the form step the user is on (no rebuild needed)
