@@ -1,3 +1,4 @@
+import 'package:gapfinderfrontend_dart/core/theme/app_palette.dart';
 import 'package:flutter/material.dart';
 import 'package:gapfinderfrontend_dart/navigation/app_routes.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
@@ -12,7 +13,7 @@ class ScheduleSetupView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.palette.background,
       appBar: CustomTopBar(
         title: 'GAP FINDER',
         onBack: () => Navigator.of(context).maybePop(),
@@ -27,7 +28,7 @@ class ScheduleSetupView extends StatelessWidget {
               'Set up your schedule',
               style: AppFonts.display(weight: FontWeight.w800).copyWith(
                 fontSize: 22,
-                color: AppColors.contrast,
+                color: context.palette.contrast,
               ),
             ),
             const SizedBox(height: 6),
@@ -35,7 +36,7 @@ class ScheduleSetupView extends StatelessWidget {
               'Import your classes from Google Calendar',
               style: AppFonts.subtitle().copyWith(
                 fontSize: 14,
-                color: AppColors.contrast.withOpacity(0.55),
+                color: context.palette.contrast.withOpacity(0.55),
               ),
             ),
             const SizedBox(height: 32),

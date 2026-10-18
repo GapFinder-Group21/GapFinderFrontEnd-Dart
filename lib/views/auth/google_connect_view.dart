@@ -1,3 +1,4 @@
+import 'package:gapfinderfrontend_dart/core/theme/app_palette.dart';
 import 'package:flutter/material.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_fonts.dart';
@@ -21,7 +22,7 @@ class GoogleConnectView extends StatelessWidget {
     final vm = context.watch<GoogleConnectViewModel>();
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.palette.background,
       appBar: const CustomTopBar(
         title: 'Google Calendar',
         showBack: true,
@@ -55,7 +56,7 @@ class GoogleConnectView extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: AppFonts.display(weight: FontWeight.w800).copyWith(
                   fontSize: 20,
-                  color: AppColors.contrast,
+                  color: context.palette.contrast,
                 ),
               ),
               const SizedBox(height: 10),
@@ -66,7 +67,7 @@ class GoogleConnectView extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: AppFonts.body(weight: FontWeight.w400).copyWith(
                   fontSize: 14,
-                  color: AppColors.contrast.withOpacity(0.55),
+                  color: context.palette.contrast.withOpacity(0.55),
                 ),
               ),
               // Error message, if opening Google failed
@@ -104,7 +105,7 @@ class GoogleConnectView extends StatelessWidget {
                       'Open Google sign-in again',
                       style: AppFonts.body(weight: FontWeight.w400).copyWith(
                         fontSize: 13,
-                        color: AppColors.contrast.withOpacity(0.5),
+                        color: context.palette.contrast.withOpacity(0.5),
                       ),
                     ),
                   ),

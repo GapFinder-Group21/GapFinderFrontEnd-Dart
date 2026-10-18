@@ -1,3 +1,4 @@
+import 'package:gapfinderfrontend_dart/core/theme/app_palette.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
@@ -72,7 +73,7 @@ class _FriendsViewState extends State<FriendsView> {
     final vm = context.watch<FriendsViewModel>();
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.palette.background,
       body: SafeArea(
         child: Column(
           children: [
@@ -128,8 +129,8 @@ class _FriendsViewState extends State<FriendsView> {
                           _buildSectionHeader(
                             label: 'In class',
                             count: data.inClass.length,
-                            dotColor: AppColors.contrast.withValues(alpha: 0.18),
-                            textColor: AppColors.contrast.withValues(alpha: 0.3),
+                            dotColor: context.palette.contrast.withValues(alpha: 0.18),
+                            textColor: context.palette.contrast.withValues(alpha: 0.3),
                             small: true,
                           ),
                           const SizedBox(height: 12),
@@ -151,7 +152,7 @@ class _FriendsViewState extends State<FriendsView> {
   // Search bar to find users by name
   Widget _buildSearchBar() {
     return Container(
-      color: Colors.white,
+      color: context.palette.surface,
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
       child: TextField(
         controller: _searchController,
@@ -159,8 +160,8 @@ class _FriendsViewState extends State<FriendsView> {
         style: AppFonts.body().copyWith(fontSize: 14),
         decoration: InputDecoration(
           hintText: 'Search users by name...',
-          hintStyle: AppFonts.body().copyWith(color: AppColors.contrast.withValues(alpha: 0.4)),
-          prefixIcon: const Icon(Icons.search_rounded, color: AppColors.contrast),
+          hintStyle: AppFonts.body().copyWith(color: context.palette.contrast.withValues(alpha: 0.4)),
+          prefixIcon: Icon(Icons.search_rounded, color: context.palette.contrast),
           suffixIcon: _vm.isSearching || _searchController.text.isNotEmpty
               ? IconButton(
                   icon: const Icon(Icons.clear_rounded),
@@ -171,15 +172,15 @@ class _FriendsViewState extends State<FriendsView> {
                 )
               : null,
           filled: true,
-          fillColor: AppColors.background,
+          fillColor: context.palette.background,
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: AppColors.contrast.withValues(alpha: 0.1), width: 1.5),
+            borderSide: BorderSide(color: context.palette.contrast.withValues(alpha: 0.1), width: 1.5),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(12),
-            borderSide: BorderSide(color: AppColors.contrast.withValues(alpha: 0.1), width: 1.5),
+            borderSide: BorderSide(color: context.palette.contrast.withValues(alpha: 0.1), width: 1.5),
           ),
         ),
       ),
@@ -192,7 +193,7 @@ class _FriendsViewState extends State<FriendsView> {
       return Center(
         child: Text(
           'No users found',
-          style: AppFonts.body().copyWith(color: AppColors.contrast.withValues(alpha: 0.5)),
+          style: AppFonts.body().copyWith(color: context.palette.contrast.withValues(alpha: 0.5)),
         ),
       );
     }
@@ -206,9 +207,9 @@ class _FriendsViewState extends State<FriendsView> {
           margin: const EdgeInsets.only(bottom: 12),
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: context.palette.surface,
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: AppColors.contrast.withValues(alpha: 0.08)),
+            border: Border.all(color: context.palette.contrast.withValues(alpha: 0.08)),
           ),
           child: Row(
             children: [
@@ -220,12 +221,12 @@ class _FriendsViewState extends State<FriendsView> {
                   children: [
                     Text(
                       user.name,
-                      style: AppFonts.display(weight: FontWeight.w800).copyWith(fontSize: 15, color: AppColors.contrast),
+                      style: AppFonts.display(weight: FontWeight.w800).copyWith(fontSize: 15, color: context.palette.contrast),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       '${user.career} · Sem ${user.semester ?? 1}',
-                      style: AppFonts.body().copyWith(fontSize: 12, color: AppColors.contrast.withValues(alpha: 0.45)),
+                      style: AppFonts.body().copyWith(fontSize: 12, color: context.palette.contrast.withValues(alpha: 0.45)),
                     ),
                   ],
                 ),
@@ -257,7 +258,7 @@ class _FriendsViewState extends State<FriendsView> {
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.accent3.withValues(alpha: 0.3), width: 1.5),
         boxShadow: [
@@ -280,7 +281,7 @@ class _FriendsViewState extends State<FriendsView> {
                   user.name,
                   style: AppFonts.display(weight: FontWeight.w800).copyWith(
                     fontSize: 15,
-                    color: AppColors.contrast,
+                    color: context.palette.contrast,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -288,7 +289,7 @@ class _FriendsViewState extends State<FriendsView> {
                   '${user.career} · Sem ${user.semester ?? 1}',
                   style: AppFonts.body().copyWith(
                     fontSize: 12,
-                    color: AppColors.contrast.withValues(alpha: 0.45),
+                    color: context.palette.contrast.withValues(alpha: 0.45),
                   ),
                 ),
               ],
@@ -403,7 +404,7 @@ class _FriendsViewState extends State<FriendsView> {
           label,
           style: AppFonts.display(weight: FontWeight.w800).copyWith(
             fontSize: small ? 14 : 16,
-            color: textColor ?? AppColors.contrast,
+            color: textColor ?? context.palette.contrast,
           ),
         ),
         const SizedBox(width: 8),
@@ -425,7 +426,7 @@ class _FriendsViewState extends State<FriendsView> {
             '$count',
             style: AppFonts.display(weight: FontWeight.w800).copyWith(
               fontSize: 14,
-              color: AppColors.contrast.withValues(alpha: 0.2),
+              color: context.palette.contrast.withValues(alpha: 0.2),
             ),
           ),
       ],
@@ -440,7 +441,7 @@ class _FriendsViewState extends State<FriendsView> {
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.accent2.withValues(alpha: 0.3), width: 1.5),
         boxShadow: [
@@ -470,7 +471,7 @@ class _FriendsViewState extends State<FriendsView> {
                         decoration: BoxDecoration(
                           color: AppColors.accent2,
                           shape: BoxShape.circle,
-                          border: Border.all(color: Colors.white, width: 2),
+                          border: Border.all(color: context.palette.surface, width: 2),
                         ),
                       ),
                     ),
@@ -485,7 +486,7 @@ class _FriendsViewState extends State<FriendsView> {
                         user.name,
                         style: AppFonts.display(weight: FontWeight.w800).copyWith(
                           fontSize: 15,
-                          color: AppColors.contrast,
+                          color: context.palette.contrast,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -493,7 +494,7 @@ class _FriendsViewState extends State<FriendsView> {
                         '${user.career} · ${user.semester}',
                         style: AppFonts.body().copyWith(
                           fontSize: 12,
-                          color: AppColors.contrast.withValues(alpha: 0.45),
+                          color: context.palette.contrast.withValues(alpha: 0.45),
                         ),
                       ),
                     ],
@@ -536,14 +537,14 @@ class _FriendsViewState extends State<FriendsView> {
                 return Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: AppColors.contrast.withValues(alpha: 0.05),
+                    color: context.palette.contrast.withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
                     DisplayFormatters.interest(interest),
                     style: AppFonts.body(weight: FontWeight.w700).copyWith(
                       fontSize: 10,
-                      color: AppColors.contrast.withValues(alpha: 0.5),
+                      color: context.palette.contrast.withValues(alpha: 0.5),
                     ),
                   ),
                 );
@@ -570,9 +571,9 @@ class _FriendsViewState extends State<FriendsView> {
             width: itemWidth,
             padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: context.palette.surface,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.contrast.withValues(alpha: 0.08), width: 1),
+              border: Border.all(color: context.palette.contrast.withValues(alpha: 0.08), width: 1),
             ),
             child: Column(
               children: [
@@ -585,14 +586,14 @@ class _FriendsViewState extends State<FriendsView> {
                   overflow: TextOverflow.ellipsis,
                   style: AppFonts.body(weight: FontWeight.w700).copyWith(
                     fontSize: 11,
-                    color: AppColors.contrast,
+                    color: context.palette.contrast,
                   ),
                 ),
                 Text(
                   'In class',
                   style: AppFonts.body().copyWith(
                     fontSize: 10,
-                    color: AppColors.contrast.withValues(alpha: 0.4),
+                    color: context.palette.contrast.withValues(alpha: 0.4),
                   ),
                 ),
               ],
@@ -621,7 +622,7 @@ class _FriendsViewState extends State<FriendsView> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.people_outline, size: 64, color: AppColors.contrast.withValues(alpha: 0.15)),
+            Icon(Icons.people_outline, size: 64, color: context.palette.contrast.withValues(alpha: 0.15)),
             const SizedBox(height: 20),
             Text(
               'No friends added yet',
@@ -631,7 +632,7 @@ class _FriendsViewState extends State<FriendsView> {
             Text(
               'Add friends to see when they have free GAPs.',
               textAlign: TextAlign.center,
-              style: AppFonts.body().copyWith(color: AppColors.contrast.withValues(alpha: 0.5)),
+              style: AppFonts.body().copyWith(color: context.palette.contrast.withValues(alpha: 0.5)),
             ),
           ],
         ),
@@ -645,7 +646,7 @@ class _FriendsViewState extends State<FriendsView> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.cloud_off, size: 48, color: AppColors.contrast.withValues(alpha: 0.2)),
+          Icon(Icons.cloud_off, size: 48, color: context.palette.contrast.withValues(alpha: 0.2)),
           const SizedBox(height: 16),
           Text('Something went wrong', style: AppFonts.body(weight: FontWeight.w700)),
           TextButton(onPressed: _vm.refresh, child: const Text('Try again')),

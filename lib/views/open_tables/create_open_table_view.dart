@@ -1,3 +1,4 @@
+import 'package:gapfinderfrontend_dart/core/theme/app_palette.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
@@ -35,7 +36,7 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -52,7 +53,7 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
                 style: AppFonts.subtitle(weight: FontWeight.w800).copyWith(
                   fontSize: 14,
                   letterSpacing: 1.2,
-                  color: AppColors.contrast.withValues(alpha: 0.4),
+                  color: context.palette.contrast.withValues(alpha: 0.4),
                 ),
               ),
               const SizedBox(height: 16),
@@ -61,7 +62,7 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
                   padding: const EdgeInsets.symmetric(vertical: 20),
                   child: Text(
                     'No activities found in catalog',
-                    style: AppFonts.body().copyWith(color: AppColors.contrast.withValues(alpha: 0.5)),
+                    style: AppFonts.body().copyWith(color: context.palette.contrast.withValues(alpha: 0.5)),
                   ),
                 )
               else
@@ -80,19 +81,19 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
                         },
                         leading: Icon(
                           isSelected ? Icons.check_circle_rounded : Icons.circle_outlined,
-                          color: isSelected ? AppColors.accent3 : AppColors.contrast.withValues(alpha: 0.2),
+                          color: isSelected ? AppColors.accent3 : context.palette.contrast.withValues(alpha: 0.2),
                         ),
                         title: Text(
                           a.name,
                           style: AppFonts.body(
                             weight: isSelected ? FontWeight.w700 : FontWeight.w400,
                           ).copyWith(
-                            color: isSelected ? AppColors.accent3 : AppColors.contrast,
+                            color: isSelected ? AppColors.accent3 : context.palette.contrast,
                           ),
                         ),
                         subtitle: Text(
                           '${a.durationMinutes} minutes · ${a.effortType.name.toLowerCase()}',
-                          style: AppFonts.body().copyWith(fontSize: 12, color: AppColors.contrast.withValues(alpha: 0.45)),
+                          style: AppFonts.body().copyWith(fontSize: 12, color: context.palette.contrast.withValues(alpha: 0.45)),
                         ),
                         trailing: const Icon(Icons.chevron_right_rounded, size: 18),
                       );
@@ -113,7 +114,7 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -130,7 +131,7 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
                 style: AppFonts.subtitle(weight: FontWeight.w800).copyWith(
                   fontSize: 14,
                   letterSpacing: 1.2,
-                  color: AppColors.contrast.withValues(alpha: 0.4),
+                  color: context.palette.contrast.withValues(alpha: 0.4),
                 ),
               ),
               const SizedBox(height: 16),
@@ -139,7 +140,7 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
                   padding: const EdgeInsets.symmetric(vertical: 20),
                   child: Text(
                     'No buildings found in system',
-                    style: AppFonts.body().copyWith(color: AppColors.contrast.withValues(alpha: 0.5)),
+                    style: AppFonts.body().copyWith(color: context.palette.contrast.withValues(alpha: 0.5)),
                   ),
                 )
               else
@@ -158,14 +159,14 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
                         },
                         leading: Icon(
                           isSelected ? Icons.check_circle_rounded : Icons.circle_outlined,
-                          color: isSelected ? AppColors.accent2 : AppColors.contrast.withValues(alpha: 0.2),
+                          color: isSelected ? AppColors.accent2 : context.palette.contrast.withValues(alpha: 0.2),
                         ),
                         title: Text(
                           b.name,
                           style: AppFonts.body(
                             weight: isSelected ? FontWeight.w700 : FontWeight.w400,
                           ).copyWith(
-                            color: isSelected ? AppColors.accent2 : AppColors.contrast,
+                            color: isSelected ? AppColors.accent2 : context.palette.contrast,
                           ),
                         ),
                         trailing: const Icon(Icons.chevron_right_rounded, size: 18),
@@ -266,7 +267,7 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
                 Text(
                   vm.errorMessage!,
                   textAlign: TextAlign.center,
-                  style: AppFonts.body().copyWith(color: AppColors.contrast.withValues(alpha: 0.5)),
+                  style: AppFonts.body().copyWith(color: context.palette.contrast.withValues(alpha: 0.5)),
                 ),
                 const SizedBox(height: 24),
                 CustomButton(label: 'Retry', onClick: vm.loadData),
@@ -284,7 +285,7 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
         if (!didPop) _onCancel();
       },
       child: Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.palette.background,
       appBar: CustomTopBar(
         title: 'Create Open Table',
         showBack: true,
@@ -317,28 +318,28 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
                     maxLines: 4,
                     onTap: () => vm.setStep(OpenTableCreationStep.description),
                     onChanged: (_) => setState(() {}),
-                    style: AppFonts.body().copyWith(fontSize: 13, color: AppColors.contrast),
+                    style: AppFonts.body().copyWith(fontSize: 13, color: context.palette.contrast),
                     decoration: InputDecoration(
                       hintText: "Describe what you want to do, where exactly you'll be...",
-                      hintStyle: AppFonts.body().copyWith(color: AppColors.contrast.withValues(alpha: 0.3)),
+                      hintStyle: AppFonts.body().copyWith(color: context.palette.contrast.withValues(alpha: 0.3)),
                       filled: true,
-                      fillColor: AppColors.background,
+                      fillColor: context.palette.background,
                       counterText: '',
                       contentPadding: const EdgeInsets.all(12),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide(color: AppColors.contrast.withValues(alpha: 0.12), width: 1.5),
+                        borderSide: BorderSide(color: context.palette.contrast.withValues(alpha: 0.12), width: 1.5),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
-                        borderSide: BorderSide(color: AppColors.contrast.withValues(alpha: 0.12), width: 1.5),
+                        borderSide: BorderSide(color: context.palette.contrast.withValues(alpha: 0.12), width: 1.5),
                       ),
                     ),
                   ),
                   const SizedBox(height: 6),
                   Text(
                     '${_descController.text.length}/160',
-                    style: AppFonts.body().copyWith(fontSize: 11, color: AppColors.contrast.withValues(alpha: 0.3)),
+                    style: AppFonts.body().copyWith(fontSize: 11, color: context.palette.contrast.withValues(alpha: 0.3)),
                   ),
                 ],
               ),
@@ -357,7 +358,7 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
                   ),
                   Text(
                     '${vm.maxParticipants}',
-                    style: AppFonts.body(weight: FontWeight.w700).copyWith(fontSize: 16, color: AppColors.contrast),
+                    style: AppFonts.body(weight: FontWeight.w700).copyWith(fontSize: 16, color: context.palette.contrast),
                   ),
                   IconButton(
                     onPressed: vm.canIncrementParticipants ? vm.incrementParticipants : null,
@@ -403,7 +404,7 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
                       'Cancel',
                       style: AppFonts.body(weight: FontWeight.w700).copyWith(
                         fontSize: 14,
-                        color: AppColors.contrast.withValues(alpha: 0.4),
+                        color: context.palette.contrast.withValues(alpha: 0.4),
                       ),
                     ),
                   ),
@@ -426,9 +427,9 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 28),
         decoration: BoxDecoration(
-          color: AppColors.background,
+          color: context.palette.background,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.contrast.withValues(alpha: 0.12), width: 1.5),
+          border: Border.all(color: context.palette.contrast.withValues(alpha: 0.12), width: 1.5),
         ),
         child: Column(
           children: [
@@ -436,12 +437,12 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
             const SizedBox(height: 8),
             Text(
               'Take a photo',
-              style: AppFonts.body(weight: FontWeight.w700).copyWith(fontSize: 14, color: AppColors.contrast),
+              style: AppFonts.body(weight: FontWeight.w700).copyWith(fontSize: 14, color: context.palette.contrast),
             ),
             const SizedBox(height: 2),
             Text(
               'Show where the table is',
-              style: AppFonts.body().copyWith(fontSize: 12, color: AppColors.contrast.withValues(alpha: 0.45)),
+              style: AppFonts.body().copyWith(fontSize: 12, color: context.palette.contrast.withValues(alpha: 0.45)),
             ),
           ],
         ),
@@ -486,9 +487,9 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-            color: AppColors.background,
+            color: context.palette.background,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: AppColors.contrast.withValues(alpha: 0.12), width: 1.5),
+            border: Border.all(color: context.palette.contrast.withValues(alpha: 0.12), width: 1.5),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -500,7 +501,7 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
                     value,
                     style: AppFonts.body(weight: FontWeight.w700).copyWith(
                       fontSize: 14,
-                      color: AppColors.contrast,
+                      color: context.palette.contrast,
                     ),
                   ),
                   if (subtitle != null)
@@ -510,7 +511,7 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
                     ),
                 ],
               ),
-              Icon(Icons.unfold_more_rounded, color: AppColors.contrast.withValues(alpha: 0.4), size: 20),
+              Icon(Icons.unfold_more_rounded, color: context.palette.contrast.withValues(alpha: 0.4), size: 20),
             ],
           ),
         ),
@@ -524,9 +525,9 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
       width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.contrast.withValues(alpha: 0.08), width: 1.5),
+        border: Border.all(color: context.palette.contrast.withValues(alpha: 0.08), width: 1.5),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -536,7 +537,7 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
             style: AppFonts.subtitle(weight: FontWeight.w700).copyWith(
               fontSize: 11,
               letterSpacing: 1.2,
-              color: AppColors.contrast.withValues(alpha: 0.45),
+              color: context.palette.contrast.withValues(alpha: 0.45),
             ),
           ),
           const SizedBox(height: 12),

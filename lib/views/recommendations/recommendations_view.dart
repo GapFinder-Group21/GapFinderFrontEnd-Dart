@@ -1,3 +1,4 @@
+import 'package:gapfinderfrontend_dart/core/theme/app_palette.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
@@ -17,7 +18,7 @@ class RecommendationsView extends StatelessWidget {
     final vm = context.watch<RecommendationsViewModel>();
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.palette.background,
       body: SafeArea(
         child: Column(
           children: [
@@ -72,7 +73,7 @@ class RecommendationsView extends StatelessWidget {
                             Text(
                               vm.loadError!.replaceAll('Exception: ', ''),
                               textAlign: TextAlign.center,
-                              style: AppFonts.body().copyWith(color: AppColors.contrast.withValues(alpha: 0.5)),
+                              style: AppFonts.body().copyWith(color: context.palette.contrast.withValues(alpha: 0.5)),
                             ),
                             const SizedBox(height: 16),
                             ElevatedButton(
@@ -99,7 +100,7 @@ class RecommendationsView extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.all(22),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: context.palette.surface,
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(color: AppColors.accent2, width: 2),
                             boxShadow: [
@@ -140,7 +141,7 @@ class RecommendationsView extends StatelessWidget {
                                         'Favorite Building',
                                         style: AppFonts.display(weight: FontWeight.w900).copyWith(
                                           fontSize: 18,
-                                          color: AppColors.contrast,
+                                          color: context.palette.contrast,
                                         ),
                                       ),
                                     ],
@@ -152,20 +153,20 @@ class RecommendationsView extends StatelessWidget {
                                 width: double.infinity,
                                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                                 decoration: BoxDecoration(
-                                  color: AppColors.background,
+                                  color: context.palette.background,
                                   borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(color: AppColors.contrast.withValues(alpha: 0.08)),
+                                  border: Border.all(color: context.palette.contrast.withValues(alpha: 0.08)),
                                 ),
                                 child: Row(
                                   children: [
-                                    const Icon(Icons.business_rounded, color: AppColors.contrast, size: 20),
+                                    Icon(Icons.business_rounded, color: context.palette.contrast, size: 20),
                                     const SizedBox(width: 10),
                                     Expanded(
                                       child: Text(
                                         data.buildingName ?? 'No frequent building yet',
                                         style: AppFonts.display(weight: FontWeight.w900).copyWith(
                                           fontSize: 16,
-                                          color: AppColors.contrast,
+                                          color: context.palette.contrast,
                                         ),
                                       ),
                                     ),
@@ -190,13 +191,13 @@ class RecommendationsView extends StatelessWidget {
                               const SizedBox(height: 10),
                               Row(
                                 children: [
-                                  Icon(Icons.info_outline_rounded, size: 13, color: AppColors.contrast.withValues(alpha: 0.4)),
+                                  Icon(Icons.info_outline_rounded, size: 13, color: context.palette.contrast.withValues(alpha: 0.4)),
                                   const SizedBox(width: 6),
                                   Text(
                                     'Recalculated daily based on your location activity',
                                     style: AppFonts.body().copyWith(
                                       fontSize: 11,
-                                      color: AppColors.contrast.withValues(alpha: 0.45),
+                                      color: context.palette.contrast.withValues(alpha: 0.45),
                                     ),
                                   ),
                                 ],
@@ -219,7 +220,7 @@ class RecommendationsView extends StatelessWidget {
                               'Recommended Open Tables',
                               style: AppFonts.display(weight: FontWeight.w800).copyWith(
                                 fontSize: 16,
-                                color: AppColors.contrast,
+                                color: context.palette.contrast,
                               ),
                             ),
                             const Spacer(),
@@ -246,13 +247,13 @@ class RecommendationsView extends StatelessWidget {
                             padding: const EdgeInsets.all(40),
                             alignment: Alignment.center,
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: context.palette.surface,
                               borderRadius: BorderRadius.circular(18),
-                              border: Border.all(color: AppColors.contrast.withValues(alpha: 0.08)),
+                              border: Border.all(color: context.palette.contrast.withValues(alpha: 0.08)),
                             ),
                             child: Column(
                               children: [
-                                Icon(Icons.table_restaurant_outlined, size: 48, color: AppColors.contrast.withValues(alpha: 0.2)),
+                                Icon(Icons.table_restaurant_outlined, size: 48, color: context.palette.contrast.withValues(alpha: 0.2)),
                                 const SizedBox(height: 16),
                                 Text(
                                   'No open tables found',
@@ -262,7 +263,7 @@ class RecommendationsView extends StatelessWidget {
                                 Text(
                                   'There are no active open tables in your favorite building right now.',
                                   textAlign: TextAlign.center,
-                                  style: AppFonts.body().copyWith(fontSize: 12, color: AppColors.contrast.withValues(alpha: 0.5)),
+                                  style: AppFonts.body().copyWith(fontSize: 12, color: context.palette.contrast.withValues(alpha: 0.5)),
                                 ),
                               ],
                             ),
@@ -288,7 +289,7 @@ class RecommendationsView extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: AppColors.accent2.withValues(alpha: 0.3), width: 1.5),
         boxShadow: [
@@ -316,7 +317,7 @@ class RecommendationsView extends StatelessWidget {
                         table.creator?.name ?? 'User',
                         style: AppFonts.display(weight: FontWeight.w800).copyWith(
                           fontSize: 15,
-                          color: AppColors.contrast,
+                          color: context.palette.contrast,
                         ),
                       ),
                       const SizedBox(height: 3),
@@ -329,17 +330,17 @@ class RecommendationsView extends StatelessWidget {
                             style: AppFonts.body().copyWith(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,
-                              color: AppColors.contrast.withValues(alpha: 0.5),
+                              color: context.palette.contrast.withValues(alpha: 0.5),
                             ),
                           ),
                           const SizedBox(width: 8),
-                          Icon(Icons.access_time_rounded, size: 12, color: AppColors.contrast.withValues(alpha: 0.35)),
+                          Icon(Icons.access_time_rounded, size: 12, color: context.palette.contrast.withValues(alpha: 0.35)),
                           const SizedBox(width: 4),
                           Text(
                             '${remainingMins}m left',
                             style: AppFonts.body().copyWith(
                               fontSize: 12,
-                              color: AppColors.contrast.withValues(alpha: 0.45),
+                              color: context.palette.contrast.withValues(alpha: 0.45),
                             ),
                           ),
                         ],
@@ -381,7 +382,7 @@ class RecommendationsView extends StatelessWidget {
                   'Up to ${table.maxParticipants} people',
                   style: AppFonts.body(weight: FontWeight.w700).copyWith(
                     fontSize: 11,
-                    color: AppColors.contrast.withValues(alpha: 0.45),
+                    color: context.palette.contrast.withValues(alpha: 0.45),
                   ),
                 ),
                 const Spacer(),

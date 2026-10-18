@@ -1,3 +1,4 @@
+import 'package:gapfinderfrontend_dart/core/theme/app_palette.dart';
 import 'package:flutter/material.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_fonts.dart';
@@ -31,7 +32,7 @@ class InterestsView extends StatelessWidget {
     final vm = context.watch<InterestsViewModel>();
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.palette.background,
       appBar: const CustomTopBar(
         title: 'GAP FINDER',
         subtitle: 'Profile Setup',
@@ -49,7 +50,7 @@ class InterestsView extends StatelessWidget {
                 child: Text(
                   'Error loading interests: ${vm.loadError}',
                   textAlign: TextAlign.center,
-                  style: AppFonts.body().copyWith(color: AppColors.contrast.withOpacity(0.6)),
+                  style: AppFonts.body().copyWith(color: context.palette.contrast.withOpacity(0.6)),
                 ),
               ),
             );
@@ -70,7 +71,7 @@ class InterestsView extends StatelessWidget {
                         'What are you into?',
                         style: AppFonts.display(weight: FontWeight.w800).copyWith(
                           fontSize: 22,
-                          color: AppColors.contrast,
+                          color: context.palette.contrast,
                         ),
                       ),
                       const SizedBox(height: 6),
@@ -78,7 +79,7 @@ class InterestsView extends StatelessWidget {
                         "Select all that apply — we'll use this for matching",
                         style: AppFonts.subtitle().copyWith(
                           fontSize: 14,
-                          color: AppColors.contrast.withOpacity(0.55),
+                          color: context.palette.contrast.withOpacity(0.55),
                         ),
                       ),
                       const SizedBox(height: 28),
@@ -95,11 +96,11 @@ class InterestsView extends StatelessWidget {
                               duration: const Duration(milliseconds: 200),
                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                               decoration: BoxDecoration(
-                                color: isSelected ? AppColors.accent1 : Colors.white,
+                                color: isSelected ? AppColors.accent1 : context.palette.surface,
                                 borderRadius: BorderRadius.circular(20),
                                 border: Border.all(
                                   width: 1.5,
-                                  color: isSelected ? AppColors.accent1 : AppColors.contrast.withOpacity(0.18),
+                                  color: isSelected ? AppColors.accent1 : context.palette.contrast.withOpacity(0.18),
                                 ),
                               ),
                               child: Text(
@@ -108,7 +109,7 @@ class InterestsView extends StatelessWidget {
                                   weight: isSelected ? FontWeight.w700 : FontWeight.w400,
                                 ).copyWith(
                                   fontSize: 13,
-                                  color: isSelected ? Colors.white : AppColors.contrast,
+                                  color: isSelected ? Colors.white : context.palette.contrast,
                                 ),
                               ),
                             ),

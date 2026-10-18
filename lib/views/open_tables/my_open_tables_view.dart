@@ -1,3 +1,4 @@
+import 'package:gapfinderfrontend_dart/core/theme/app_palette.dart';
 import 'package:flutter/material.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_fonts.dart';
@@ -27,7 +28,7 @@ class _MyOpenTablesViewState extends State<MyOpenTablesView> {
     final vm = context.watch<MyOpenTablesViewModel>();
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.palette.background,
       appBar: const CustomTopBar(
         title: 'My Open Tables',
         showBack: true,
@@ -67,7 +68,7 @@ class _MyOpenTablesViewState extends State<MyOpenTablesView> {
         style: AppFonts.subtitle(weight: FontWeight.w800).copyWith(
           fontSize: 12,
           letterSpacing: 1.2,
-          color: AppColors.contrast.withValues(alpha: 0.4),
+          color: context.palette.contrast.withValues(alpha: 0.4),
         ),
       ),
     );
@@ -104,13 +105,13 @@ class _MyOpenTablesViewState extends State<MyOpenTablesView> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.history_rounded, size: 64, color: AppColors.contrast.withValues(alpha: 0.1)),
+            Icon(Icons.history_rounded, size: 64, color: context.palette.contrast.withValues(alpha: 0.1)),
             const SizedBox(height: 16),
             Text(
               'No Open Tables found.',
               textAlign: TextAlign.center,
               style: AppFonts.body().copyWith(
-                color: AppColors.contrast.withValues(alpha: 0.4),
+                color: context.palette.contrast.withValues(alpha: 0.4),
               ),
             ),
           ],
@@ -128,9 +129,9 @@ class _MyOpenTablesViewState extends State<MyOpenTablesView> {
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.contrast.withValues(alpha: 0.07), width: 1.5),
+        border: Border.all(color: context.palette.contrast.withValues(alpha: 0.07), width: 1.5),
         boxShadow: [
           BoxShadow(
             color: AppColors.contrast.withValues(alpha: 0.04),
@@ -168,7 +169,7 @@ class _MyOpenTablesViewState extends State<MyOpenTablesView> {
                               overflow: TextOverflow.ellipsis,
                               style: AppFonts.display(weight: FontWeight.w800).copyWith(
                                 fontSize: 15,
-                                color: AppColors.contrast,
+                                color: context.palette.contrast,
                               ),
                             ),
                           ),
@@ -204,7 +205,7 @@ class _MyOpenTablesViewState extends State<MyOpenTablesView> {
               style: AppFonts.subtitle(weight: FontWeight.w800).copyWith(
                 fontSize: 10,
                 letterSpacing: 1,
-                color: AppColors.contrast.withValues(alpha: 0.35),
+                color: context.palette.contrast.withValues(alpha: 0.35),
               ),
             ),
           ),
@@ -214,7 +215,7 @@ class _MyOpenTablesViewState extends State<MyOpenTablesView> {
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
-              color: AppColors.background,
+              color: context.palette.background,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: isActive ? AppColors.accent3 : Colors.grey.withValues(alpha: 0.3), width: 1.5),
             ),
@@ -222,7 +223,7 @@ class _MyOpenTablesViewState extends State<MyOpenTablesView> {
               '"${table.description}"',
               style: AppFonts.body().copyWith(
                 fontSize: 13,
-                color: AppColors.contrast.withValues(alpha: 0.65),
+                color: context.palette.contrast.withValues(alpha: 0.65),
                 fontStyle: FontStyle.italic,
               ),
             ),
@@ -236,7 +237,7 @@ class _MyOpenTablesViewState extends State<MyOpenTablesView> {
                   'Up to ${table.maxParticipants} people',
                   style: AppFonts.body(weight: FontWeight.w700).copyWith(
                     fontSize: 11,
-                    color: AppColors.contrast.withValues(alpha: 0.45),
+                    color: context.palette.contrast.withValues(alpha: 0.45),
                   ),
                 ),
                 const Spacer(),
@@ -258,7 +259,7 @@ class _MyOpenTablesViewState extends State<MyOpenTablesView> {
                     'Table ended',
                     style: AppFonts.body().copyWith(
                       fontSize: 11,
-                      color: AppColors.contrast.withValues(alpha: 0.4),
+                      color: context.palette.contrast.withValues(alpha: 0.4),
                     ),
                   ),
               ],
