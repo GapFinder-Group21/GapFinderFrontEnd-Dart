@@ -8,7 +8,7 @@ class ClassBlockService {
     final res = await ApiClient.get('/class-blocks/$id');
 
     if (res.statusCode != 200) {
-      throw Exception('Error getting class block: ${res.statusCode}');
+      throw Exception(_errorMessage(res, 'Error getting class block'));
     }
 
     return ClassBlock.fromJson(jsonDecode(utf8.decode(res.bodyBytes)));
@@ -19,7 +19,7 @@ class ClassBlockService {
     final res = await ApiClient.get('/class-blocks/user/$userId');
 
     if (res.statusCode != 200) {
-      throw Exception('Error getting schedule: ${res.statusCode}');
+      throw Exception(_errorMessage(res, 'Error getting schedule'));
     }
 
     final List data = jsonDecode(utf8.decode(res.bodyBytes));
@@ -31,7 +31,7 @@ class ClassBlockService {
     final res = await ApiClient.post('/class-blocks/user/$userId', body: classBlock.toJson());
 
     if (res.statusCode != 201) {
-      throw Exception('Error creating class block: ${res.statusCode}');
+      throw Exception(_errorMessage(res, 'Error creating class block'));
     }
 
     return ClassBlock.fromJson(jsonDecode(utf8.decode(res.bodyBytes)));
@@ -42,7 +42,7 @@ class ClassBlockService {
     final res = await ApiClient.put('/class-blocks/$id', body: classBlock.toJson());
 
     if (res.statusCode != 200) {
-      throw Exception('Error updating class block: ${res.statusCode}');
+      throw Exception(_errorMessage(res, 'Error updating class block'));
     }
 
     return ClassBlock.fromJson(jsonDecode(utf8.decode(res.bodyBytes)));
@@ -53,7 +53,23 @@ class ClassBlockService {
     final res = await ApiClient.delete('/class-blocks/$id');
 
     if (res.statusCode != 204) {
-      throw Exception('Error deleting class block: ${res.statusCode}');
+      throw Exception(_errorMessage(res, 'Error deleting class block'));
     }
+  }
+
+  // The back sends errors as plain text (400/403/404/409) or as JSON {"error": "..."} (409)
+  String _errorMessage(dynamic res, String fallback) {
+    final body = utf8.decode(res.bodyBytes).trim();
+    if (body.isEmpty) return '$fallback: ${res.statusCode}';
+
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map && decoded['error'] != null) {
+        return decoded['error'].toString();
+      }
+    } catch (_) {
+      // Not JSON, it is plain text
+    }
+    return body;
   }
 }

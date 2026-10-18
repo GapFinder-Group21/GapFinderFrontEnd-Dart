@@ -36,7 +36,8 @@ class _SearchingMatchScreenState extends State<SearchingMatchScreen> {
   }
 
   // Finds the current gap, asks for candidates and opens the best one - GET /matches/gap/{gapId}/candidates.
-  // If there are no candidates but the user already has an accepted match, it opens that match.
+  // The back returns no candidates when the current gap already has an accepted or completed match,
+  // so in that case it opens the accepted match of that gap (a completed one just shows "no matches").
   Future<void> _searchMatch() async {
     try {
       final gaps = await _gapService.getUserGaps(widget.userId);
@@ -61,8 +62,8 @@ class _SearchingMatchScreenState extends State<SearchingMatchScreen> {
 
       if (results.isEmpty) {
         final allMatches = await _matchService.getAll();
-        final activeMatch = allMatches.where((m) => 
-          (m.proposerGap?.user?.id == widget.userId || m.acceptorGap?.user?.id == widget.userId) &&
+        final activeMatch = allMatches.where((m) =>
+          (m.proposerGapId == currentGap.id || m.acceptorGapId == currentGap.id) &&
           m.status == MatchStatusEnum.ACCEPTED
         ).firstOrNull;
         if (activeMatch != null) {

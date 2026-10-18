@@ -8,7 +8,7 @@ class GoogleService {
     final res = await ApiClient.get('/google/auth-url');
 
     if (res.statusCode != 200) {
-      throw Exception('Error al obtener la URL de Google: ${res.statusCode}');
+      throw Exception(_errorMessage(res, 'Error al obtener la URL de Google'));
     }
 
     final data = GoogleAuthUrlResponse.fromJson(
@@ -22,9 +22,25 @@ class GoogleService {
     final res = await ApiClient.post('/google/import-schedule');
 
     if (res.statusCode != 200) {
-      throw Exception('Error al importar el horario: ${res.statusCode}');
+      throw Exception(_errorMessage(res, 'Error al importar el horario'));
     }
 
     return true;
+  }
+
+  // The back sends errors as plain text (400/403/404/409) or as JSON {"error": "..."} (409)
+  String _errorMessage(dynamic res, String fallback) {
+    final body = utf8.decode(res.bodyBytes).trim();
+    if (body.isEmpty) return '$fallback: ${res.statusCode}';
+
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map && decoded['error'] != null) {
+        return decoded['error'].toString();
+      }
+    } catch (_) {
+      // Not JSON, it is plain text
+    }
+    return body;
   }
 }

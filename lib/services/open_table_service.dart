@@ -41,7 +41,8 @@ class OpenTableService {
   }
 
   // Create a new open table - POST /open-tables
-  // Exige creator, building, title, startTime antes de endTime, maxParticipants > 0 y status
+  // Exige creator (el usuario logueado), building, title, startTime antes de endTime,
+  // endTime en el futuro y maxParticipants > 0. El back siempre la crea OPEN
   Future<OpenTable> createOpenTable(
       int creatorId, int buildingId, OpenTable openTable) async {
     final res = await ApiClient.post(

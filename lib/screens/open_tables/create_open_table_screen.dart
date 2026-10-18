@@ -10,7 +10,6 @@ import '../../models/open_table_status_enum.dart';
 import '../../services/activity_service.dart';
 import '../../services/building_service.dart';
 import '../../services/open_table_abandonment_service.dart';
-import '../../services/open_table_participant_service.dart';
 import '../../services/open_table_service.dart';
 import '../../core/widgets/custom_top_bar.dart';
 import '../../core/widgets/custom_button.dart';
@@ -28,7 +27,6 @@ class _CreateOpenTableScreenState extends State<CreateOpenTableScreen> {
   final _activityService = ActivityService();
   final _buildingService = BuildingService();
   final _openTableService = OpenTableService();
-  final _participantService = OpenTableParticipantService();
   final _abandonmentService = OpenTableAbandonmentService();
 
   final _descController = TextEditingController();
@@ -247,7 +245,8 @@ class _CreateOpenTableScreenState extends State<CreateOpenTableScreen> {
     );
   }
 
-  // Creates the open table and joins the creator to it - POST /open-tables
+  // Creates the open table - POST /open-tables
+  // The creator is not a participant: the back rejects the creator joining their own table
   Future<void> _publish() async {
     if (_selectedActivity == null || _selectedBuilding == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -274,10 +273,7 @@ class _CreateOpenTableScreenState extends State<CreateOpenTableScreen> {
         activity: _selectedActivity,
       );
 
-      final created = await _openTableService.createOpenTable(userId, _selectedBuilding!.id, newTable);
-
-      // Register the creator as a participant - POST /open-table-participants/table/{id}/join
-      await _participantService.join(created.id, userId);
+      await _openTableService.createOpenTable(userId, _selectedBuilding!.id, newTable);
 
       if (mounted) {
         Navigator.pop(context, true);
@@ -308,7 +304,8 @@ class _CreateOpenTableScreenState extends State<CreateOpenTableScreen> {
         step: _currentStep,
         activityId: _selectedActivity?.id,
         durationMinutes: _selectedActivity != null && _durationMinutes > 0 ? _durationMinutes : null,
-        maxParticipants: _currentStep == OpenTableCreationStep.participants ? _maxParticipants : null,
+        // The back accepts the max participants from the PARTICIPANTS step onwards
+        maxParticipants: _currentStep.index >= OpenTableCreationStep.participants.index ? _maxParticipants : null,
         buildingId: _currentStep == OpenTableCreationStep.location ? _selectedBuilding?.id : null,
       ))
           .catchError((e) => debugPrint('Abandonment not registered: $e'));

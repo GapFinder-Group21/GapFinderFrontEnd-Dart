@@ -12,7 +12,8 @@ import '../../models/match_status_enum.dart';
 import '../../services/gap_service.dart';
 
 /// Match tab: shows your current free gap and the button to start looking for a match.
-/// The button is disabled if you have no gap now or you already have an active match.
+/// The button is disabled if you have no gap now or the current gap already has an
+/// accepted or completed match (the back gives no candidates for that gap).
 class MatchMainScreen extends StatefulWidget {
   final bool isActive;
   const MatchMainScreen({super.key, this.isActive = false});
@@ -31,16 +32,16 @@ class _MatchMainScreenState extends State<MatchMainScreen> {
   DateTime? _lastCheckTime;
 
   @override
-  // Load the current gap and the active match
+  // Load the current gap and its match
   void initState() {
     super.initState();
     _loadData();
   }
 
-  // Starts loading the current gap and the active match
+  // Starts loading the current gap and then the match of that gap
   void _loadData() {
     _activeGapFuture = _loadActiveGap();
-    _activeMatchFuture = _loadActiveMatch();
+    _activeMatchFuture = _activeGapFuture.then(_loadGapMatch);
   }
 
   // Reload everything (pull to refresh)
@@ -66,28 +67,32 @@ class _MatchMainScreenState extends State<MatchMainScreen> {
     }
   }
 
-  // Finds an accepted match of this user - GET /matches
-  Future<Match?> _loadActiveMatch() async {
-    final userId = await TokenStorage.getUserId();
-    if (userId == null) return null;
+  // Finds the accepted or completed match of the current gap - GET /matches
+  // Same rule as the back: only the current gap counts, matches of other gaps do not block
+  Future<Match?> _loadGapMatch(Gap? gap) async {
+    if (gap == null) return null;
     try {
       final all = await _matchService.getAll();
-      final active = all.where((m) => 
-        (m.proposerGap?.user?.id == userId || m.acceptorGap?.user?.id == userId) &&
-        m.status == MatchStatusEnum.ACCEPTED
+      final booked = all.where((m) =>
+        (m.proposerGapId == gap.id || m.acceptorGapId == gap.id) &&
+        (m.status == MatchStatusEnum.ACCEPTED || m.status == MatchStatusEnum.COMPLETED)
       ).firstOrNull;
 
-      if (active != null) {
-        debugPrint('🔒 [MatchMainScreen] Active match found! ID=${active.id} blocking match button.');
+      if (booked != null) {
+        debugPrint('🔒 [MatchMainScreen] Gap ${gap.id} already has match ID=${booked.id} (${booked.status.name}), blocking match button.');
       } else {
-        debugPrint('🔓 [MatchMainScreen] No active ACCEPTED match found for userId=$userId.');
+        debugPrint('🔓 [MatchMainScreen] Gap ${gap.id} has no accepted or completed match.');
       }
-      return active;
+      return booked;
     } catch (e) {
-      debugPrint('❌ [MatchMainScreen] Error loading active match: $e');
+      debugPrint('❌ [MatchMainScreen] Error loading the match of the gap: $e');
       return null;
     }
   }
+
+  // An accepted match whose meeting has not ended yet (the back moves it to COMPLETED every 5 minutes)
+  bool _isOngoing(Match match) =>
+      match.status == MatchStatusEnum.ACCEPTED && match.endTime.isAfter(DateTime.now());
 
   // Finds the gap the user is in right now - GET /gaps/user/{userId}
   Future<Gap?> _loadActiveGap() async {
@@ -180,9 +185,10 @@ class _MatchMainScreenState extends State<MatchMainScreen> {
                     builder: (context, snapshot) {
                       final isLoading = snapshot.connectionState == ConnectionState.waiting;
                       final gap = isLoading ? null : snapshot.data![0] as Gap?;
-                      final activeMatch = isLoading ? null : snapshot.data![1] as Match?;
+                      // Accepted or completed match of the current gap
+                      final gapMatch = isLoading ? null : snapshot.data![1] as Match?;
 
-                      final bool canMatch = gap != null && activeMatch == null;
+                      final bool canMatch = gap != null && gapMatch == null;
 
                       return Column(
                         children: [
@@ -286,7 +292,7 @@ class _MatchMainScreenState extends State<MatchMainScreen> {
                               ),
                             ),
 
-                          if (activeMatch != null)
+                          if (gapMatch != null)
                             Container(
                               padding: const EdgeInsets.all(12),
                               margin: const EdgeInsets.only(bottom: 24),
@@ -301,7 +307,9 @@ class _MatchMainScreenState extends State<MatchMainScreen> {
                                   const SizedBox(width: 10),
                                   Expanded(
                                     child: Text(
-                                      "YOU HAVE AN ACTIVE MATCH HAPPENING NOW!",
+                                      _isOngoing(gapMatch)
+                                          ? "YOU HAVE AN ACTIVE MATCH IN THIS GAP!"
+                                          : "YOU ALREADY HAD A MATCH IN THIS GAP",
                                       style: AppFonts.body(weight: FontWeight.w800).copyWith(
                                         fontSize: 12,
                                         color: AppColors.accent2,

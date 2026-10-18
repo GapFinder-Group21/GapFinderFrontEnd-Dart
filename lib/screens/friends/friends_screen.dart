@@ -196,13 +196,11 @@ class _FriendsScreenState extends State<FriendsScreen> {
   }
 
   // Gets a friend's gaps for this week - GET /gaps/user/{userId}
-  // If the friend has no gaps yet, they are generated from the friend's classes
-  // POST /gaps/user/{userId}/generate-week
+  // Only the friend can generate their own gaps (the back answers 403 otherwise),
+  // so a friend without gaps is shown as "in class"
   Future<List<Gap>> _loadFriendGaps(User friend) async {
     try {
-      final gaps = await _gapService.getUserGaps(friend.id);
-      if (gaps.isNotEmpty) return gaps;
-      return await _gapService.generateWeek(friend.id);
+      return await _gapService.getUserGaps(friend.id);
     } catch (e) {
       debugPrint('No se pudieron cargar los gaps de ${friend.name}: $e');
       return [];

@@ -160,6 +160,8 @@ class _OpenTableDetailScreenState extends State<OpenTableDetailScreen> {
             _participants.length >= table.maxParticipants;
 
         final remainingMins = table.endTime.difference(DateTime.now()).inMinutes;
+        // The back does not allow joining or leaving once the end time has passed
+        final bool hasEnded = !table.endTime.isAfter(DateTime.now());
 
         return Scaffold(
           backgroundColor: AppColors.background,
@@ -212,7 +214,7 @@ class _OpenTableDetailScreenState extends State<OpenTableDetailScreen> {
                           _buildDetailItem(
                             icon: Icons.access_time_filled_rounded,
                             label: 'Ends in',
-                            value: '$remainingMins min',
+                            value: hasEnded ? 'Ended' : '$remainingMins min',
                           ),
                         ],
                       ),
@@ -267,6 +269,12 @@ class _OpenTableDetailScreenState extends State<OpenTableDetailScreen> {
                 padding: const EdgeInsets.all(24),
                 child: _isJoining
                     ? const CircularProgressIndicator()
+                    : hasEnded
+                        ? CustomButton(
+                            label: 'Table ended',
+                            color: Colors.grey[400]!,
+                            onClick: null,
+                          )
                     : _isMember
                         ? CustomButton(
                             label: 'Leave Table',
