@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import '../core/api_config.dart';
-import '../core/token_storage.dart';
-import '../core/api_client.dart';
-import '../models/auth_response.dart';
-import '../models/effort_type_enum.dart';
+import 'package:gapfinderfrontend_dart/core/network/api_config.dart';
+import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
+import 'package:gapfinderfrontend_dart/core/network/api_client.dart';
+import 'package:gapfinderfrontend_dart/models/responses/auth_response.dart';
+import 'package:gapfinderfrontend_dart/models/enums/effort_type_enum.dart';
 
 class AuthService {
   final String _url = '${ApiConfig.baseUrl}/auth';

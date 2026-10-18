@@ -1,7 +1,7 @@
 import 'dart:convert';
-import '../core/api_client.dart';
-import '../models/match.dart';
-import '../models/match_candidate.dart';
+import 'package:gapfinderfrontend_dart/core/network/api_client.dart';
+import 'package:gapfinderfrontend_dart/models/match.dart';
+import 'package:gapfinderfrontend_dart/models/responses/match_candidate.dart';
 
 class MatchService {
   // Candidates for a gap - GET /matches/gap/{gapId}/candidates

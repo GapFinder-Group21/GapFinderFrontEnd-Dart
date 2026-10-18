@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import '../core/api_client.dart';
-import '../models/activity.dart';
+import 'package:gapfinderfrontend_dart/core/network/api_client.dart';
+import 'package:gapfinderfrontend_dart/models/activity.dart';
 
 class ActivityService {
   // Get all activities - GET /activities

@@ -1,6 +1,6 @@
 import 'dart:convert';
-import '../core/api_client.dart';
-import '../models/interest.dart';
+import 'package:gapfinderfrontend_dart/core/network/api_client.dart';
+import 'package:gapfinderfrontend_dart/models/interest.dart';
 
 class InterestService {
   // Get all interests - GET /interests

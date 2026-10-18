@@ -1,4 +1,4 @@
-import '../open_table_abandonment.dart';
+import 'package:gapfinderfrontend_dart/models/open_table_abandonment.dart';
 
 // Estadística de abandono de un paso del formulario.
 class OpenTableAbandonmentStats {

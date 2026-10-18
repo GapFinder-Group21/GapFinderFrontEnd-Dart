@@ -1,8 +1,8 @@
 import 'dart:convert';
-import '../core/api_client.dart';
-import '../models/friendship.dart';
-import '../models/friendship_status_enum.dart';
-import '../models/user.dart';
+import 'package:gapfinderfrontend_dart/core/network/api_client.dart';
+import 'package:gapfinderfrontend_dart/models/friendship.dart';
+import 'package:gapfinderfrontend_dart/models/enums/friendship_status_enum.dart';
+import 'package:gapfinderfrontend_dart/models/user.dart';
 
 class FriendshipService {
   // Get all friendships - GET /friendships

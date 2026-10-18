@@ -1,8 +1,8 @@
-import 'open_table_status_enum.dart';
-import 'user.dart';
-import 'building.dart';
-import 'activity.dart';
-import '../utils/date_formatter_util.dart';
+import 'package:gapfinderfrontend_dart/models/enums/open_table_status_enum.dart';
+import 'package:gapfinderfrontend_dart/models/user.dart';
+import 'package:gapfinderfrontend_dart/models/building.dart';
+import 'package:gapfinderfrontend_dart/models/activity.dart';
+import 'package:gapfinderfrontend_dart/core/utils/date_formatter_util.dart';
 
 class OpenTable {
   // OpenTableBasicDTO

@@ -1,5 +1,5 @@
-import 'effort_type_enum.dart';
-import 'interest.dart';
+import 'package:gapfinderfrontend_dart/models/enums/effort_type_enum.dart';
+import 'package:gapfinderfrontend_dart/models/interest.dart';
 
 class Activity {
   // ActivityBasicDTO

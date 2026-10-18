@@ -1,6 +1,6 @@
 import 'dart:convert';
-import '../core/api_client.dart';
-import '../models/app_notification.dart';
+import 'package:gapfinderfrontend_dart/core/network/api_client.dart';
+import 'package:gapfinderfrontend_dart/models/app_notification.dart';
 
 class NotificationService {
   // All notifications of a user - GET /api/notifications/user/{userId}
@@ -8,7 +8,7 @@ class NotificationService {
     final res = await ApiClient.get('/api/notifications/user/$userId');
 
     if (res.statusCode != 200) {
-      throw Exception('Error getting notifications: ${res.statusCode}');
+      throw Exception(_errorMessage(res, 'Error getting notifications'));
     }
 
     final List data = jsonDecode(utf8.decode(res.bodyBytes));
@@ -20,7 +20,7 @@ class NotificationService {
     final res = await ApiClient.get('/api/notifications/user/$userId/unread');
 
     if (res.statusCode != 200) {
-      throw Exception('Error getting unread notifications: ${res.statusCode}');
+      throw Exception(_errorMessage(res, 'Error getting unread notifications'));
     }
 
     final List data = jsonDecode(utf8.decode(res.bodyBytes));
@@ -34,7 +34,7 @@ class NotificationService {
     );
 
     if (res.statusCode != 200) {
-      throw Exception('Error marking notification as read: ${res.statusCode}');
+      throw Exception(_errorMessage(res, 'Error marking notification as read'));
     }
 
     return AppNotification.fromJson(jsonDecode(utf8.decode(res.bodyBytes)));
@@ -45,7 +45,23 @@ class NotificationService {
     final res = await ApiClient.put('/api/notifications/user/$userId/read-all');
 
     if (res.statusCode != 204 && res.statusCode != 200) {
-      throw Exception('Error marking all as read: ${res.statusCode}');
+      throw Exception(_errorMessage(res, 'Error marking all as read'));
     }
+  }
+
+  // The back sends errors as plain text (400/403/404/409) or as JSON {"error": "..."} (409)
+  String _errorMessage(dynamic res, String fallback) {
+    final body = utf8.decode(res.bodyBytes).trim();
+    if (body.isEmpty) return '$fallback: ${res.statusCode}';
+
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map && decoded['error'] != null) {
+        return decoded['error'].toString();
+      }
+    } catch (_) {
+      // Not JSON, it is plain text
+    }
+    return body;
   }
 }

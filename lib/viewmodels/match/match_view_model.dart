@@ -1,0 +1,122 @@
+import 'package:flutter/foundation.dart';
+import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
+import 'package:gapfinderfrontend_dart/models/enums/match_mode_enum.dart';
+import 'package:gapfinderfrontend_dart/models/enums/match_status_enum.dart';
+import 'package:gapfinderfrontend_dart/models/gap.dart';
+import 'package:gapfinderfrontend_dart/models/match.dart';
+import 'package:gapfinderfrontend_dart/services/gap_service.dart';
+import 'package:gapfinderfrontend_dart/services/match_service.dart';
+
+// State and logic of the match tab
+class MatchViewModel extends ChangeNotifier {
+  final GapService _gapService;
+  final MatchService _matchService;
+
+  MatchViewModel({GapService? gapService, MatchService? matchService})
+      : _gapService = gapService ?? GapService(),
+        _matchService = matchService ?? MatchService();
+
+  MatchModeEnum _selectedMode = MatchModeEnum.career;
+  Gap? _currentGap;
+  Match? _gapMatch;
+  int? _userId;
+  DateTime? _lastCheckTime;
+  bool _isLoading = true;
+  int _loadId = 0;
+  bool _disposed = false;
+
+  MatchModeEnum get selectedMode => _selectedMode;
+  // Gap the user is in right now (null while loading)
+  Gap? get currentGap => _isLoading ? null : _currentGap;
+  // Accepted or completed match of the current gap (null while loading)
+  Match? get gapMatch => _isLoading ? null : _gapMatch;
+  int? get userId => _userId;
+  DateTime? get lastCheckTime => _lastCheckTime;
+  bool get isLoading => _isLoading;
+
+  // The user can look for a match only in a gap that has no booked match
+  bool get canMatch => currentGap != null && gapMatch == null;
+
+  // An accepted match whose meeting has not ended yet (the back moves it to COMPLETED every 5 minutes)
+  bool get isOngoing =>
+      gapMatch != null &&
+      gapMatch!.status == MatchStatusEnum.ACCEPTED &&
+      gapMatch!.endTime.isAfter(DateTime.now());
+
+  void selectMode(MatchModeEnum mode) {
+    _selectedMode = mode;
+    _notify();
+  }
+
+  // Load the current gap and its match
+  Future<void> init() => refresh();
+
+  // Loads the current gap and then the match of that gap
+  Future<void> refresh() async {
+    final loadId = ++_loadId;
+    _isLoading = true;
+    _notify();
+
+    final gap = await _loadActiveGap();
+    final match = await _loadGapMatch(gap);
+
+    // A newer reload already started, so this result is old
+    if (loadId != _loadId) return;
+    _currentGap = gap;
+    _gapMatch = match;
+    _isLoading = false;
+    _notify();
+  }
+
+  // Finds the gap the user is in right now - GET /gaps/user/{userId}
+  Future<Gap?> _loadActiveGap() async {
+    final userId = await TokenStorage.getUserId();
+    if (userId == null) return null;
+    _userId = userId;
+
+    final now = DateTime.now();
+    _lastCheckTime = now;
+    _notify();
+
+    try {
+      final gaps = await _gapService.getUserGaps(userId);
+      return gaps.where((g) => !now.isBefore(g.startTime) && now.isBefore(g.endTime)).firstOrNull;
+    } catch (e) {
+      debugPrint("Advertencia: No se pudieron cargar los GAPs en Match: $e");
+      return null;
+    }
+  }
+
+  // Finds the accepted or completed match of the current gap - GET /matches
+  // Same rule as the back: only the current gap counts, matches of other gaps do not block
+  Future<Match?> _loadGapMatch(Gap? gap) async {
+    if (gap == null) return null;
+    try {
+      final all = await _matchService.getAll();
+      final booked = all.where((m) =>
+        (m.proposerGapId == gap.id || m.acceptorGapId == gap.id) &&
+        (m.status == MatchStatusEnum.ACCEPTED || m.status == MatchStatusEnum.COMPLETED)
+      ).firstOrNull;
+
+      if (booked != null) {
+        debugPrint('🔒 [MatchMainScreen] Gap ${gap.id} already has match ID=${booked.id} (${booked.status.name}), blocking match button.');
+      } else {
+        debugPrint('🔓 [MatchMainScreen] Gap ${gap.id} has no accepted or completed match.');
+      }
+      return booked;
+    } catch (e) {
+      debugPrint('❌ [MatchMainScreen] Error loading the match of the gap: $e');
+      return null;
+    }
+  }
+
+  void _notify() {
+    if (!_disposed) notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+}

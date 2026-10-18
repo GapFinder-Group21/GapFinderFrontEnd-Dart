@@ -1,6 +1,6 @@
 import 'dart:convert';
-import '../core/api_client.dart';
-import '../models/user.dart';
+import 'package:gapfinderfrontend_dart/core/network/api_client.dart';
+import 'package:gapfinderfrontend_dart/models/user.dart';
 
 class NearbyFriendsService {
   // Get accepted friends currently in the user's current building - GET /nearby-friends/user/{userId}
@@ -8,7 +8,7 @@ class NearbyFriendsService {
     final res = await ApiClient.get('/nearby-friends/user/$userId');
 
     if (res.statusCode != 200) {
-      throw Exception('Error getting nearby friends: ${res.statusCode}');
+      throw Exception(_errorMessage(res, 'Error getting nearby friends'));
     }
 
     final List data = jsonDecode(utf8.decode(res.bodyBytes));
@@ -22,7 +22,7 @@ class NearbyFriendsService {
     );
 
     if (res.statusCode != 200) {
-      throw Exception('Error updating location by coordinates: ${res.statusCode}');
+      throw Exception(_errorMessage(res, 'Error updating location by coordinates'));
     }
 
     final List data = jsonDecode(utf8.decode(res.bodyBytes));
@@ -36,10 +36,26 @@ class NearbyFriendsService {
     );
 
     if (res.statusCode != 200) {
-      throw Exception('Error updating location by building: ${res.statusCode}');
+      throw Exception(_errorMessage(res, 'Error updating location by building'));
     }
 
     final List data = jsonDecode(utf8.decode(res.bodyBytes));
     return data.map((json) => User.fromJson(json)).toList();
+  }
+
+  // The back sends errors as plain text (400/403/404/409) or as JSON {"error": "..."} (409)
+  String _errorMessage(dynamic res, String fallback) {
+    final body = utf8.decode(res.bodyBytes).trim();
+    if (body.isEmpty) return '$fallback: ${res.statusCode}';
+
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map && decoded['error'] != null) {
+        return decoded['error'].toString();
+      }
+    } catch (_) {
+      // Not JSON, it is plain text
+    }
+    return body;
   }
 }

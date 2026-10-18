@@ -1,6 +1,6 @@
-import 'notification_type_enum.dart';
-import 'user.dart';
-import '../utils/date_formatter_util.dart';
+import 'package:gapfinderfrontend_dart/models/enums/notification_type_enum.dart';
+import 'package:gapfinderfrontend_dart/models/user.dart';
+import 'package:gapfinderfrontend_dart/core/utils/date_formatter_util.dart';
 
 class AppNotification {
   // NotificationBasicDTO

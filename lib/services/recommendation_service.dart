@@ -1,32 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import '../core/api_client.dart';
-import '../models/open_table.dart';
-
-class RecommendationResponse {
-  final int? buildingId;
-  final String? buildingName;
-  final double totalMinutes;
-  final List<OpenTable> tables;
-
-  RecommendationResponse({
-    this.buildingId,
-    this.buildingName,
-    required this.totalMinutes,
-    required this.tables,
-  });
-
-  factory RecommendationResponse.fromJson(Map<String, dynamic> json) {
-    return RecommendationResponse(
-      buildingId: json['favoriteBuildingId'],
-      buildingName: json['favoriteBuildingName'],
-      totalMinutes: (json['totalMinutes'] as num?)?.toDouble() ?? 0.0,
-      tables: (json['openTables'] as List?)
-          ?.map((t) => OpenTable.fromJson(t))
-          .toList() ?? [],
-    );
-  }
-}
+import 'package:gapfinderfrontend_dart/core/network/api_client.dart';
+import 'package:gapfinderfrontend_dart/models/responses/recommendation_response.dart';
 
 class RecommendationService {
   // Get recommendations for a user - GET /recommendations/user/{userId}/open-tables

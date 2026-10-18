@@ -1,6 +1,6 @@
 import 'dart:convert';
-import '../core/api_client.dart';
-import '../models/user.dart';
+import 'package:gapfinderfrontend_dart/core/network/api_client.dart';
+import 'package:gapfinderfrontend_dart/models/user.dart';
 
 class UserService {
   // Get all users - GET /users
@@ -8,7 +8,7 @@ class UserService {
     final res = await ApiClient.get('/users');
 
     if (res.statusCode != 200) {
-      throw Exception('Error getting users: ${res.statusCode}');
+      throw Exception(_errorMessage(res, 'Error getting users'));
     }
 
     final List data = jsonDecode(utf8.decode(res.bodyBytes));
@@ -20,7 +20,7 @@ class UserService {
     final res = await ApiClient.get('/users/$id');
 
     if (res.statusCode != 200) {
-      throw Exception('Error getting user: ${res.statusCode}');
+      throw Exception(_errorMessage(res, 'Error getting user'));
     }
 
     return User.fromJson(jsonDecode(utf8.decode(res.bodyBytes)));
@@ -31,7 +31,7 @@ class UserService {
     final res = await ApiClient.post('/users', body: user.toJson());
 
     if (res.statusCode != 201) {
-      throw Exception('Error creating user: ${res.statusCode}');
+      throw Exception(_errorMessage(res, 'Error creating user'));
     }
 
     return User.fromJson(jsonDecode(utf8.decode(res.bodyBytes)));
@@ -42,7 +42,7 @@ class UserService {
     final res = await ApiClient.put('/users/$id', body: user.toJson());
 
     if (res.statusCode != 200) {
-      throw Exception('Error updating user: ${res.statusCode}');
+      throw Exception(_errorMessage(res, 'Error updating user'));
     }
 
     return User.fromJson(jsonDecode(utf8.decode(res.bodyBytes)));
@@ -53,7 +53,7 @@ class UserService {
     final res = await ApiClient.delete('/users/$id');
 
     if (res.statusCode != 204) {
-      throw Exception('Error deleting user: ${res.statusCode}');
+      throw Exception(_errorMessage(res, 'Error deleting user'));
     }
   }
 
@@ -62,7 +62,7 @@ class UserService {
     final res = await ApiClient.post('/users/$userId/interests/$interestId');
 
     if (res.statusCode != 200) {
-      throw Exception('Error adding interest: ${res.statusCode}');
+      throw Exception(_errorMessage(res, 'Error adding interest'));
     }
   }
 
@@ -73,7 +73,7 @@ class UserService {
     );
 
     if (res.statusCode != 200) {
-      throw Exception('Error updating location: ${res.statusCode}');
+      throw Exception(_errorMessage(res, 'Error updating location'));
     }
   }
 
@@ -82,10 +82,26 @@ class UserService {
     final res = await ApiClient.get('/users/search?name=${Uri.encodeComponent(name)}');
 
     if (res.statusCode != 200) {
-      throw Exception('Error searching users: ${res.statusCode}');
+      throw Exception(_errorMessage(res, 'Error searching users'));
     }
 
     final List data = jsonDecode(utf8.decode(res.bodyBytes));
     return data.map((json) => User.fromJson(json)).toList();
+  }
+
+  // The back sends errors as plain text (400/403/404/409) or as JSON {"error": "..."} (409)
+  String _errorMessage(dynamic res, String fallback) {
+    final body = utf8.decode(res.bodyBytes).trim();
+    if (body.isEmpty) return '$fallback: ${res.statusCode}';
+
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map && decoded['error'] != null) {
+        return decoded['error'].toString();
+      }
+    } catch (_) {
+      // Not JSON, it is plain text
+    }
+    return body;
   }
 }

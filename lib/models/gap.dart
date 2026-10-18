@@ -1,5 +1,5 @@
-import 'user.dart';
-import '../utils/date_formatter_util.dart';
+import 'package:gapfinderfrontend_dart/models/user.dart';
+import 'package:gapfinderfrontend_dart/core/utils/date_formatter_util.dart';
 
 class Gap {
   // GapBasicDTO

@@ -1,7 +1,7 @@
 import 'dart:convert';
-import '../core/api_client.dart';
-import '../models/open_table_abandonment.dart';
-import '../models/open_table_abandonment_stats.dart';
+import 'package:gapfinderfrontend_dart/core/network/api_client.dart';
+import 'package:gapfinderfrontend_dart/models/open_table_abandonment.dart';
+import 'package:gapfinderfrontend_dart/models/responses/open_table_abandonment_stats.dart';
 
 class OpenTableAbandonmentService {
   // Registers where the user abandoned the creation form - POST /open-table-abandonments/user/{userId}
@@ -12,7 +12,7 @@ class OpenTableAbandonmentService {
     );
 
     if (res.statusCode != 201) {
-      throw Exception('Error registering abandonment: ${res.statusCode}');
+      throw Exception(_errorMessage(res, 'Error registering abandonment'));
     }
   }
 
@@ -22,10 +22,26 @@ class OpenTableAbandonmentService {
     final res = await ApiClient.get('/open-table-abandonments/stats?since=$sinceParam');
 
     if (res.statusCode != 200) {
-      throw Exception('Error getting abandonment stats: ${res.statusCode}');
+      throw Exception(_errorMessage(res, 'Error getting abandonment stats'));
     }
 
     final List data = jsonDecode(utf8.decode(res.bodyBytes));
     return data.map((json) => OpenTableAbandonmentStats.fromJson(json)).toList();
+  }
+
+  // The back sends errors as plain text (400/403/404/409) or as JSON {"error": "..."} (409)
+  String _errorMessage(dynamic res, String fallback) {
+    final body = utf8.decode(res.bodyBytes).trim();
+    if (body.isEmpty) return '$fallback: ${res.statusCode}';
+
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map && decoded['error'] != null) {
+        return decoded['error'].toString();
+      }
+    } catch (_) {
+      // Not JSON, it is plain text
+    }
+    return body;
   }
 }
