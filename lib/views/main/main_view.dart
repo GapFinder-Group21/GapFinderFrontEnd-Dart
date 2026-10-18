@@ -44,14 +44,17 @@ class _MainTabs extends StatefulWidget {
   State<_MainTabs> createState() => _MainTabsState();
 }
 
-class _MainTabsState extends State<_MainTabs> {
+class _MainTabsState extends State<_MainTabs> with WidgetsBindingObserver {
   StreamSubscription<MatchInvitationEvent>? _eventsSub;
+  bool _wasInBackground = false;
 
   @override
   // Open the invitation screen for each new match request
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     final vm = context.read<MainViewModel>();
+    vm.registerAppOpen(); // first open
     _eventsSub = vm.events.listen((event) async {
       if (!mounted) return;
       await Navigator.pushNamed(context, AppRoutes.matchInvitation, arguments: event.matchId);
@@ -61,8 +64,22 @@ class _MainTabsState extends State<_MainTabs> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _eventsSub?.cancel();
     super.dispose();
+  }
+
+  @override
+  // Every time the user comes back to the app: register the open and re-schedule today's reminders.
+  // Only after the app was really in the background (not after a permission dialog).
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      _wasInBackground = true;
+    } else if (state == AppLifecycleState.resumed && _wasInBackground) {
+      _wasInBackground = false;
+      context.read<MainViewModel>().registerAppOpen();
+      context.read<ScheduleViewModel>().scheduleReminders();
+    }
   }
 
   // Switch tab and reload it, like every time the user comes back to a tab

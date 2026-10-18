@@ -4,6 +4,8 @@ import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
 import 'package:gapfinderfrontend_dart/models/app_notification.dart';
 import 'package:gapfinderfrontend_dart/models/enums/match_status_enum.dart';
 import 'package:gapfinderfrontend_dart/models/enums/notification_type_enum.dart';
+import 'package:gapfinderfrontend_dart/services/app_session_service.dart';
+import 'package:gapfinderfrontend_dart/services/gap_reminder_service.dart';
 import 'package:gapfinderfrontend_dart/services/match_service.dart';
 import 'package:gapfinderfrontend_dart/services/notification_service.dart';
 
@@ -18,10 +20,18 @@ class MatchInvitationEvent {
 class MainViewModel extends ChangeNotifier {
   final NotificationService _notificationService;
   final MatchService _matchService;
+  final AppSessionService _appSessionService;
+  final GapReminderService _reminderService;
 
-  MainViewModel({NotificationService? notificationService, MatchService? matchService})
-      : _notificationService = notificationService ?? NotificationService(),
-        _matchService = matchService ?? MatchService();
+  MainViewModel({
+    NotificationService? notificationService,
+    MatchService? matchService,
+    AppSessionService? appSessionService,
+    GapReminderService? reminderService,
+  })  : _notificationService = notificationService ?? NotificationService(),
+        _matchService = matchService ?? MatchService(),
+        _appSessionService = appSessionService ?? AppSessionService(),
+        _reminderService = reminderService ?? GapReminderService();
 
   static const scheduleTab = 0;
   static const friendsTab = 1;
@@ -48,6 +58,7 @@ class MainViewModel extends ChangeNotifier {
   final _events = StreamController<MatchInvitationEvent>.broadcast();
   int _selectedIndex = scheduleTab;
   Timer? _notificationTimer;
+  StreamSubscription<void>? _reminderTapSub;
   final Set<int> _handledMatchRequests = {};
   bool _checking = false;
   bool _invitationOpen = false;
@@ -70,10 +81,37 @@ class MainViewModel extends ChangeNotifier {
   // The backend creates a MATCH_PROPOSED notification when someone sends you a match.
   // Check the unread notifications now and then every 10 seconds
   void init() {
+    _listenReminderTaps();
     _checkNotifications();
     _notificationTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       _checkNotifications();
     });
+  }
+
+  // Registers that the user opened the app - POST /app-sessions/user/{userId}
+  // Never blocks the user: it is not awaited and an error only prints
+  void registerAppOpen() {
+    TokenStorage.getUserId().then((userId) {
+      if (userId == null) return null;
+      return _appSessionService.registerOpen(userId);
+    }).catchError((e) {
+      debugPrint('Error registering app open: $e');
+    });
+  }
+
+  // A tap on a gap reminder (even the one that opened the app) goes to the Open Tables tab
+  Future<void> _listenReminderTaps() async {
+    try {
+      await _reminderService.init();
+      if (_disposed) return;
+      if (_reminderService.takeOpenTablesRequest()) selectTab('map');
+      _reminderTapSub = _reminderService.taps.listen((_) {
+        _reminderService.takeOpenTablesRequest();
+        selectTab('map');
+      });
+    } catch (e) {
+      debugPrint('Error listening to the reminders: $e');
+    }
   }
 
   // Sends one event per new match request - GET /api/notifications/user/{userId}/unread
@@ -143,6 +181,7 @@ class MainViewModel extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _notificationTimer?.cancel();
+    _reminderTapSub?.cancel();
     _events.close();
     super.dispose();
   }

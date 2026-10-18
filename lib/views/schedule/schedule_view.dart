@@ -73,6 +73,31 @@ class ScheduleView extends StatelessWidget {
               ),
             ),
 
+            // Switch of the free gap reminders
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 8, 0),
+              child: Row(
+                children: [
+                  Icon(Icons.notifications_none_rounded, size: 16, color: AppColors.contrast.withValues(alpha: 0.5)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Recordatorios de huecos libres',
+                      style: AppFonts.body().copyWith(fontSize: 13, color: AppColors.contrast.withValues(alpha: 0.6)),
+                    ),
+                  ),
+                  Transform.scale(
+                    scale: 0.8,
+                    child: Switch(
+                      value: vm.remindersEnabled,
+                      activeThumbColor: AppColors.accent2,
+                      onChanged: vm.setRemindersEnabled,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
             // Content: loading, error, empty or the schedule
             Expanded(
               child: Builder(
