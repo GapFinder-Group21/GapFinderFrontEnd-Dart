@@ -1,6 +1,6 @@
 import 'dart:convert';
-import '../core/api_client.dart';
-import '../models/open_table_participant.dart';
+import 'package:gapfinderfrontend_dart/core/network/api_client.dart';
+import 'package:gapfinderfrontend_dart/models/open_table_participant.dart';
 
 class OpenTableParticipantService {
   // Get all participant records - GET /open-table-participants

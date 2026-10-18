@@ -1,7 +1,7 @@
 import 'package:gapfinderfrontend_dart/models/user.dart';
 
-import '../utils/date_formatter_util.dart';
-import 'friendship_status_enum.dart';
+import 'package:gapfinderfrontend_dart/core/utils/date_formatter_util.dart';
+import 'package:gapfinderfrontend_dart/models/enums/friendship_status_enum.dart';
 
 class Friendship {
   // FriendshipBasicDTO

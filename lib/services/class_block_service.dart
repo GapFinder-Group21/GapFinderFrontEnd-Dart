@@ -1,6 +1,6 @@
 import 'dart:convert';
-import '../core/api_client.dart';
-import '../models/class_block.dart';
+import 'package:gapfinderfrontend_dart/core/network/api_client.dart';
+import 'package:gapfinderfrontend_dart/models/class_block.dart';
 
 class ClassBlockService {
   // Gets a class block by id - GET /class-blocks/{id}

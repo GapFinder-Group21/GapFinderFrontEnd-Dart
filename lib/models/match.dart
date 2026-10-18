@@ -1,6 +1,6 @@
-import 'gap.dart';
-import 'match_status_enum.dart';
-import '../utils/date_formatter_util.dart';
+import 'package:gapfinderfrontend_dart/models/gap.dart';
+import 'package:gapfinderfrontend_dart/models/enums/match_status_enum.dart';
+import 'package:gapfinderfrontend_dart/core/utils/date_formatter_util.dart';
 
 class Match {
   // MatchBasicDTO

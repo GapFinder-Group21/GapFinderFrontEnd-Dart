@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'day_of_week_enum.dart';
-import 'user.dart';
-import '../utils/time_formatter_util.dart';
+import 'package:gapfinderfrontend_dart/models/enums/day_of_week_enum.dart';
+import 'package:gapfinderfrontend_dart/models/user.dart';
+import 'package:gapfinderfrontend_dart/core/utils/time_formatter_util.dart';
 
 class ClassBlock {
   final int id;

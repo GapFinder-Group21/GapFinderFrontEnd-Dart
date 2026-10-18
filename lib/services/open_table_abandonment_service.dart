@@ -1,7 +1,7 @@
 import 'dart:convert';
-import '../core/api_client.dart';
-import '../models/open_table_abandonment.dart';
-import '../models/open_table_abandonment_stats.dart';
+import 'package:gapfinderfrontend_dart/core/network/api_client.dart';
+import 'package:gapfinderfrontend_dart/models/open_table_abandonment.dart';
+import 'package:gapfinderfrontend_dart/models/responses/open_table_abandonment_stats.dart';
 
 class OpenTableAbandonmentService {
   // Registers where the user abandoned the creation form - POST /open-table-abandonments/user/{userId}

@@ -1,6 +1,6 @@
 import 'dart:convert';
-import '../core/api_client.dart';
-import '../models/google_auth_url_response.dart';
+import 'package:gapfinderfrontend_dart/core/network/api_client.dart';
+import 'package:gapfinderfrontend_dart/models/responses/google_auth_url_response.dart';
 
 class GoogleService {
   // Pide la URL de autorización de Google - GET /google/auth-url
@@ -22,7 +22,8 @@ class GoogleService {
     final res = await ApiClient.post('/google/import-schedule');
 
     if (res.statusCode != 200) {
-      throw Exception(_errorMessage(res, 'Error al importar el horario'));
+      // The status code stays in the message: the import screen treats a 409 as success
+      throw Exception('Error al importar el horario: ${res.statusCode}');
     }
 
     return true;

@@ -1,6 +1,6 @@
 import 'dart:convert';
-import '../core/api_client.dart';
-import '../models/user.dart';
+import 'package:gapfinderfrontend_dart/core/network/api_client.dart';
+import 'package:gapfinderfrontend_dart/models/user.dart';
 
 class NearbyFriendsService {
   // Get accepted friends currently in the user's current building - GET /nearby-friends/user/{userId}

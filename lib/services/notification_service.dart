@@ -1,6 +1,6 @@
 import 'dart:convert';
-import '../core/api_client.dart';
-import '../models/app_notification.dart';
+import 'package:gapfinderfrontend_dart/core/network/api_client.dart';
+import 'package:gapfinderfrontend_dart/models/app_notification.dart';
 
 class NotificationService {
   // All notifications of a user - GET /api/notifications/user/{userId}

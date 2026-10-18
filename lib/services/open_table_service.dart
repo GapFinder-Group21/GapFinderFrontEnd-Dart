@@ -1,6 +1,6 @@
 import 'dart:convert';
-import '../core/api_client.dart';
-import '../models/open_table.dart';
+import 'package:gapfinderfrontend_dart/core/network/api_client.dart';
+import 'package:gapfinderfrontend_dart/models/open_table.dart';
 
 class OpenTableService {
   // Get an open table by its id - GET /open-tables/{id}

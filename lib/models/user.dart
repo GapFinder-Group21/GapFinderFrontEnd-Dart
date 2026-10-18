@@ -1,7 +1,7 @@
-import 'building.dart';
-import 'interest.dart';
-import 'effort_type_enum.dart';
-import '../utils/date_formatter_util.dart';
+import 'package:gapfinderfrontend_dart/models/building.dart';
+import 'package:gapfinderfrontend_dart/models/interest.dart';
+import 'package:gapfinderfrontend_dart/models/enums/effort_type_enum.dart';
+import 'package:gapfinderfrontend_dart/core/utils/date_formatter_util.dart';
 
 class User {
   // UserBasicDTO

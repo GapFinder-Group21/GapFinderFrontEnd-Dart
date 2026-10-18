@@ -1,4 +1,4 @@
-import '../gap.dart';
+import 'package:gapfinderfrontend_dart/models/gap.dart';
 
 class MatchCandidate {
   final Gap proposerGap;
