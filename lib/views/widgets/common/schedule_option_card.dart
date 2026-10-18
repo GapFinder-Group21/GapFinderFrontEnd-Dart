@@ -1,5 +1,5 @@
+import 'package:gapfinderfrontend_dart/core/theme/app_palette.dart';
 import 'package:flutter/material.dart';
-import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_fonts.dart';
 
 class ScheduleOptionCard extends StatelessWidget {
@@ -19,7 +19,7 @@ class ScheduleOptionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.white,
+      color: context.palette.surface,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: onTap,
@@ -29,7 +29,7 @@ class ScheduleOptionCard extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: AppColors.contrast.withOpacity(0.15),
+              color: context.palette.contrast.withOpacity(0.15),
               width: 1.5,
             ),
           ),
@@ -45,7 +45,7 @@ class ScheduleOptionCard extends StatelessWidget {
                       title,
                       style: AppFonts.display(weight: FontWeight.w700).copyWith(
                         fontSize: 15,
-                        color: AppColors.contrast,
+                        color: context.palette.contrast,
                       ),
                     ),
                     const SizedBox(height: 2),
@@ -53,7 +53,7 @@ class ScheduleOptionCard extends StatelessWidget {
                       subtitle,
                       style: AppFonts.body().copyWith(
                         fontSize: 12,
-                        color: AppColors.contrast.withOpacity(0.5),
+                        color: context.palette.contrast.withOpacity(0.5),
                       ),
                     ),
                   ],

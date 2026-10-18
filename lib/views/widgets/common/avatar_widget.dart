@@ -1,3 +1,4 @@
+import 'package:gapfinderfrontend_dart/core/theme/app_palette.dart';
 import 'package:flutter/material.dart';
 import 'package:gapfinderfrontend_dart/core/network/api_config.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
@@ -43,7 +44,7 @@ class AvatarWidget extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: border ?? Border.all(color: AppColors.contrast.withOpacity(0.12), width: 2),
-        color: AppColors.background,
+        color: context.palette.background,
       ),
       clipBehavior: Clip.antiAlias,
       child: resolved == null

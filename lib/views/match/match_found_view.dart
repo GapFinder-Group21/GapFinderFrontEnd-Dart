@@ -1,3 +1,4 @@
+import 'package:gapfinderfrontend_dart/core/theme/app_palette.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
@@ -41,7 +42,7 @@ class MatchFoundView extends StatelessWidget {
     final scorePercent = vm.candidate.score;
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.palette.background,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
@@ -53,7 +54,7 @@ class MatchFoundView extends StatelessWidget {
                 'MATCH FOUND!',
                 style: AppFonts.display(weight: FontWeight.w900).copyWith(
                   fontSize: 24,
-                  color: AppColors.contrast,
+                  color: context.palette.contrast,
                   letterSpacing: 1.5,
                 ),
               ),
@@ -64,7 +65,7 @@ class MatchFoundView extends StatelessWidget {
                 candidateUser?.name ?? 'User',
                 style: AppFonts.display(weight: FontWeight.w800).copyWith(
                   fontSize: 22,
-                  color: AppColors.contrast,
+                  color: context.palette.contrast,
                 ),
               ),
               const SizedBox(height: 6),
@@ -72,7 +73,7 @@ class MatchFoundView extends StatelessWidget {
                 '${candidateUser?.career ?? ''} · Sem ${candidateUser?.semester ?? 1}',
                 style: AppFonts.body().copyWith(
                   fontSize: 14,
-                  color: AppColors.contrast.withValues(alpha: 0.5),
+                  color: context.palette.contrast.withValues(alpha: 0.5),
                 ),
               ),
               const SizedBox(height: 24),
@@ -109,7 +110,7 @@ class MatchFoundView extends StatelessWidget {
                               'Decline',
                               style: AppFonts.body(weight: FontWeight.w700).copyWith(
                                 fontSize: 14,
-                                color: AppColors.contrast.withValues(alpha: 0.4),
+                                color: context.palette.contrast.withValues(alpha: 0.4),
                               ),
                             ),
                           ),

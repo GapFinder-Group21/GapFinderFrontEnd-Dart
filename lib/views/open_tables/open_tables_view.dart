@@ -1,3 +1,4 @@
+import 'package:gapfinderfrontend_dart/core/theme/app_palette.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
@@ -27,7 +28,7 @@ class _OpenTablesViewState extends State<OpenTablesView> {
     final vm = context.watch<OpenTablesViewModel>();
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.palette.background,
       body: Column(
         children: [
           // Dark header with the title, the current building and the buttons
@@ -159,12 +160,12 @@ class _OpenTablesViewState extends State<OpenTablesView> {
         padding: const EdgeInsets.all(40),
         child: Column(
           children: [
-            Icon(Icons.coffee_maker_rounded, size: 48, color: AppColors.contrast.withValues(alpha: 0.1)),
+            Icon(Icons.coffee_maker_rounded, size: 48, color: context.palette.contrast.withValues(alpha: 0.1)),
             const SizedBox(height: 12),
             Text(
               'No active tables available to discover right now.',
               textAlign: TextAlign.center,
-              style: AppFonts.body().copyWith(color: AppColors.contrast.withValues(alpha: 0.4)),
+              style: AppFonts.body().copyWith(color: context.palette.contrast.withValues(alpha: 0.4)),
             ),
           ],
         ),
@@ -193,9 +194,9 @@ class _OpenTablesViewState extends State<OpenTablesView> {
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.contrast.withValues(alpha: 0.07), width: 1.5),
+        border: Border.all(color: context.palette.contrast.withValues(alpha: 0.07), width: 1.5),
         boxShadow: [
           BoxShadow(
             color: AppColors.contrast.withValues(alpha: 0.04),
@@ -228,7 +229,7 @@ class _OpenTablesViewState extends State<OpenTablesView> {
                         table.creator?.name ?? 'User',
                         style: AppFonts.display(weight: FontWeight.w800).copyWith(
                           fontSize: 15,
-                          color: AppColors.contrast,
+                          color: context.palette.contrast,
                         ),
                       ),
                       const SizedBox(height: 3),
@@ -241,14 +242,14 @@ class _OpenTablesViewState extends State<OpenTablesView> {
                           Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.location_on_rounded, size: 12, color: AppColors.contrast.withValues(alpha: 0.35)),
+                              Icon(Icons.location_on_rounded, size: 12, color: context.palette.contrast.withValues(alpha: 0.35)),
                               const SizedBox(width: 4),
                               Text(
                                 table.building?.name ?? 'Unknown location',
                                 style: AppFonts.body().copyWith(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,
-                                  color: AppColors.contrast.withValues(alpha: 0.45),
+                                  color: context.palette.contrast.withValues(alpha: 0.45),
                                 ),
                               ),
                             ],
@@ -272,13 +273,13 @@ class _OpenTablesViewState extends State<OpenTablesView> {
                           Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.access_time_rounded, size: 12, color: AppColors.contrast.withValues(alpha: 0.35)),
+                              Icon(Icons.access_time_rounded, size: 12, color: context.palette.contrast.withValues(alpha: 0.35)),
                               const SizedBox(width: 4),
                               Text(
                                 '${remainingMins}m left',
                                 style: AppFonts.body().copyWith(
                                   fontSize: 12,
-                                  color: AppColors.contrast.withValues(alpha: 0.45),
+                                  color: context.palette.contrast.withValues(alpha: 0.45),
                                 ),
                               ),
                             ],
@@ -299,7 +300,7 @@ class _OpenTablesViewState extends State<OpenTablesView> {
               style: AppFonts.subtitle(weight: FontWeight.w800).copyWith(
                 fontSize: 10,
                 letterSpacing: 1,
-                color: AppColors.contrast.withValues(alpha: 0.35),
+                color: context.palette.contrast.withValues(alpha: 0.35),
               ),
             ),
           ),
@@ -310,7 +311,7 @@ class _OpenTablesViewState extends State<OpenTablesView> {
             margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
-              color: AppColors.background,
+              color: context.palette.background,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: AppColors.accent3, width: 1.5),
             ),
@@ -318,7 +319,7 @@ class _OpenTablesViewState extends State<OpenTablesView> {
               '"${table.description}"',
               style: AppFonts.body().copyWith(
                 fontSize: 13,
-                color: AppColors.contrast.withValues(alpha: 0.65),
+                color: context.palette.contrast.withValues(alpha: 0.65),
                 fontStyle: FontStyle.italic,
               ),
             ),
@@ -333,15 +334,15 @@ class _OpenTablesViewState extends State<OpenTablesView> {
                   'Up to ${table.maxParticipants} people',
                   style: AppFonts.body(weight: FontWeight.w700).copyWith(
                     fontSize: 11,
-                    color: AppColors.contrast.withValues(alpha: 0.45),
+                    color: context.palette.contrast.withValues(alpha: 0.45),
                   ),
                 ),
                 const Spacer(),
                 ElevatedButton(
                   onPressed: () => Navigator.pushNamed(context, AppRoutes.openTableDetail, arguments: table.id).then((_) => _vm.refresh()),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: alreadyIn ? Colors.grey[300] : AppColors.accent3,
-                    foregroundColor: alreadyIn ? AppColors.contrast.withValues(alpha: 0.5) : Colors.white,
+                    backgroundColor: alreadyIn ? context.palette.disabled : AppColors.accent3,
+                    foregroundColor: alreadyIn ? context.palette.contrast.withValues(alpha: 0.5) : Colors.white,
                     elevation: 0,
                     padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),

@@ -1,3 +1,4 @@
+import 'package:gapfinderfrontend_dart/core/theme/app_palette.dart';
 import 'package:flutter/material.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_fonts.dart';
@@ -19,7 +20,7 @@ class NearbyFriendsAlertDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -45,7 +46,7 @@ class NearbyFriendsAlertDialog extends StatelessWidget {
                         'Friends Nearby!',
                         style: AppFonts.display(weight: FontWeight.w900).copyWith(
                           fontSize: 18,
-                          color: AppColors.contrast,
+                          color: context.palette.contrast,
                         ),
                       ),
                       const SizedBox(height: 2),
@@ -53,7 +54,7 @@ class NearbyFriendsAlertDialog extends StatelessWidget {
                         'You entered $buildingName',
                         style: AppFonts.body().copyWith(
                           fontSize: 13,
-                          color: AppColors.contrast.withValues(alpha: 0.5),
+                          color: context.palette.contrast.withValues(alpha: 0.5),
                         ),
                       ),
                     ],
@@ -66,7 +67,7 @@ class NearbyFriendsAlertDialog extends StatelessWidget {
               '${friends.length} friends are in this building right now:',
               style: AppFonts.subtitle(weight: FontWeight.w700).copyWith(
                 fontSize: 13,
-                color: AppColors.contrast,
+                color: context.palette.contrast,
               ),
             ),
             const SizedBox(height: 12),
@@ -81,9 +82,9 @@ class NearbyFriendsAlertDialog extends StatelessWidget {
                     margin: const EdgeInsets.only(bottom: 10),
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: AppColors.background,
+                      color: context.palette.background,
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: AppColors.contrast.withValues(alpha: 0.08)),
+                      border: Border.all(color: context.palette.contrast.withValues(alpha: 0.08)),
                     ),
                     child: Row(
                       children: [
@@ -97,14 +98,14 @@ class NearbyFriendsAlertDialog extends StatelessWidget {
                                 friend.name,
                                 style: AppFonts.display(weight: FontWeight.w800).copyWith(
                                   fontSize: 14,
-                                  color: AppColors.contrast,
+                                  color: context.palette.contrast,
                                 ),
                               ),
                               Text(
                                 '${friend.career} · Sem ${friend.semester ?? 1}',
                                 style: AppFonts.body().copyWith(
                                   fontSize: 11,
-                                  color: AppColors.contrast.withValues(alpha: 0.45),
+                                  color: context.palette.contrast.withValues(alpha: 0.45),
                                 ),
                               ),
                             ],

@@ -1,6 +1,6 @@
+import 'package:gapfinderfrontend_dart/core/theme/app_palette.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_fonts.dart';
 import 'package:gapfinderfrontend_dart/core/constants/careers.dart';
 import 'package:gapfinderfrontend_dart/navigation/app_routes.dart';
@@ -68,7 +68,7 @@ class _RegisterViewState extends State<RegisterView> {
     final vm = context.watch<RegisterViewModel>();
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.palette.background,
       appBar: const TopBar(
         title: 'GAP FINDER',
         subtitle: 'Create Account',
@@ -82,7 +82,7 @@ class _RegisterViewState extends State<RegisterView> {
               'Create Account',
               style: AppFonts.display(weight: FontWeight.w800).copyWith(
                 fontSize: 22,
-                color: AppColors.contrast,
+                color: context.palette.contrast,
               ),
             ),
             const SizedBox(height: 6),
@@ -90,7 +90,7 @@ class _RegisterViewState extends State<RegisterView> {
               'Join the campus network',
               style: AppFonts.subtitle(weight: FontWeight.w400).copyWith(
                 fontSize: 14,
-                color: AppColors.contrast.withValues(alpha: 0.55),
+                color: context.palette.contrast.withValues(alpha: 0.55),
               ),
             ),
             const SizedBox(height: 24),
@@ -115,16 +115,16 @@ class _RegisterViewState extends State<RegisterView> {
               'Career',
               style: AppFonts.subtitle(weight: FontWeight.w600).copyWith(
                 fontSize: 14,
-                color: AppColors.contrast,
+                color: context.palette.contrast,
               ),
             ),
             const SizedBox(height: 6),
             DropdownButtonFormField<String>(
               value: vm.selectedCareer,
               isExpanded: true,
-              dropdownColor: AppColors.background,
+              dropdownColor: context.palette.background,
               style: AppFonts.subtitle(weight: FontWeight.w400).copyWith(
-                color: AppColors.contrast,
+                color: context.palette.contrast,
               ),
               decoration: InputDecoration(
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -166,16 +166,16 @@ class _RegisterViewState extends State<RegisterView> {
               'Preferred Effort',
               style: AppFonts.subtitle(weight: FontWeight.w600).copyWith(
                 fontSize: 14,
-                color: AppColors.contrast,
+                color: context.palette.contrast,
               ),
             ),
             const SizedBox(height: 6),
             DropdownButtonFormField<EffortTypeEnum>(
               value: vm.selectedEffort,
               isExpanded: true,
-              dropdownColor: AppColors.background,
+              dropdownColor: context.palette.background,
               style: AppFonts.subtitle(weight: FontWeight.w400).copyWith(
-                color: AppColors.contrast,
+                color: context.palette.contrast,
               ),
               decoration: InputDecoration(
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -240,7 +240,7 @@ class _RegisterViewState extends State<RegisterView> {
                   'Already have an account? Log In',
                   style: AppFonts.subtitle(weight: FontWeight.w400).copyWith(
                     fontSize: 14,
-                    color: AppColors.contrast.withValues(alpha: 0.55),
+                    color: context.palette.contrast.withValues(alpha: 0.55),
                   ),
                 ),
               ),

@@ -1,3 +1,4 @@
+import 'package:gapfinderfrontend_dart/core/theme/app_palette.dart';
 import 'package:flutter/material.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_fonts.dart';
@@ -27,21 +28,21 @@ class CustomInput extends StatelessWidget {
       onChanged: onChanged,
       style: AppFonts.body(weight: FontWeight.w400).copyWith(
         fontSize: 15,
-        color: AppColors.contrast,
+        color: context.palette.contrast,
       ),
       decoration: InputDecoration(
         hintText: placeholder,
         hintStyle: AppFonts.body(weight: FontWeight.w400).copyWith(
           fontSize: 15,
-          color: AppColors.contrast.withValues(alpha: 0.4),
+          color: context.palette.contrast.withValues(alpha: 0.4),
         ),
         filled: true,
-        fillColor: Colors.white,
+        fillColor: context.palette.surface,
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(
-            color: AppColors.contrast.withValues(alpha: 0.15),
+            color: context.palette.contrast.withValues(alpha: 0.15),
             width: 1.5,
           ),
         ),

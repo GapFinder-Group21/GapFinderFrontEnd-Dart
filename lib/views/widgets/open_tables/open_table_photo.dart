@@ -1,5 +1,5 @@
+import 'package:gapfinderfrontend_dart/core/theme/app_palette.dart';
 import 'package:flutter/material.dart';
-import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/avatar_widget.dart';
 
 // Photo of an open table. Draws nothing when the table has no photo
@@ -37,10 +37,10 @@ class OpenTablePhoto extends StatelessWidget {
         errorBuilder: (_, _, _) => Container(
           height: height,
           width: double.infinity,
-          color: AppColors.background,
+          color: context.palette.background,
           child: Icon(
             Icons.photo_camera_rounded,
-            color: AppColors.contrast.withValues(alpha: 0.25),
+            color: context.palette.contrast.withValues(alpha: 0.25),
             size: 32,
           ),
         ),

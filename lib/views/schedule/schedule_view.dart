@@ -1,3 +1,4 @@
+import 'package:gapfinderfrontend_dart/core/theme/app_palette.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
@@ -41,7 +42,7 @@ class ScheduleView extends StatelessWidget {
     final vm = context.watch<ScheduleViewModel>();
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.palette.background,
       body: SafeArea(
         child: Column(
           children: [
@@ -89,7 +90,7 @@ class ScheduleView extends StatelessWidget {
                           'No se pudo cargar tu horario.\n${vm.loadError}',
                           textAlign: TextAlign.center,
                           style: AppFonts.body().copyWith(
-                            color: AppColors.contrast.withValues(alpha: 0.6),
+                            color: context.palette.contrast.withValues(alpha: 0.6),
                           ),
                         ),
                       ),
@@ -101,7 +102,7 @@ class ScheduleView extends StatelessWidget {
                       child: Text(
                         'Aún no tienes clases importadas.',
                         style: AppFonts.body().copyWith(
-                          color: AppColors.contrast.withValues(alpha: 0.5),
+                          color: context.palette.contrast.withValues(alpha: 0.5),
                         ),
                       ),
                     );
@@ -109,7 +110,7 @@ class ScheduleView extends StatelessWidget {
 
                   return SingleChildScrollView(
                     padding: const EdgeInsets.all(16),
-                    child: _buildTodayView(vm.todayItems),
+                    child: _buildTodayView(context, vm.todayItems),
                   );
                 },
               ),
@@ -121,7 +122,7 @@ class ScheduleView extends StatelessWidget {
   }
 
   // "Today" view: today's classes and gaps
-  Widget _buildTodayView(List<ScheduleItem> items) {
+  Widget _buildTodayView(BuildContext context, List<ScheduleItem> items) {
     if (items.isEmpty) {
       return Center(
         child: Padding(
@@ -129,7 +130,7 @@ class ScheduleView extends StatelessWidget {
           child: Text(
             'No tienes clases hoy.',
             style: AppFonts.body().copyWith(
-              color: AppColors.contrast.withValues(alpha: 0.5),
+              color: context.palette.contrast.withValues(alpha: 0.5),
             ),
           ),
         ),
@@ -141,25 +142,25 @@ class ScheduleView extends StatelessWidget {
         return Padding(
           padding: const EdgeInsets.only(bottom: 8.0),
           child: item.type == ScheduleItemType.classBlock
-              ? _buildClassTile(item.name, item.start, item.end, isCompact: false)
-              : _buildGapTile(item.start, item.end, isCompact: false),
+              ? _buildClassTile(context, item.name, item.start, item.end, isCompact: false)
+              : _buildGapTile(context, item.start, item.end, isCompact: false),
         );
       }).toList(),
     );
   }
 
   // Card of a class
-  Widget _buildClassTile(String name, String start, String end, {required bool isCompact}) {
+  Widget _buildClassTile(BuildContext context, String name, String start, String end, {required bool isCompact}) {
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: isCompact ? 14 : 16,
         vertical: isCompact ? 10 : 14,
       ),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(isCompact ? 10 : 12),
         border: Border.all(
-          color: AppColors.contrast.withValues(alpha: 0.10),
+          color: context.palette.contrast.withValues(alpha: 0.10),
           width: 1.5,
         ),
       ),
@@ -184,7 +185,7 @@ class ScheduleView extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: AppFonts.display(weight: FontWeight.w700).copyWith(
                     fontSize: isCompact ? 13 : 14,
-                    color: AppColors.contrast,
+                    color: context.palette.contrast,
                   ),
                 ),
                 SizedBox(height: isCompact ? 2 : 3),
@@ -192,7 +193,7 @@ class ScheduleView extends StatelessWidget {
                   '$start – $end',
                   style: AppFonts.body(weight: FontWeight.w400).copyWith(
                     fontSize: isCompact ? 11 : 12,
-                    color: AppColors.contrast.withValues(alpha: 0.5),
+                    color: context.palette.contrast.withValues(alpha: 0.5),
                   ),
                 ),
               ],
@@ -204,7 +205,7 @@ class ScheduleView extends StatelessWidget {
   }
 
   // Card of a free gap (same size as the class cards)
-  Widget _buildGapTile(String start, String end, {required bool isCompact}) {
+  Widget _buildGapTile(BuildContext context, String start, String end, {required bool isCompact}) {
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: isCompact ? 14 : 16,

@@ -1,6 +1,6 @@
+import 'package:gapfinderfrontend_dart/core/theme/app_palette.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_fonts.dart';
 import 'package:gapfinderfrontend_dart/navigation/app_routes.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/auth/login_view_model.dart';
@@ -63,7 +63,7 @@ class _LoginViewState extends State<LoginView> {
     final vm = context.watch<LoginViewModel>();
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.palette.background,
       appBar: const TopBar(
         title: 'GAP FINDER',
         subtitle: 'Log In',
@@ -78,7 +78,7 @@ class _LoginViewState extends State<LoginView> {
               'Welcome back',
               style: AppFonts.display(weight: FontWeight.w800).copyWith(
                 fontSize: 22,
-                color: AppColors.contrast,
+                color: context.palette.contrast,
               ),
             ),
 
@@ -89,7 +89,7 @@ class _LoginViewState extends State<LoginView> {
               'Sign in to your account',
               style: AppFonts.subtitle(weight: FontWeight.w400).copyWith(
                 fontSize: 14,
-                color: AppColors.contrast.withValues(alpha: 0.55),
+                color: context.palette.contrast.withValues(alpha: 0.55),
               ),
             ),
 
@@ -136,7 +136,7 @@ class _LoginViewState extends State<LoginView> {
                   "Don't have an account? Register",
                   style: AppFonts.body(weight: FontWeight.w400).copyWith(
                     fontSize: 14,
-                    color: AppColors.contrast.withValues(alpha: 0.55),
+                    color: context.palette.contrast.withValues(alpha: 0.55),
                   ),
                 ),
               ),
