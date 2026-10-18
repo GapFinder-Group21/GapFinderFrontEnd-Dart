@@ -1,4 +1,7 @@
+import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
 import 'package:gapfinderfrontend_dart/models/activity.dart';
 import 'package:gapfinderfrontend_dart/models/building.dart';
@@ -11,7 +14,10 @@ import 'package:gapfinderfrontend_dart/services/open_table_abandonment_service.d
 import 'package:gapfinderfrontend_dart/services/open_table_service.dart';
 
 // What happened when the user tapped "Publish"
-enum PublishResult { published, missingFields, noSession, failed }
+enum PublishResult { published, missingFields, missingPhoto, noSession, failed }
+
+// What happened when the user tried to take the table photo
+enum PhotoResult { taken, cancelled, denied, permanentlyDenied, failed }
 
 // State and logic of the create open table form
 class CreateOpenTableViewModel extends ChangeNotifier {
@@ -38,6 +44,10 @@ class CreateOpenTableViewModel extends ChangeNotifier {
   int _durationMinutes = 0;
   int _maxParticipants = 4;
 
+  // Photo of the table taken with the camera (required to publish)
+  File? _photo;
+  final ImagePicker _picker = ImagePicker();
+
   // Last form step the user touched (sent when they quit without publishing)
   OpenTableCreationStep _currentStep = OpenTableCreationStep.activity;
   bool _abandonmentSent = false;
@@ -53,6 +63,7 @@ class CreateOpenTableViewModel extends ChangeNotifier {
   Activity? get selectedActivity => _selectedActivity;
   Building? get selectedBuilding => _selectedBuilding;
   int get maxParticipants => _maxParticipants;
+  File? get photo => _photo;
   bool get isLoading => _isLoading;
   bool get isPublishing => _isPublishing;
   // Error while loading the catalogs
@@ -127,12 +138,40 @@ class CreateOpenTableViewModel extends ChangeNotifier {
     _notify();
   }
 
+  // Asks for the camera permission and takes the photo (camera only, never the gallery)
+  // Taking it again replaces the previous one
+  Future<PhotoResult> takePhoto() async {
+    final status = await Permission.camera.request();
+    if (status.isPermanentlyDenied || status.isRestricted) return PhotoResult.permanentlyDenied;
+    if (!status.isGranted) return PhotoResult.denied;
+
+    try {
+      // Smaller size and quality keep the upload light
+      final image = await _picker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 1280,
+        imageQuality: 80,
+      );
+      if (image == null) return PhotoResult.cancelled;
+
+      _photo = File(image.path);
+      _notify();
+      return PhotoResult.taken;
+    } catch (e) {
+      // Camera not available or closed with an error
+      debugPrint('Camera error: $e');
+      return PhotoResult.failed;
+    }
+  }
+
   // Creates the open table - POST /open-tables
   // The creator is not a participant: the back rejects the creator joining their own table
   Future<PublishResult> publish(String description) async {
     if (_selectedActivity == null || _selectedBuilding == null) {
       return PublishResult.missingFields;
     }
+
+    if (_photo == null) return PublishResult.missingPhoto;
 
     final userId = await TokenStorage.getUserId();
     if (userId == null) return PublishResult.noSession;
@@ -153,7 +192,7 @@ class CreateOpenTableViewModel extends ChangeNotifier {
         activity: _selectedActivity,
       );
 
-      await _openTableService.createOpenTable(userId, _selectedBuilding!.id, newTable);
+      await _openTableService.createOpenTable(userId, _selectedBuilding!.id, newTable, _photo!);
       return PublishResult.published;
     } catch (e) {
       _publishError = 'Error publishing: $e';

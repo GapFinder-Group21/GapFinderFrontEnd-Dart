@@ -1,4 +1,7 @@
 import 'dart:convert';
+import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
 import 'package:gapfinderfrontend_dart/core/network/api_client.dart';
 import 'package:gapfinderfrontend_dart/models/open_table.dart';
 
@@ -43,11 +46,23 @@ class OpenTableService {
   // Create a new open table - POST /open-tables
   // Exige creator (el usuario logueado), building, title, startTime antes de endTime,
   // endTime en el futuro y maxParticipants > 0. El back siempre la crea OPEN
+  // Se manda como multipart: "openTable" con los datos en JSON y "photo" con la foto (obligatoria)
   Future<OpenTable> createOpenTable(
-      int creatorId, int buildingId, OpenTable openTable) async {
-    final res = await ApiClient.post(
+      int creatorId, int buildingId, OpenTable openTable, File photo) async {
+    final res = await ApiClient.postMultipart(
       '/open-tables',
-      body: _withRelations(openTable, creatorId, buildingId),
+      files: () async => [
+        http.MultipartFile.fromString(
+          'openTable',
+          jsonEncode(_withRelations(openTable, creatorId, buildingId)),
+          contentType: MediaType('application', 'json'),
+        ),
+        await http.MultipartFile.fromPath(
+          'photo',
+          photo.path,
+          contentType: MediaType('image', 'jpeg'),
+        ),
+      ],
     );
 
     if (res.statusCode != 201) {

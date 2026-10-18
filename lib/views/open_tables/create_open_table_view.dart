@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_fonts.dart';
@@ -180,6 +181,33 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
     );
   }
 
+  // Opens the camera and shows a message if the photo could not be taken
+  Future<void> _takePhoto() async {
+    final result = await _vm.takePhoto();
+    if (!mounted) return;
+
+    switch (result) {
+      case PhotoResult.taken:
+      case PhotoResult.cancelled:
+        break;
+      case PhotoResult.denied:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Camera permission is needed to take the photo')),
+        );
+      case PhotoResult.permanentlyDenied:
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Camera permission is off. Enable it in Settings'),
+            action: SnackBarAction(label: 'Settings', onPressed: openAppSettings),
+          ),
+        );
+      case PhotoResult.failed:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not open the camera, please try again')),
+        );
+    }
+  }
+
   // Creates the open table and closes the screen
   Future<void> _publish() async {
     final result = await _vm.publish(_descController.text.trim());
@@ -191,6 +219,10 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
       case PublishResult.missingFields:
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Please select an activity and location')),
+        );
+      case PublishResult.missingPhoto:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please take a photo of the table')),
         );
       case PublishResult.failed:
         ScaffoldMessenger.of(context).showSnackBar(
@@ -336,6 +368,14 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
             ),
             const SizedBox(height: 12),
 
+            // Table photo (required)
+            _buildSection(
+              title: 'Photo',
+              child: vm.photo == null ? _buildPhotoPlaceholder() : _buildPhotoPreview(vm),
+            ),
+
+            const SizedBox(height: 12),
+
             // Building selector
             _buildSelectableField(
               title: 'Location',
@@ -374,6 +414,65 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
         ),
       ),
       ),
+    );
+  }
+
+  // Empty photo area: tapping it opens the camera
+  Widget _buildPhotoPlaceholder() {
+    return InkWell(
+      onTap: _takePhoto,
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 28),
+        decoration: BoxDecoration(
+          color: AppColors.background,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.contrast.withValues(alpha: 0.12), width: 1.5),
+        ),
+        child: Column(
+          children: [
+            const Icon(Icons.photo_camera_rounded, color: AppColors.accent3, size: 32),
+            const SizedBox(height: 8),
+            Text(
+              'Take a photo',
+              style: AppFonts.body(weight: FontWeight.w700).copyWith(fontSize: 14, color: AppColors.contrast),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              'Show where the table is',
+              style: AppFonts.body().copyWith(fontSize: 12, color: AppColors.contrast.withValues(alpha: 0.45)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Preview of the photo with the option to take it again
+  Widget _buildPhotoPreview(CreateOpenTableViewModel vm) {
+    return Column(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: AspectRatio(
+            aspectRatio: 4 / 3,
+            child: Image.file(vm.photo!, fit: BoxFit.cover, width: double.infinity),
+          ),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          width: double.infinity,
+          child: TextButton.icon(
+            onPressed: _takePhoto,
+            icon: const Icon(Icons.refresh_rounded, size: 18, color: AppColors.accent3),
+            label: Text(
+              'Retake',
+              style: AppFonts.body(weight: FontWeight.w700).copyWith(fontSize: 14, color: AppColors.accent3),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

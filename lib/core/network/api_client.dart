@@ -37,6 +37,20 @@ class ApiClient {
         ));
   }
 
+  // POST autenticado con multipart/form-data (campos de texto y archivos)
+  // La petición se arma dentro del callback porque un multipart no se puede reenviar tras refrescar el token
+  static Future<http.Response> postMultipart(
+    String path, {
+    Future<List<http.MultipartFile>> Function()? files,
+  }) async {
+    return _sendWithAuth((headers) async {
+      final request = http.MultipartRequest('POST', Uri.parse('${ApiConfig.baseUrl}$path'))
+        ..headers.addAll(headers);
+      if (files != null) request.files.addAll(await files());
+      return http.Response.fromStream(await request.send());
+    });
+  }
+
   // DELETE autenticado
   static Future<http.Response> delete(String path) async {
     return _sendWithAuth((headers) => http.delete(Uri.parse('${ApiConfig.baseUrl}$path'), headers: headers));

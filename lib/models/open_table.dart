@@ -20,6 +20,9 @@ class OpenTable {
   final User? creator;
   final Building? building;
 
+  // Ruta de la foto de la mesa (null en mesas creadas sin foto)
+  final String? photoUrl;
+
   OpenTable({
     required this.id,
     required this.title,
@@ -32,6 +35,7 @@ class OpenTable {
     this.activity,
     this.creator,
     this.building,
+    this.photoUrl,
   });
 
   factory OpenTable.fromJson(Map<String, dynamic> json) {
@@ -55,6 +59,7 @@ class OpenTable {
       building: json['building'] != null
           ? Building.fromJson(json['building'])
           : null,
+      photoUrl: json['photoUrl'],
     );
   }
 

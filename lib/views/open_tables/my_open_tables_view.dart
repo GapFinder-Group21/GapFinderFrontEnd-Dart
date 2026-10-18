@@ -8,6 +8,7 @@ import 'package:gapfinderfrontend_dart/models/open_table.dart';
 import 'package:gapfinderfrontend_dart/models/enums/open_table_status_enum.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/avatar_widget.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/custom_top_bar.dart';
+import 'package:gapfinderfrontend_dart/views/widgets/open_tables/open_table_photo.dart';
 
 /// Shows the open tables the user created and the ones they joined.
 class MyOpenTablesView extends StatefulWidget {
@@ -141,6 +142,12 @@ class _MyOpenTablesViewState extends State<MyOpenTablesView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Table photo across the top of the card
+          OpenTablePhoto(
+            url: table.photoUrl,
+            height: 140,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
             child: Row(
