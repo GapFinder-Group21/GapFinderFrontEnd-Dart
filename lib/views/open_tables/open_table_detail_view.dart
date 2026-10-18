@@ -7,6 +7,7 @@ import 'package:gapfinderfrontend_dart/viewmodels/open_tables/open_table_detail_
 import 'package:gapfinderfrontend_dart/views/widgets/common/avatar_widget.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/custom_top_bar.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/custom_button.dart';
+import 'package:gapfinderfrontend_dart/views/widgets/open_tables/open_table_photo.dart';
 
 /// Details of one open table: creator, activity, building, time left and participants.
 /// The user can join the table or leave it.
@@ -117,6 +118,16 @@ class _OpenTableDetailViewState extends State<OpenTableDetailView> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Photo taken when the table was created
+                      if (table.photoUrl != null) ...[
+                        OpenTablePhoto(
+                          url: table.photoUrl,
+                          height: 200,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        const SizedBox(height: 20),
+                      ],
+
                       _buildCreatorCard(table),
 
                       const SizedBox(height: 28),

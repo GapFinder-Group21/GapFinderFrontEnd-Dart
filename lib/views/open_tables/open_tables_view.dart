@@ -8,6 +8,7 @@ import 'package:gapfinderfrontend_dart/viewmodels/open_tables/open_tables_view_m
 import 'package:gapfinderfrontend_dart/views/widgets/common/avatar_widget.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/custom_button.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/open_tables/current_location_banner.dart';
+import 'package:gapfinderfrontend_dart/views/widgets/open_tables/open_table_photo.dart';
 
 /// Open Tables tab: shows the current building and the list of open tables you can join.
 class OpenTablesView extends StatefulWidget {
@@ -206,6 +207,12 @@ class _OpenTablesViewState extends State<OpenTablesView> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Table photo across the top of the card
+          OpenTablePhoto(
+            url: table.photoUrl,
+            height: 140,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
+          ),
           // Creator and table info
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
