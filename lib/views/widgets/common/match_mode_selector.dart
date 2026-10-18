@@ -1,3 +1,4 @@
+import 'package:gapfinderfrontend_dart/core/theme/app_palette.dart';
 import 'package:flutter/material.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_fonts.dart';
@@ -29,7 +30,7 @@ class MatchModeSelector extends StatelessWidget {
           style: AppFonts.subtitle(weight: FontWeight.w800).copyWith(
             fontSize: 13,
             letterSpacing: 1.6,
-            color: AppColors.contrast.withValues(alpha: 0.4),
+            color: context.palette.contrast.withValues(alpha: 0.4),
           ),
         ),
         const SizedBox(height: 12),
@@ -45,12 +46,12 @@ class MatchModeSelector extends StatelessWidget {
                 duration: const Duration(milliseconds: 200),
                 padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                 decoration: BoxDecoration(
-                  color: isSelected ? AppColors.accent1 : Colors.white,
+                  color: isSelected ? AppColors.accent1 : context.palette.surface,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: isSelected
                         ? AppColors.accent1
-                        : AppColors.contrast.withValues(alpha: 0.1),
+                        : context.palette.contrast.withValues(alpha: 0.1),
                     width: 1.5,
                   ),
                 ),
@@ -60,7 +61,7 @@ class MatchModeSelector extends StatelessWidget {
                     weight: isSelected ? FontWeight.w900 : FontWeight.w600,
                   ).copyWith(
                     fontSize: 14,
-                    color: isSelected ? Colors.white : AppColors.contrast,
+                    color: isSelected ? Colors.white : context.palette.contrast,
                   ),
                 ),
               ),

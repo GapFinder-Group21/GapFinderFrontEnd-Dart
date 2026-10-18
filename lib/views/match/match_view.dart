@@ -1,3 +1,4 @@
+import 'package:gapfinderfrontend_dart/core/theme/app_palette.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
@@ -30,7 +31,7 @@ class MatchView extends StatelessWidget {
     final vm = context.watch<MatchViewModel>();
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.palette.background,
       body: SafeArea(
         child: Column(
           children: [
@@ -79,7 +80,7 @@ class MatchView extends StatelessWidget {
                               padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
                               margin: const EdgeInsets.only(bottom: 32),
                               decoration: BoxDecoration(
-                                color: Colors.white,
+                                color: context.palette.surface,
                                 borderRadius: BorderRadius.circular(14),
                                 border: Border.all(color: AppColors.accent2.withValues(alpha: 0.3), width: 1.5),
                               ),
@@ -109,7 +110,7 @@ class MatchView extends StatelessWidget {
                                           '${DisplayFormatters.time(gap.startTime)} – ${DisplayFormatters.time(gap.endTime)}',
                                           style: AppFonts.display(weight: FontWeight.w800).copyWith(
                                             fontSize: 18,
-                                            color: AppColors.contrast,
+                                            color: context.palette.contrast,
                                           ),
                                         ),
                                         const SizedBox(height: 3),
@@ -121,7 +122,7 @@ class MatchView extends StatelessWidget {
                                               DisplayFormatters.freeDuration(gap.durationMinutes),
                                               style: AppFonts.body().copyWith(
                                                 fontSize: 13,
-                                                color: AppColors.contrast.withValues(alpha: 0.5),
+                                                color: context.palette.contrast.withValues(alpha: 0.5),
                                               ),
                                             ),
                                           ],
@@ -138,9 +139,9 @@ class MatchView extends StatelessWidget {
                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
                               margin: const EdgeInsets.only(bottom: 32),
                               decoration: BoxDecoration(
-                                color: Colors.white,
+                                color: context.palette.surface,
                                 borderRadius: BorderRadius.circular(14),
-                                border: Border.all(color: AppColors.contrast.withValues(alpha: 0.1)),
+                                border: Border.all(color: context.palette.contrast.withValues(alpha: 0.1)),
                               ),
                               child: Column(
                                 children: [
@@ -149,7 +150,7 @@ class MatchView extends StatelessWidget {
                                     textAlign: TextAlign.center,
                                     style: AppFonts.body().copyWith(
                                       fontSize: 14,
-                                      color: AppColors.contrast.withValues(alpha: 0.7),
+                                      color: context.palette.contrast.withValues(alpha: 0.7),
                                     ),
                                   ),
                                   if (vm.lastCheckTime != null) ...[
@@ -159,7 +160,7 @@ class MatchView extends StatelessWidget {
                                       textAlign: TextAlign.center,
                                       style: AppFonts.body().copyWith(
                                         fontSize: 12,
-                                        color: AppColors.contrast.withValues(alpha: 0.4),
+                                        color: context.palette.contrast.withValues(alpha: 0.4),
                                       ),
                                     ),
                                   ],

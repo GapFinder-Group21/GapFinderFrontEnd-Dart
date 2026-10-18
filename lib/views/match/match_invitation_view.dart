@@ -1,3 +1,4 @@
+import 'package:gapfinderfrontend_dart/core/theme/app_palette.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
@@ -79,7 +80,7 @@ class _MatchInvitationViewState extends State<MatchInvitationView> {
     }
 
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: context.palette.background,
       body: SafeArea(
         child: Column(
           children: [
@@ -106,7 +107,7 @@ class _MatchInvitationViewState extends State<MatchInvitationView> {
                       style: AppFonts.subtitle(weight: FontWeight.w800).copyWith(
                         fontSize: 11,
                         letterSpacing: 1.2,
-                        color: AppColors.contrast.withValues(alpha: 0.4),
+                        color: context.palette.contrast.withValues(alpha: 0.4),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -118,20 +119,20 @@ class _MatchInvitationViewState extends State<MatchInvitationView> {
                       style: AppFonts.subtitle(weight: FontWeight.w800).copyWith(
                         fontSize: 11,
                         letterSpacing: 1.2,
-                        color: AppColors.contrast.withValues(alpha: 0.4),
+                        color: context.palette.contrast.withValues(alpha: 0.4),
                       ),
                     ),
                     const SizedBox(height: 12),
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: context.palette.surface,
                         borderRadius: BorderRadius.circular(16),
                         border: Border.all(color: AppColors.accent3.withValues(alpha: 0.1)),
                       ),
                       child: Text(
                         "${user.name} found an overlap in your schedules and wants to meet up!",
-                        style: AppFonts.body().copyWith(color: AppColors.contrast.withValues(alpha: 0.7)),
+                        style: AppFonts.body().copyWith(color: context.palette.contrast.withValues(alpha: 0.7)),
                       ),
                     ),
 
@@ -155,7 +156,7 @@ class _MatchInvitationViewState extends State<MatchInvitationView> {
                                   'Decline',
                                   style: AppFonts.subtitle(weight: FontWeight.w700).copyWith(
                                     fontSize: 15,
-                                    color: AppColors.contrast.withValues(alpha: 0.4),
+                                    color: context.palette.contrast.withValues(alpha: 0.4),
                                   ),
                                 ),
                               ),
@@ -177,7 +178,7 @@ class _MatchInvitationViewState extends State<MatchInvitationView> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
@@ -186,7 +187,7 @@ class _MatchInvitationViewState extends State<MatchInvitationView> {
             offset: const Offset(0, 8),
           ),
         ],
-        border: Border.all(color: AppColors.contrast.withValues(alpha: 0.08)),
+        border: Border.all(color: context.palette.contrast.withValues(alpha: 0.08)),
       ),
       child: Row(
         children: [
@@ -205,7 +206,7 @@ class _MatchInvitationViewState extends State<MatchInvitationView> {
                   user.name,
                   style: AppFonts.display(weight: FontWeight.w900).copyWith(
                     fontSize: 20,
-                    color: AppColors.contrast,
+                    color: context.palette.contrast,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -215,7 +216,7 @@ class _MatchInvitationViewState extends State<MatchInvitationView> {
                   overflow: TextOverflow.ellipsis,
                   style: AppFonts.subtitle(weight: FontWeight.w600).copyWith(
                     fontSize: 13,
-                    color: AppColors.contrast.withValues(alpha: 0.5),
+                    color: context.palette.contrast.withValues(alpha: 0.5),
                   ),
                 ),
               ],

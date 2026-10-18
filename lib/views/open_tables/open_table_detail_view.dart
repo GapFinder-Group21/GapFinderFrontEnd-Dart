@@ -1,3 +1,4 @@
+import 'package:gapfinderfrontend_dart/core/theme/app_palette.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
@@ -105,7 +106,7 @@ class _OpenTableDetailViewState extends State<OpenTableDetailView> {
         final bool hasEnded = vm.hasEnded;
 
         return Scaffold(
-          backgroundColor: AppColors.background,
+          backgroundColor: context.palette.background,
           appBar: const CustomTopBar(
             title: 'Open Table Detail',
             showBack: true,
@@ -137,7 +138,7 @@ class _OpenTableDetailViewState extends State<OpenTableDetailView> {
                         style: AppFonts.subtitle(weight: FontWeight.w800).copyWith(
                           fontSize: 11,
                           letterSpacing: 1.2,
-                          color: AppColors.contrast.withValues(alpha: 0.4),
+                          color: context.palette.contrast.withValues(alpha: 0.4),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -150,7 +151,7 @@ class _OpenTableDetailViewState extends State<OpenTableDetailView> {
                         style: AppFonts.subtitle(weight: FontWeight.w800).copyWith(
                           fontSize: 11,
                           letterSpacing: 1.2,
-                          color: AppColors.contrast.withValues(alpha: 0.4),
+                          color: context.palette.contrast.withValues(alpha: 0.4),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -177,7 +178,7 @@ class _OpenTableDetailViewState extends State<OpenTableDetailView> {
                         style: AppFonts.subtitle(weight: FontWeight.w800).copyWith(
                           fontSize: 11,
                           letterSpacing: 1.2,
-                          color: AppColors.contrast.withValues(alpha: 0.4),
+                          color: context.palette.contrast.withValues(alpha: 0.4),
                         ),
                       ),
                       const SizedBox(height: 10),
@@ -185,15 +186,15 @@ class _OpenTableDetailViewState extends State<OpenTableDetailView> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: context.palette.surface,
                           borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: AppColors.contrast.withValues(alpha: 0.08), width: 1.5),
+                          border: Border.all(color: context.palette.contrast.withValues(alpha: 0.08), width: 1.5),
                         ),
                         child: Text(
                           table.description,
                           style: AppFonts.body().copyWith(
                             fontSize: 14,
-                            color: AppColors.contrast.withValues(alpha: 0.7),
+                            color: context.palette.contrast.withValues(alpha: 0.7),
                             height: 1.5,
                           ),
                         ),
@@ -206,7 +207,7 @@ class _OpenTableDetailViewState extends State<OpenTableDetailView> {
                         style: AppFonts.subtitle(weight: FontWeight.w800).copyWith(
                           fontSize: 11,
                           letterSpacing: 1.2,
-                          color: AppColors.contrast.withValues(alpha: 0.4),
+                          color: context.palette.contrast.withValues(alpha: 0.4),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -257,9 +258,9 @@ class _OpenTableDetailViewState extends State<OpenTableDetailView> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppColors.contrast.withValues(alpha: 0.08)),
+        border: Border.all(color: context.palette.contrast.withValues(alpha: 0.08)),
         boxShadow: [
           BoxShadow(
             color: AppColors.contrast.withValues(alpha: 0.03),
@@ -280,14 +281,14 @@ class _OpenTableDetailViewState extends State<OpenTableDetailView> {
                   'Created by',
                   style: AppFonts.body().copyWith(
                     fontSize: 12,
-                    color: AppColors.contrast.withValues(alpha: 0.4),
+                    color: context.palette.contrast.withValues(alpha: 0.4),
                   ),
                 ),
                 Text(
                   table.creator?.name ?? 'Unknown User',
                   style: AppFonts.display(weight: FontWeight.w800).copyWith(
                     fontSize: 18,
-                    color: AppColors.contrast,
+                    color: context.palette.contrast,
                   ),
                 ),
               ],
@@ -306,7 +307,7 @@ class _OpenTableDetailViewState extends State<OpenTableDetailView> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.palette.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: AppColors.accent2.withValues(alpha: 0.15), width: 1.5),
       ),
@@ -329,7 +330,7 @@ class _OpenTableDetailViewState extends State<OpenTableDetailView> {
                   activityName,
                   style: AppFonts.display(weight: FontWeight.w800).copyWith(
                     fontSize: 16,
-                    color: AppColors.contrast,
+                    color: context.palette.contrast,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -337,7 +338,7 @@ class _OpenTableDetailViewState extends State<OpenTableDetailView> {
                   'Up to ${table.maxParticipants} participants${effortText.isNotEmpty ? ' · $effortText' : ''}',
                   style: AppFonts.body().copyWith(
                     fontSize: 13,
-                    color: AppColors.contrast.withValues(alpha: 0.5),
+                    color: context.palette.contrast.withValues(alpha: 0.5),
                   ),
                 ),
                 if (table.activity?.interest != null) ...[
@@ -372,9 +373,9 @@ class _OpenTableDetailViewState extends State<OpenTableDetailView> {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: context.palette.surface,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppColors.contrast.withValues(alpha: 0.06)),
+          border: Border.all(color: context.palette.contrast.withValues(alpha: 0.06)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -387,7 +388,7 @@ class _OpenTableDetailViewState extends State<OpenTableDetailView> {
                   label.toUpperCase(),
                   style: AppFonts.subtitle(weight: FontWeight.w700).copyWith(
                     fontSize: 9,
-                    color: AppColors.contrast.withValues(alpha: 0.35),
+                    color: context.palette.contrast.withValues(alpha: 0.35),
                   ),
                 ),
               ],
@@ -397,7 +398,7 @@ class _OpenTableDetailViewState extends State<OpenTableDetailView> {
               value,
               style: AppFonts.body(weight: FontWeight.w700).copyWith(
                 fontSize: 13,
-                color: AppColors.contrast,
+                color: context.palette.contrast,
               ),
             ),
           ],
@@ -411,7 +412,7 @@ class _OpenTableDetailViewState extends State<OpenTableDetailView> {
     if (_vm.participants.isEmpty) {
       return Text(
         'Be the first to join!',
-        style: AppFonts.body().copyWith(color: AppColors.contrast.withValues(alpha: 0.4)),
+        style: AppFonts.body().copyWith(color: context.palette.contrast.withValues(alpha: 0.4)),
       );
     }
 

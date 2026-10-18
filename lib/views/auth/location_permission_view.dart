@@ -1,3 +1,4 @@
+import 'package:gapfinderfrontend_dart/core/theme/app_palette.dart';
 import 'package:flutter/material.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_fonts.dart';
@@ -29,7 +30,7 @@ class LocationPermissionView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: context.palette.surface,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
@@ -57,7 +58,7 @@ class LocationPermissionView extends StatelessWidget {
                 'Enable Location',
                 style: AppFonts.display(weight: FontWeight.w800).copyWith(
                   fontSize: 22,
-                  color: AppColors.contrast,
+                  color: context.palette.contrast,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -68,7 +69,7 @@ class LocationPermissionView extends StatelessWidget {
                 'GAP FINDER uses your location to identify your campus area and show Open Tables.',
                 style: AppFonts.body().copyWith(
                   fontSize: 15,
-                  color: AppColors.contrast.withValues(alpha: 0.6),
+                  color: context.palette.contrast.withValues(alpha: 0.6),
                   height: 1.55,
                 ),
                 textAlign: TextAlign.center,
@@ -111,7 +112,7 @@ class LocationPermissionView extends StatelessWidget {
                           'You can use the app, but some features won\'t be available without location.',
                           style: AppFonts.body().copyWith(fontSize: 13, color: Colors.white),
                         ),
-                        backgroundColor: AppColors.contrast.withValues(alpha: 0.8),
+                        backgroundColor: context.palette.contrast.withValues(alpha: 0.8),
                         duration: const Duration(seconds: 4),
                       ),
                     );
@@ -124,7 +125,7 @@ class LocationPermissionView extends StatelessWidget {
                     'Skip for now',
                     style: AppFonts.body().copyWith(
                       fontSize: 14,
-                      color: AppColors.contrast.withValues(alpha: 0.4),
+                      color: context.palette.contrast.withValues(alpha: 0.4),
                     ),
                   ),
                 ),
