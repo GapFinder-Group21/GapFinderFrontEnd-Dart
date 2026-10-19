@@ -89,20 +89,18 @@ class CreateOpenTableViewModel extends ChangeNotifier with OfflineAwareMixin {
   bool get canPublish => !isOffline;
 
   // Load the activities and buildings when the screen opens; if the catalogs are missing or old,
-  // they are asked again by themselves when the connection comes back
+  // they are asked again by themselves when the connection comes back.
+  // It also brings back the photo taken before, if the app was closed or there was no connection.
   Future<void> init() {
     listenToConnectivity(onRestored: _refreshCatalogsIfNeeded);
+    _restorePendingPhoto();
     return loadData();
   }
 
   Future<void> _refreshCatalogsIfNeeded() async {
     if (_activities.isEmpty || _buildings.isEmpty || _catalogsStale) {
       await loadData(forceNetwork: true);
-  // Load the activities and buildings when the screen opens.
-  // It also brings back the photo taken before, if the app was closed or there was no connection.
-  Future<void> init() {
-    _restorePendingPhoto();
-    return loadData();
+    }
   }
 
   // Takes the photo saved in pending_photos/ (not awaited: it must not delay the form)
