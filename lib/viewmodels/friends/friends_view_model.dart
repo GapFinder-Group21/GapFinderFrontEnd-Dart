@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:gapfinderfrontend_dart/core/cache/lru_cache.dart';
 import 'package:gapfinderfrontend_dart/core/network/connectivity_service.dart';
 import 'package:gapfinderfrontend_dart/core/network/network_errors.dart';
 import 'package:gapfinderfrontend_dart/core/storage/outbox_service.dart';
@@ -56,6 +57,23 @@ class FriendsViewModel extends ChangeNotifier {
 
   // The screen never waits longer than this for the back
   static const loadTimeout = Duration(seconds: 20);
+
+  // Results of the user search, in memory. It is static so it survives while the app is open,
+  // even if the screen (and this ViewModel) is rebuilt.
+  // - maxEntries 15: every search text is one entry, and while typing "a", "an", "ana" each prefix
+  //   is a different one. 15 covers a few searches and their back and forth, and each entry is
+  //   only a short list of users, so the memory used is tiny.
+  // - ttl 3 minutes: long enough for the user to type, delete and type again without asking the
+  //   back every time, short enough that a new user or a changed name shows up soon.
+  static final LruCache<String, List<User>> _searchCache =
+      LruCache<String, List<User>>(maxEntries: 15, ttl: const Duration(minutes: 3));
+
+  // Empties the search cache (for tests)
+  @visibleForTesting
+  static void clearSearchCache() => _searchCache.clear();
+
+  // Same text with other capitals or extra spaces is the same search
+  static String _searchKey(String query) => query.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
 
   FriendsViewModel({
     FriendshipService? friendshipService,
@@ -226,7 +244,15 @@ class FriendsViewModel extends ChangeNotifier {
     _isSearching = true;
     _notify();
     try {
-      final results = await _userService.searchByName(query.trim());
+      final key = _searchKey(query);
+      var results = _searchCache.get(key);
+      if (results != null) {
+        debugPrint('LRU search "$key": HIT (hits=${_searchCache.hits}, misses=${_searchCache.misses}, size=${_searchCache.length})');
+      } else {
+        debugPrint('LRU search "$key": MISS (hits=${_searchCache.hits}, misses=${_searchCache.misses}, size=${_searchCache.length})');
+        results = await _userService.searchByName(query.trim());
+        _searchCache.put(key, results);
+      }
       final currentUserId = await TokenStorage.getUserId();
       _searchResults = results.where((u) => u.id != currentUserId).toList();
       _notify();
