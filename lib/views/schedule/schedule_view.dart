@@ -5,6 +5,7 @@ import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_fonts.dart';
 import 'package:gapfinderfrontend_dart/navigation/app_routes.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/schedule/schedule_view_model.dart';
+import 'package:gapfinderfrontend_dart/views/widgets/common/offline_banner.dart';
 
 /// Schedule tab: today's classes and free gaps, in time order.
 /// It also has the log out button.
@@ -99,6 +100,13 @@ class ScheduleView extends StatelessWidget {
               ),
             ),
 
+            // Saved schedule on screen because there is no connection
+            if (vm.isOffline && vm.data != null)
+              OfflineBanner(
+                message: 'Sin conexión · mostrando tu último horario',
+                lastUpdated: vm.lastUpdated,
+              ),
+
             // Content: loading, error, empty or the schedule
             Expanded(
               child: Builder(
@@ -112,7 +120,9 @@ class ScheduleView extends StatelessWidget {
                       child: Padding(
                         padding: const EdgeInsets.all(24),
                         child: Text(
-                          'No se pudo cargar tu horario.\n${vm.loadError}',
+                          vm.isOffline
+                              ? 'Sin conexión y aún no tienes un horario guardado.'
+                              : 'No se pudo cargar tu horario.\n${vm.loadError}',
                           textAlign: TextAlign.center,
                           style: AppFonts.body().copyWith(
                             color: context.palette.contrast.withValues(alpha: 0.6),

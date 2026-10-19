@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_fonts.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/custom_button.dart';
+import 'package:gapfinderfrontend_dart/views/widgets/common/offline_banner.dart';
 import 'package:provider/provider.dart';
 import 'package:gapfinderfrontend_dart/navigation/app_routes.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/auth/location_permission_view_model.dart';
@@ -29,10 +30,25 @@ class LocationPermissionView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final vm = context.watch<LocationPermissionViewModel>();
+
     return Scaffold(
       backgroundColor: context.palette.surface,
       body: SafeArea(
-        child: Padding(
+        child: Column(
+          children: [
+            // Asking for the permission works without internet; only the building waits
+            if (vm.isOffline)
+              const OfflineBanner(message: 'Tu edificio se calculará cuando vuelva la conexión'),
+            Expanded(child: Center(child: _buildContent(context))),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
+    return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -132,8 +148,6 @@ class LocationPermissionView extends StatelessWidget {
               ),
             ],
           ),
-        ),
-      ),
     );
   }
 }

@@ -14,15 +14,16 @@ import 'package:gapfinderfrontend_dart/services/activity_service.dart';
 import 'package:gapfinderfrontend_dart/services/building_service.dart';
 import 'package:gapfinderfrontend_dart/services/open_table_abandonment_service.dart';
 import 'package:gapfinderfrontend_dart/services/open_table_service.dart';
+import 'package:gapfinderfrontend_dart/viewmodels/offline_aware_mixin.dart';
 
 // What happened when the user tapped "Publish"
-enum PublishResult { published, missingFields, missingPhoto, noSession, failed }
+enum PublishResult { published, missingFields, missingPhoto, noSession, offline, failed }
 
 // What happened when the user tried to take the table photo
 enum PhotoResult { taken, cancelled, denied, permanentlyDenied, failed }
 
 // State and logic of the create open table form
-class CreateOpenTableViewModel extends ChangeNotifier {
+class CreateOpenTableViewModel extends ChangeNotifier with OfflineAwareMixin {
   final ActivityService _activityService;
   final BuildingService _buildingService;
   final OpenTableService _openTableService;
@@ -50,6 +51,14 @@ class CreateOpenTableViewModel extends ChangeNotifier {
   File? _photo;
   final ImagePicker _picker = ImagePicker();
 
+  // The catalogs saved in a file are used without asking the network while they are younger than this
+  static const catalogMaxAge = Duration(hours: 24);
+
+  // When the wizard was opened; with the user id it makes the abandonment report unique
+  final DateTime _openedAt = DateTime.now();
+  // True while the catalogs on screen are an old file (they are refreshed when the network is back)
+  bool _catalogsStale = false;
+
   // Last form step the user touched (sent when they quit without publishing)
   OpenTableCreationStep _currentStep = OpenTableCreationStep.activity;
   bool _abandonmentSent = false;
@@ -76,6 +85,19 @@ class CreateOpenTableViewModel extends ChangeNotifier {
   bool get canDecrementParticipants => _maxParticipants > 2;
   bool get canIncrementParticipants => _maxParticipants < 20;
 
+  // Publishing sends the table and the photo, so it needs the network; the form can still be filled
+  bool get canPublish => !isOffline;
+
+  // Load the activities and buildings when the screen opens; if the catalogs are missing or old,
+  // they are asked again by themselves when the connection comes back
+  Future<void> init() {
+    listenToConnectivity(onRestored: _refreshCatalogsIfNeeded);
+    return loadData();
+  }
+
+  Future<void> _refreshCatalogsIfNeeded() async {
+    if (_activities.isEmpty || _buildings.isEmpty || _catalogsStale) {
+      await loadData(forceNetwork: true);
   // Load the activities and buildings when the screen opens.
   // It also brings back the photo taken before, if the app was closed or there was no connection.
   Future<void> init() {
@@ -95,37 +117,103 @@ class CreateOpenTableViewModel extends ChangeNotifier {
     }
   }
 
-  // Loads the activities and buildings - GET /activities, GET /buildings
-  Future<void> loadData() async {
-    _isLoading = true;
+  // Cache falling back to network: the catalogs come from the saved files (catalogs/*.json) and the
+  // network is only asked when there is no file or it is older than 24 hours and there is connection.
+  // GET /activities, GET /buildings
+  Future<void> loadData({bool forceNetwork = false}) async {
+    _isLoading = _activities.isEmpty || _buildings.isEmpty;
     _errorMessage = null;
     _notify();
 
+    final saved = await _readSavedCatalogs();
+    final savedAt = saved?.savedAt;
+    final isFresh = savedAt != null && DateTime.now().difference(savedAt) < catalogMaxAge;
+
+    if (saved != null && isFresh && !forceNetwork) {
+      _applyCatalogs(saved.activities, saved.buildings);
+      _catalogsStale = false;
+      markUpdatedAt(savedAt);
+      _finishLoading();
+      return;
+    }
+
+    if (hasConnection) {
+      try {
+        // Load both lists at the same time
+        final catalogs = await Future.wait([
+          _activityService.getActivities(),
+          _buildingService.getBuildings(),
+        ]).timeout(OfflineAwareMixin.loadTimeout);
+
+        final activities = catalogs[0] as List<Activity>;
+        final buildings = catalogs[1] as List<Building>;
+        _applyCatalogs(activities, buildings);
+        _catalogsStale = false;
+        markFresh();
+
+        // Save the catalogs the network answered; it is not awaited and never breaks the screen
+        SofiaLocalCache.instance.saveCatalogs(activities, buildings);
+        _finishLoading();
+        return;
+      } catch (e) {
+        debugPrint('Sin red para los catálogos: $e');
+        if (saved == null) {
+          _errorMessage = e.toString().replaceAll('Exception: ', '');
+          _finishLoading();
+          return;
+        }
+      }
+    }
+
+    // No connection (or the network failed): an old file is better than nothing
+    if (saved != null) {
+      _applyCatalogs(saved.activities, saved.buildings);
+      _catalogsStale = true;
+      markFromCache(savedAt);
+    } else {
+      _errorMessage = 'Sin conexión y aún no hay actividades ni edificios guardados';
+    }
+    _finishLoading();
+  }
+
+  void _finishLoading() {
+    _isLoading = false;
+    _notify();
+  }
+
+  // Keeps what the user already picked if it is still in the new lists
+  void _applyCatalogs(List<Activity> activities, List<Building> buildings) {
+    _activities = activities;
+    _buildings = buildings;
+
+    final pickedActivity = _selectedActivity == null
+        ? null
+        : activities.where((a) => a.id == _selectedActivity!.id).firstOrNull;
+    _selectedActivity = pickedActivity ?? (activities.isNotEmpty ? activities.first : null);
+    if (_selectedActivity != null) _durationMinutes = _selectedActivity!.durationMinutes;
+
+    _selectedBuilding = _selectedBuilding == null
+        ? null
+        : buildings.where((b) => b.id == _selectedBuilding!.id).firstOrNull;
+  }
+
+  // The catalogs saved as files, or null if one of them is missing
+  Future<({List<Activity> activities, List<Building> buildings, DateTime? savedAt})?> _readSavedCatalogs() async {
     try {
-      // Load both lists at the same time
-      final catalogs = await Future.wait([
-        _activityService.getActivities(),
-        _buildingService.getBuildings(),
-      ]);
-
-      _activities = catalogs[0] as List<Activity>;
-      _buildings = catalogs[1] as List<Building>;
-
-      // Save the catalogs the network answered; it is not awaited and never breaks the screen
-      SofiaLocalCache.instance.saveCatalogs(_activities, _buildings);
-
-      if (_activities.isNotEmpty) {
-        _selectedActivity = _activities.first;
-        _durationMinutes = _selectedActivity!.durationMinutes;
+      final files = SofiaLocalCache.instance.catalogs;
+      final activities = await files.loadActivities();
+      final buildings = await files.loadBuildings();
+      if (activities == null || buildings == null || activities.items.isEmpty || buildings.items.isEmpty) {
+        return null;
       }
 
-      _isLoading = false;
-      _notify();
+      // The oldest of the two files decides how old the catalogs are
+      final dates = [activities.savedAt, buildings.savedAt];
+      final savedAt = dates.contains(null) ? null : (dates[0]!.isBefore(dates[1]!) ? dates[0] : dates[1]);
+      return (activities: activities.items, buildings: buildings.items, savedAt: savedAt);
     } catch (e) {
-      debugPrint('CRITICAL ERROR in Create Open Table: $e');
-      _errorMessage = e.toString().replaceAll('Exception: ', '');
-      _isLoading = false;
-      _notify();
+      debugPrint('No se pudieron leer los catálogos guardados: $e');
+      return null;
     }
   }
 
@@ -196,6 +284,9 @@ class CreateOpenTableViewModel extends ChangeNotifier {
 
     if (_photo == null) return PublishResult.missingPhoto;
 
+    // The table and the photo need the network; what the user filled stays in the form
+    if (!canPublish) return PublishResult.offline;
+
     final userId = await TokenStorage.getUserId();
     if (userId == null) return PublishResult.noSession;
 
@@ -236,6 +327,8 @@ class CreateOpenTableViewModel extends ChangeNotifier {
 
     final userId = await TokenStorage.getUserId();
     if (userId != null) {
+      // Without connection the report goes to the outbox; the dedupeKey (user + time the wizard
+      // was opened) makes sure it is sent only once
       _abandonmentService
           .createAbandonment(OpenTableAbandonment(
         userId: userId,
@@ -245,7 +338,7 @@ class CreateOpenTableViewModel extends ChangeNotifier {
         // The back accepts the max participants from the PARTICIPANTS step onwards
         maxParticipants: _currentStep.index >= OpenTableCreationStep.participants.index ? _maxParticipants : null,
         buildingId: _currentStep == OpenTableCreationStep.location ? _selectedBuilding?.id : null,
-      ))
+      ), dedupeKey: 'open_table_abandonment:$userId:${_openedAt.millisecondsSinceEpoch}')
           .catchError((e) => debugPrint('Abandonment not registered: $e'));
     }
     return true;

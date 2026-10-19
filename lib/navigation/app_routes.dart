@@ -62,7 +62,7 @@ class AppRoutes {
         register: (context) => withViewModel(() => RegisterViewModel(), const RegisterView()),
         login: (context) => withViewModel(() => LoginViewModel(), const LoginView()),
         locationPermission: (context) =>
-            withViewModel(() => LocationPermissionViewModel(), const LocationPermissionView()),
+            withViewModel(() => LocationPermissionViewModel()..init(), const LocationPermissionView()),
         home: (context) => const MainView(),
         interests: (context) => withViewModel(() => InterestsViewModel()..init(), const InterestsView()),
         schedule: (context) => withViewModel(() => ScheduleViewModel()..init(), const ScheduleView()),

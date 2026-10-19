@@ -8,6 +8,7 @@ import 'package:gapfinderfrontend_dart/models/open_table_abandonment.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/open_tables/create_open_table_view_model.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/custom_top_bar.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/custom_button.dart';
+import 'package:gapfinderfrontend_dart/views/widgets/common/offline_banner.dart';
 
 /// Form to create an open table: activity, description, max participants and building.
 /// If the user leaves without publishing, it reports in which step they quit (abandonment).
@@ -229,6 +230,10 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(_vm.publishError ?? '')),
         );
+      case PublishResult.offline:
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Publicar necesita conexión; no perderás lo que llenaste')),
+        );
       case PublishResult.noSession:
         break;
     }
@@ -257,10 +262,10 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.error_outline_rounded, color: AppColors.accent1, size: 48),
+                Icon(vm.isOffline ? Icons.wifi_off_rounded : Icons.error_outline_rounded, color: AppColors.accent1, size: 48),
                 const SizedBox(height: 16),
                 Text(
-                  'Connection Error',
+                  vm.isOffline ? 'Sin conexión' : 'Connection Error',
                   style: AppFonts.display(weight: FontWeight.w800).copyWith(fontSize: 18),
                 ),
                 const SizedBox(height: 8),
@@ -291,7 +296,16 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
         showBack: true,
         onBack: _onCancel,
       ),
-      body: SingleChildScrollView(
+      body: Column(
+        children: [
+          // The form works without internet with the catalogs saved in files
+          if (vm.isOffline)
+            OfflineBanner(
+              message: 'Sin conexión · usando actividades y edificios guardados',
+              lastUpdated: vm.lastUpdated,
+            ),
+          Expanded(
+      child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -392,9 +406,20 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
               children: [
                 CustomButton(
                   label: 'Publish Open Table',
-                  color: AppColors.accent3,
-                  onClick: _publish,
+                  color: vm.canPublish ? AppColors.accent3 : Colors.grey[400]!,
+                  onClick: vm.canPublish ? _publish : null,
                 ),
+                if (!vm.canPublish) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Publicar necesita conexión; no perderás lo que llenaste',
+                    textAlign: TextAlign.center,
+                    style: AppFonts.body(weight: FontWeight.w700).copyWith(
+                      fontSize: 12,
+                      color: AppColors.accent1,
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 12),
                 SizedBox(
                   width: double.infinity,
@@ -413,6 +438,9 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
             ),
           ],
         ),
+      ),
+          ),
+        ],
       ),
       ),
     );

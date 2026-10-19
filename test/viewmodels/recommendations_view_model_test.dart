@@ -1,5 +1,8 @@
+import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hive/hive.dart';
+import 'package:gapfinderfrontend_dart/data/local/sofia/recommendations_hive_store.dart';
 import 'package:gapfinderfrontend_dart/models/enums/open_table_status_enum.dart';
 import 'package:gapfinderfrontend_dart/models/open_table.dart';
 import 'package:gapfinderfrontend_dart/models/responses/recommendation_response.dart';
@@ -48,8 +51,12 @@ void main() {
   final storage = <String, String>{};
   const channel = MethodChannel('plugins.it_nomads.com/flutter_secure_storage');
 
-  setUp(() {
+  // Hive saves the last recommendation (cache then network), so it needs a folder in the tests
+  setUpAll(() => Hive.init(Directory.systemTemp.createTempSync('hive_recommendations').path));
+
+  setUp(() async {
     storage.clear();
+    await (await Hive.openBox(RecommendationsHiveStore.boxName)).clear();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, (call) async {
       final key = call.arguments['key'] as String?;
@@ -142,6 +149,23 @@ void main() {
       expect(vm.recommendation, isNotNull);
       expect(vm.isLoading, isFalse);
       expect(vm.dispose, returnsNormally);
+    });
+
+    test('cache then network: the saved answer stays when the network fails',
+        () async {
+      storage['userId'] = '42';
+      await RecommendationsHiveStore().save(42, _sampleResponse());
+      final service = FakeRecommendationService()..error = Exception('offline');
+      final vm = RecommendationsViewModel(recommendationService: service);
+
+      await vm.refresh();
+
+      expect(vm.recommendation?.buildingName, 'Edificio Central');
+      expect(vm.loadError, isNull);
+      expect(vm.isOffline, isTrue);
+      expect(vm.lastUpdated, isNotNull);
+      expect(vm.isLoading, isFalse);
+      vm.dispose();
     });
   });
 }

@@ -1,14 +1,16 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:gapfinderfrontend_dart/core/network/network_errors.dart';
 import 'package:gapfinderfrontend_dart/data/local/sofia/sofia_local_cache.dart';
 import 'package:gapfinderfrontend_dart/models/user.dart';
 import 'package:gapfinderfrontend_dart/services/building_service.dart';
 import 'package:gapfinderfrontend_dart/services/location_service.dart';
 import 'package:gapfinderfrontend_dart/services/nearby_friends_service.dart';
+import 'package:gapfinderfrontend_dart/viewmodels/offline_aware_mixin.dart';
 
 // What the location banner shows
-enum LocationBannerStatus { locating, disabled, inBuilding, outsideCampus, unavailable }
+enum LocationBannerStatus { locating, disabled, inBuilding, outsideCampus, unavailable, offline }
 
 // Event: the user arrived to a building where some friends are
 class NearbyFriendsDetected {
@@ -18,7 +20,7 @@ class NearbyFriendsDetected {
 }
 
 // Tracks the user's location, the current building and nearby friends
-class CurrentLocationViewModel extends ChangeNotifier {
+class CurrentLocationViewModel extends ChangeNotifier with OfflineAwareMixin {
   final int userId;
   final NearbyFriendsService _nearbyFriendsService;
   final BuildingService _buildingService;
@@ -40,14 +42,30 @@ class CurrentLocationViewModel extends ChangeNotifier {
   Timer? _timer;
   StreamSubscription<ServiceStatus>? _serviceStatusSubscription;
   bool _disposed = false;
+  // Last building saved in SharedPreferences, shown while there is no connection
+  String? _lastBuildingName;
+  DateTime? _lastBuildingAt;
+  bool _showingLastBuilding = false;
 
   Stream<NearbyFriendsDetected> get events => _events.stream;
   String? get buildingName => _buildingName;
   bool get isFirstLoad => _isFirstLoad;
   bool get isRefreshing => _isRefreshing;
+  String? get lastBuildingName => _lastBuildingName;
+
+  // "hace N min" since the last building was detected
+  String get lastBuildingAgo {
+    final at = _lastBuildingAt;
+    if (at == null) return '';
+    final minutes = DateTime.now().difference(at).inMinutes;
+    if (minutes < 60) return 'hace ${minutes < 1 ? 1 : minutes} min';
+    if (minutes < 24 * 60) return 'hace ${minutes ~/ 60} h';
+    return 'hace ${minutes ~/ (24 * 60)} d';
+  }
 
   // What the banner should show right now
   LocationBannerStatus get status {
+    if (_showingLastBuilding) return LocationBannerStatus.offline;
     if (_isFirstLoad) return LocationBannerStatus.locating;
     if (!_isLocationEnabled) return LocationBannerStatus.disabled;
     if (_locationCalculated) {
@@ -60,6 +78,7 @@ class CurrentLocationViewModel extends ChangeNotifier {
 
   // Update now, every 2 minutes, and when the GPS is turned on or off
   void init() {
+    listenToConnectivity(onRestored: updateLocation);
     updateLocation();
     _timer = Timer.periodic(const Duration(minutes: 2), (_) => updateLocation());
     _listenToLocationChanges();
@@ -76,6 +95,14 @@ class CurrentLocationViewModel extends ChangeNotifier {
 
   Future<void> updateLocation() async {
     if (_disposed) return;
+
+    // Without connection the location is not sent: the last building saved is shown instead
+    if (!hasConnection) {
+      await _showLastBuilding();
+      return;
+    }
+    _showingLastBuilding = false;
+
     debugPrint('DEBUG: [Banner] Starting location update for userId=$userId...');
     _isRefreshing = true;
     _notify();
@@ -148,6 +175,11 @@ class CurrentLocationViewModel extends ChangeNotifier {
     } catch (e, stackTrace) {
       debugPrint('❌ [Banner] Error updating location in banner: $e');
       debugPrint('$stackTrace');
+      // The connection dropped in the middle: it is not a GPS problem
+      if (isNetworkError(e) || !hasConnection) {
+        await _showLastBuilding();
+        return;
+      }
       if (!_disposed) {
         _isLocationEnabled = false;
         _locationCalculated = false;
@@ -156,6 +188,22 @@ class CurrentLocationViewModel extends ChangeNotifier {
         _notify();
       }
     }
+  }
+
+  // Reads "last building" from SharedPreferences and shows it. Nothing is sent to the back.
+  Future<void> _showLastBuilding() async {
+    try {
+      final prefs = SofiaLocalCache.instance.lastBuilding;
+      _lastBuildingName = await prefs.loadName();
+      _lastBuildingAt = await prefs.loadAt();
+    } catch (e) {
+      debugPrint('No se pudo leer el último edificio: $e');
+    }
+    if (_disposed) return;
+    _showingLastBuilding = true;
+    _isFirstLoad = false;
+    _isRefreshing = false;
+    _notify();
   }
 
   void _notify() {

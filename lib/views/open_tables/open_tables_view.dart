@@ -8,6 +8,7 @@ import 'package:gapfinderfrontend_dart/navigation/app_routes.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/open_tables/open_tables_view_model.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/avatar_widget.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/custom_button.dart';
+import 'package:gapfinderfrontend_dart/views/widgets/common/offline_banner.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/open_tables/current_location_banner.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/open_tables/open_table_photo.dart';
 
@@ -33,6 +34,13 @@ class _OpenTablesViewState extends State<OpenTablesView> {
         children: [
           // Dark header with the title, the current building and the buttons
           _buildHeader(),
+
+          // Read-only list saved in SQLite because there is no connection
+          if (vm.isOffline && vm.openTables.isNotEmpty)
+            OfflineBanner(
+              message: 'Sin conexión · mostrando las últimas mesas guardadas',
+              lastUpdated: vm.lastUpdated,
+            ),
 
           Expanded(
             child: vm.isLoading 
@@ -64,7 +72,9 @@ class _OpenTablesViewState extends State<OpenTablesView> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Column(
+          // Expanded so a long "Último edificio: ..." text shrinks instead of overflowing
+          Expanded(
+            child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
@@ -88,6 +98,8 @@ class _OpenTablesViewState extends State<OpenTablesView> {
                 ),
             ],
           ),
+          ),
+          const SizedBox(width: 8),
           Row(
             children: [
               ElevatedButton(
@@ -190,8 +202,13 @@ class _OpenTablesViewState extends State<OpenTablesView> {
     final bool isCreator = _vm.isCreator(table);
     final bool isMember = _vm.isMember(table);
     final bool alreadyIn = isCreator || isMember;
+    // Joining needs the network: without it the button is off and the list is read only
+    final bool needsConnection = !alreadyIn && _vm.isOffline;
     
-    return Container(
+    return GestureDetector(
+      // The whole card opens the detail (saved in SQLite), so navigating works without internet
+      onTap: () => Navigator.pushNamed(context, AppRoutes.openTableDetail, arguments: table.id).then((_) => _vm.refresh()),
+      child: Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
         color: context.palette.surface,
@@ -338,22 +355,33 @@ class _OpenTablesViewState extends State<OpenTablesView> {
                   ),
                 ),
                 const Spacer(),
-                ElevatedButton(
-                  onPressed: () => Navigator.pushNamed(context, AppRoutes.openTableDetail, arguments: table.id).then((_) => _vm.refresh()),
+                Flexible(
+                  child: ElevatedButton(
+                  onPressed: needsConnection
+                      ? null
+                      : () => Navigator.pushNamed(context, AppRoutes.openTableDetail, arguments: table.id).then((_) => _vm.refresh()),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: alreadyIn ? context.palette.disabled : AppColors.accent3,
+                    disabledBackgroundColor: context.palette.disabled,
+                    disabledForegroundColor: context.palette.contrast.withValues(alpha: 0.5),
                     foregroundColor: alreadyIn ? context.palette.contrast.withValues(alpha: 0.5) : Colors.white,
                     elevation: 0,
                     padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 7),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                     textStyle: AppFonts.body(weight: FontWeight.w800).copyWith(fontSize: 12),
                   ),
-                  child: Text(alreadyIn ? 'Joined' : 'Join'),
+                  child: Text(alreadyIn
+                      ? 'Joined'
+                      : needsConnection
+                          ? 'Necesitas conexión para unirte'
+                          : 'Join', textAlign: TextAlign.center),
+                  ),
                 ),
               ],
             ),
           ),
         ],
+      ),
       ),
     );
   }

@@ -1,17 +1,51 @@
 // First screen of the app: options to sign up or log in.
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:gapfinderfrontend_dart/navigation/app_routes.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_fonts.dart';
+import 'package:gapfinderfrontend_dart/viewmodels/welcome/welcome_view_model.dart';
+import 'package:gapfinderfrontend_dart/views/widgets/common/offline_banner.dart';
 
+// It brings its own ViewModel, so the route and the session gate can keep using it as a const
 class WelcomeView extends StatelessWidget {
   const WelcomeView({super.key});
 
   @override
   Widget build(BuildContext context) {
+    return ChangeNotifierProvider(
+      create: (_) => WelcomeViewModel()..init(),
+      child: const _WelcomeBody(),
+    );
+  }
+}
+
+class _WelcomeBody extends StatelessWidget {
+  const _WelcomeBody();
+
+  @override
+  Widget build(BuildContext context) {
+    final vm = context.watch<WelcomeViewModel>();
+
     return Scaffold(
       backgroundColor: AppColors.contrast,
       body: SafeArea(
+        child: Column(
+          children: [
+            // Works without internet; only tells the user why sign up and log in must wait
+            if (vm.showOfflineNotice)
+              const OfflineBanner(
+                message: 'Sin conexión: podrás crear tu cuenta o entrar cuando vuelva internet',
+              ),
+            Expanded(child: _buildContent(context)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContent(BuildContext context) {
+    return Center(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 40),
           child: Column(
@@ -105,7 +139,6 @@ class WelcomeView extends StatelessWidget {
             ],
           ),
         ),
-      ),
     );
   }
 }
