@@ -9,6 +9,7 @@ import 'package:gapfinderfrontend_dart/models/open_table.dart';
 import 'package:gapfinderfrontend_dart/models/enums/open_table_status_enum.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/avatar_widget.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/custom_top_bar.dart';
+import 'package:gapfinderfrontend_dart/views/widgets/common/offline_banner.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/open_tables/open_table_photo.dart';
 
 /// Shows the open tables the user created and the ones they joined.
@@ -33,29 +34,41 @@ class _MyOpenTablesViewState extends State<MyOpenTablesView> {
         title: 'My Open Tables',
         showBack: true,
       ),
-      body: vm.isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: vm.refresh,
-              child: vm.error != null 
-                  ? _buildErrorState()
-                  : vm.isEmpty
-                      ? _buildEmptyState()
-                      : ListView(
-                          padding: const EdgeInsets.all(16),
-                          children: [
-                            if (vm.createdTables.isNotEmpty) ...[
-                              _buildSectionHeader('Created by me'),
-                              ...vm.createdTables.map((t) => _buildTableCard(t, isOwner: true)),
-                              const SizedBox(height: 20),
-                            ],
-                            if (vm.joinedTables.isNotEmpty) ...[
-                              _buildSectionHeader('Participated'),
-                              ...vm.joinedTables.map((t) => _buildTableCard(t, isOwner: false)),
-                            ],
-                          ],
-                        ),
+      body: Column(
+        children: [
+          // Read-only list saved in SQLite because there is no connection
+          if (vm.isOffline && !vm.isEmpty)
+            OfflineBanner(
+              message: 'Sin conexión · mostrando tus mesas guardadas',
+              lastUpdated: vm.lastUpdated,
             ),
+          Expanded(
+            child: vm.isLoading
+                ? const Center(child: CircularProgressIndicator())
+                : RefreshIndicator(
+                    onRefresh: vm.refresh,
+                    child: vm.error != null
+                        ? _buildErrorState()
+                        : vm.isEmpty
+                            ? _buildEmptyState()
+                            : ListView(
+                                padding: const EdgeInsets.all(16),
+                                children: [
+                                  if (vm.createdTables.isNotEmpty) ...[
+                                    _buildSectionHeader('Created by me'),
+                                    ...vm.createdTables.map((t) => _buildTableCard(t, isOwner: true)),
+                                    const SizedBox(height: 20),
+                                  ],
+                                  if (vm.joinedTables.isNotEmpty) ...[
+                                    _buildSectionHeader('Participated'),
+                                    ...vm.joinedTables.map((t) => _buildTableCard(t, isOwner: false)),
+                                  ],
+                                ],
+                              ),
+                  ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -82,9 +95,9 @@ class _MyOpenTablesViewState extends State<MyOpenTablesView> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.error_outline_rounded, color: AppColors.accent1, size: 48),
+            Icon(_vm.isOffline ? Icons.wifi_off_rounded : Icons.error_outline_rounded, color: AppColors.accent1, size: 48),
             const SizedBox(height: 16),
-            Text('Error loading tables', style: AppFonts.display(weight: FontWeight.w700).copyWith(fontSize: 16)),
+            Text(_vm.isOffline ? 'Sin conexión' : 'Error loading tables', style: AppFonts.display(weight: FontWeight.w700).copyWith(fontSize: 16)),
             const SizedBox(height: 8),
             Text(_vm.error!, textAlign: TextAlign.center, style: AppFonts.body().copyWith(color: Colors.grey)),
             const SizedBox(height: 24),

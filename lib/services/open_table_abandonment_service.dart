@@ -1,19 +1,46 @@
+import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:gapfinderfrontend_dart/core/network/api_client.dart';
+import 'package:gapfinderfrontend_dart/core/network/connectivity_service.dart';
+import 'package:gapfinderfrontend_dart/core/network/network_errors.dart';
+import 'package:gapfinderfrontend_dart/core/storage/outbox_service.dart';
 import 'package:gapfinderfrontend_dart/models/open_table_abandonment.dart';
 import 'package:gapfinderfrontend_dart/models/responses/open_table_abandonment_stats.dart';
 
 class OpenTableAbandonmentService {
   // Registers where the user abandoned the creation form - POST /open-table-abandonments/user/{userId}
-  Future<void> createAbandonment(OpenTableAbandonment abandonment) async {
-    final res = await ApiClient.post(
-      '/open-table-abandonments/user/${abandonment.userId}',
-      body: abandonment.toJson(),
-    );
+  // Without connection (or if the network fails) the report goes to the outbox and is sent later.
+  // The dedupeKey makes sure the same abandonment is never sent twice.
+  Future<void> createAbandonment(OpenTableAbandonment abandonment, {String? dedupeKey}) async {
+    final endpoint = '/open-table-abandonments/user/${abandonment.userId}';
+
+    if (!ConnectivityService.instance.isOnline) {
+      await _enqueue(endpoint, abandonment, dedupeKey);
+      return;
+    }
+
+    final http.Response res;
+    try {
+      res = await ApiClient.post(endpoint, body: abandonment.toJson());
+    } catch (e) {
+      if (!isNetworkError(e)) rethrow;
+      await _enqueue(endpoint, abandonment, dedupeKey);
+      return;
+    }
 
     if (res.statusCode != 201) {
       throw Exception(_errorMessage(res, 'Error registering abandonment'));
     }
+  }
+
+  Future<void> _enqueue(String endpoint, OpenTableAbandonment abandonment, String? dedupeKey) async {
+    await OutboxService.instance.enqueue(
+      type: 'open_table_abandonment',
+      method: 'POST',
+      endpoint: endpoint,
+      body: abandonment.toJson(),
+      dedupeKey: dedupeKey,
+    );
   }
 
   // Gets abandonment stats per step since a date - GET /open-table-abandonments/stats

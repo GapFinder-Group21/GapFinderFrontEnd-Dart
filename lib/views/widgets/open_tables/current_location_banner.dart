@@ -78,6 +78,13 @@ class _CurrentLocationBannerViewState extends State<_CurrentLocationBannerView> 
         iconColor = Colors.white.withValues(alpha: 0.5);
       case LocationBannerStatus.unavailable:
         text = 'Location unavailable';
+      case LocationBannerStatus.offline:
+        // No connection: the last building saved, and nothing is sent to the back
+        text = vm.lastBuildingName == null
+            ? 'Sin conexión · ubicación no disponible'
+            : 'Último edificio: ${vm.lastBuildingName} · ${vm.lastBuildingAgo}';
+        icon = Icons.wifi_off_rounded;
+        iconColor = AppColors.accent1.withValues(alpha: 0.7);
     }
 
     return Row(
@@ -85,12 +92,16 @@ class _CurrentLocationBannerViewState extends State<_CurrentLocationBannerView> 
       children: [
         Icon(icon, size: 14, color: iconColor),
         const SizedBox(width: 6),
-        Text(
+        Flexible(
+          child: Text(
           text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: AppFonts.subtitle().copyWith(
             fontSize: 13,
             color: Colors.white.withValues(alpha: 0.5),
           ),
+        ),
         ),
         if (vm.isRefreshing && !vm.isFirstLoad) ...[
           const SizedBox(width: 8),

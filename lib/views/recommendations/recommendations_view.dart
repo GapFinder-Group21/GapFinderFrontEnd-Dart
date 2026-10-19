@@ -7,6 +7,7 @@ import 'package:gapfinderfrontend_dart/models/open_table.dart';
 import 'package:gapfinderfrontend_dart/navigation/app_routes.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/recommendations/recommendations_view_model.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/avatar_widget.dart';
+import 'package:gapfinderfrontend_dart/views/widgets/common/offline_banner.dart';
 
 /// Suggestions tab: your favorite building (where you spend more time)
 /// and the open tables recommended for you.
@@ -49,11 +50,43 @@ class RecommendationsView extends StatelessWidget {
                 ],
               ),
             ),
+            // The last answer saved in Hive is on screen because there is no connection
+            if (vm.isOffline && vm.recommendation != null)
+              OfflineBanner(
+                message: 'Sin conexión · mostrando tus últimas recomendaciones',
+                lastUpdated: vm.lastUpdated,
+              ),
             Expanded(
               child: Builder(
                 builder: (context) {
                   if (vm.isLoading) {
                     return const Center(child: CircularProgressIndicator());
+                  }
+
+                  if (vm.isOfflineWithoutData) {
+                    return Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.wifi_off_rounded, size: 48, color: AppColors.accent1.withValues(alpha: 0.7)),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Sin conexión y aún no tenemos recomendaciones guardadas',
+                              textAlign: TextAlign.center,
+                              style: AppFonts.display(weight: FontWeight.w800).copyWith(fontSize: 16),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Se cargarán solas cuando vuelva la conexión.',
+                              textAlign: TextAlign.center,
+                              style: AppFonts.body().copyWith(color: context.palette.contrast.withValues(alpha: 0.5)),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
                   }
 
                   if (vm.loadError != null) {

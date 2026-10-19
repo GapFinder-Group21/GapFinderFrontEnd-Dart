@@ -10,9 +10,10 @@ import 'package:gapfinderfrontend_dart/models/open_table_participant.dart';
 import 'package:gapfinderfrontend_dart/services/location_service.dart';
 import 'package:gapfinderfrontend_dart/services/open_table_participant_service.dart';
 import 'package:gapfinderfrontend_dart/services/open_table_service.dart';
+import 'package:gapfinderfrontend_dart/viewmodels/offline_aware_mixin.dart';
 
 // State and logic of the open tables tab
-class OpenTablesViewModel extends ChangeNotifier {
+class OpenTablesViewModel extends ChangeNotifier with OfflineAwareMixin {
   final OpenTableService _openTableService;
   final OpenTableParticipantService _participantService;
 
@@ -41,8 +42,9 @@ class OpenTablesViewModel extends ChangeNotifier {
   bool isCreator(OpenTable table) => table.creator?.id == _userId;
   bool isMember(OpenTable table) => _joinedTableIds.contains(table.id);
 
-  // Load the tables and reload them when the GPS is turned on or off
+  // Load the tables; reload them when the GPS is turned on or off and when the connection comes back
   Future<void> init() async {
+    listenToConnectivity(onRestored: refresh);
     _listenToLocationChanges();
     await refresh();
   }
@@ -57,9 +59,10 @@ class OpenTablesViewModel extends ChangeNotifier {
     }
   }
 
-  // Load the open tables that are still open - GET /open-tables
+  // Network falling back to cache: loads the open tables that are still open - GET /open-tables.
+  // Without connection (or if the call fails or is too slow) it shows the list saved in SQLite, read only.
   Future<void> refresh() async {
-    _isLoading = true;
+    _isLoading = _openTables.isEmpty;
     _errorMessage = null;
     _notify();
 
@@ -76,37 +79,76 @@ class OpenTablesViewModel extends ChangeNotifier {
         return;
       }
 
-      final all = await _openTableService.getAll();
-      final now = DateTime.now();
-      _openTables = all
-          .where((t) => t.status == OpenTableStatusEnum.OPEN && t.endTime.isAfter(now))
-          .toList();
-
-      // Save the list the network answered; it is not awaited and never breaks the screen
-      SofiaLocalCache.instance.saveOpenTables(OpenTableListType.all, _openTables);
-
-      final checks = await Future.wait(_openTables.map((t) => _isParticipant(t.id, userId)));
-      final joinedIds = <int>{};
-      for (int i = 0; i < _openTables.length; i++) {
-        if (checks[i]) {
-          joinedIds.add(_openTables[i].id);
+      if (hasConnection) {
+        try {
+          await _loadFromNetwork(userId).timeout(OfflineAwareMixin.loadTimeout);
+          markFresh();
+          return;
+        } catch (e) {
+          debugPrint('Sin red para las mesas, se usa lo guardado: $e');
+          if (!await _loadSaved()) rethrow;
+          return;
         }
       }
-      _joinedTableIds = joinedIds;
-      _notify();
+
+      if (!await _loadSaved()) {
+        _errorMessage = 'Sin conexión y aún no tenemos mesas guardadas.';
+      }
     } catch (e) {
       _errorMessage = e.toString().replaceAll('Exception: ', '');
-      _notify();
     } finally {
       _isLoading = false;
       _notify();
     }
   }
 
+  // The list the network answers, and which of those tables the user already joined
+  Future<void> _loadFromNetwork(int userId) async {
+    final all = await _openTableService.getAll();
+    final now = DateTime.now();
+    final tables = all
+        .where((t) => t.status == OpenTableStatusEnum.OPEN && t.endTime.isAfter(now))
+        .toList();
+
+    // Save the list the network answered; it is not awaited and never breaks the screen
+    SofiaLocalCache.instance.saveOpenTables(OpenTableListType.all, tables);
+
+    final checks = await Future.wait(tables.map((t) => _isParticipant(t.id, userId)));
+    final joinedIds = <int>{};
+    for (int i = 0; i < tables.length; i++) {
+      if (checks[i]) {
+        joinedIds.add(tables[i].id);
+      }
+    }
+    _openTables = tables;
+    _joinedTableIds = joinedIds;
+    _notify();
+  }
+
+  // Shows the list saved in SQLite ('ALL'); returns false if nothing is saved.
+  // The tables of the user ('MINE') tell which ones were already joined.
+  Future<bool> _loadSaved() async {
+    try {
+      final cache = SofiaLocalCache.instance;
+      final saved = await cache.openTables.getAll(OpenTableListType.all);
+      if (saved.isEmpty) return false;
+
+      final mine = await cache.openTables.getAll(OpenTableListType.mine);
+      final now = DateTime.now();
+      _openTables = saved.where((t) => t.endTime.isAfter(now)).toList();
+      _joinedTableIds = mine.map((t) => t.id).toSet();
+      markFromCache(await cache.openTables.lastSavedAt(OpenTableListType.all));
+      return true;
+    } catch (e) {
+      debugPrint('No se pudieron leer las mesas guardadas: $e');
+      return false;
+    }
+  }
+
   // Checks if the user already joined a table - GET /open-table-participants/table/{tableId}
   Future<bool> _isParticipant(int tableId, int userId) async {
     try {
-      final List<OpenTableParticipant> list = await _participantService.getByOpenTable(tableId);
+      final List<OpenTableParticipant> list = await _participantService.getByOpenTable(tableId).timeout(OfflineAwareMixin.loadTimeout);
       return list.any((p) => p.user?.id == userId);
     } catch (_) {
       return false;

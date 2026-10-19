@@ -11,6 +11,7 @@ import 'package:gapfinderfrontend_dart/services/auth_service.dart';
 import 'package:gapfinderfrontend_dart/services/class_block_service.dart';
 import 'package:gapfinderfrontend_dart/services/gap_reminder_service.dart';
 import 'package:gapfinderfrontend_dart/services/gap_service.dart';
+import 'package:gapfinderfrontend_dart/viewmodels/offline_aware_mixin.dart';
 
 // Kind of row in the day: a class or a free gap
 enum ScheduleItemType { classBlock, gap }
@@ -40,7 +41,7 @@ class ScheduleData {
 }
 
 // State and logic of the schedule tab
-class ScheduleViewModel extends ChangeNotifier {
+class ScheduleViewModel extends ChangeNotifier with OfflineAwareMixin {
   final ClassBlockService _classBlockService;
   final GapService _gapService;
   final AuthService _authService;
@@ -74,23 +75,67 @@ class ScheduleViewModel extends ChangeNotifier {
   // True when there are no classes and no gaps at all
   bool get isEmpty => _data == null || (_data!.blocks.isEmpty && _data!.gaps.isEmpty);
 
-  // Load the schedule when the screen opens
-  Future<void> init() => refresh();
+  // Load the schedule when the screen opens; it reloads by itself when the connection comes back
+  Future<void> init() {
+    listenToConnectivity(onRestored: refresh);
+    return refresh();
+  }
 
-  // Generates this week's gaps and then loads the classes and the gaps
+  // Network falling back to cache: tries the network and, if it fails or there is no connection,
+  // shows the schedule saved in SQLite. The spinner only shows when there is nothing on screen.
   Future<void> refresh() async {
-    _isLoading = true;
+    _isLoading = _data == null;
     _loadError = null;
     _notify();
 
     try {
-      _data = await _loadSchedule();
+      final userId = await TokenStorage.getUserId();
+      if (userId == null) throw Exception('No hay usuario logueado');
+
+      _data = await _loadFromNetworkOrCache(userId);
       scheduleReminders(); // not awaited: the reminders never block the schedule
     } catch (e) {
       _loadError = '$e';
     } finally {
       _isLoading = false;
       _notify();
+    }
+  }
+
+  // Network first; the saved schedule when there is no connection, the call fails or it is too slow
+  Future<ScheduleData> _loadFromNetworkOrCache(int userId) async {
+    if (hasConnection) {
+      try {
+        final fresh = await _loadSchedule(userId).timeout(OfflineAwareMixin.loadTimeout);
+        markFresh();
+        return fresh;
+      } catch (e) {
+        debugPrint('Sin red para el horario, se usa lo guardado: $e');
+        final saved = await _loadSaved(userId);
+        // A back error with nothing saved is shown as it is
+        if (saved == null) rethrow;
+        return saved;
+      }
+    }
+
+    final saved = await _loadSaved(userId);
+    if (saved == null) throw Exception('Sin conexión y aún no tienes un horario guardado');
+    return saved;
+  }
+
+  // The classes and gaps saved in SQLite, or null if there is nothing saved
+  Future<ScheduleData?> _loadSaved(int userId) async {
+    try {
+      final cache = SofiaLocalCache.instance;
+      final savedBlocks = await cache.classBlocks.getAllForUser(userId);
+      final savedGaps = await cache.gaps.getAllForUser(userId);
+      if (savedBlocks.isEmpty && savedGaps.isEmpty) return null;
+
+      markFromCache(await cache.classBlocks.lastSavedAt(userId));
+      return ScheduleData(savedBlocks, savedGaps);
+    } catch (e) {
+      debugPrint('No se pudo leer el horario guardado: $e');
+      return null;
     }
   }
 
@@ -149,12 +194,7 @@ class ScheduleViewModel extends ChangeNotifier {
     }
   }
 
-  Future<ScheduleData> _loadSchedule() async {
-    final userId = await TokenStorage.getUserId();
-    if (userId == null) {
-      throw Exception('No hay usuario logueado');
-    }
-
+  Future<ScheduleData> _loadSchedule(int userId) async {
     // Recalculate the week gaps - POST /gaps/user/{userId}/generate-week
     try {
       await _gapService.generateWeek(userId);

@@ -8,6 +8,7 @@ import 'package:gapfinderfrontend_dart/viewmodels/open_tables/open_table_detail_
 import 'package:gapfinderfrontend_dart/views/widgets/common/avatar_widget.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/custom_top_bar.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/custom_button.dart';
+import 'package:gapfinderfrontend_dart/views/widgets/common/offline_banner.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/open_tables/open_table_photo.dart';
 
 /// Details of one open table: creator, activity, building, time left and participants.
@@ -29,7 +30,11 @@ class _OpenTableDetailViewState extends State<OpenTableDetailView> {
 
     final error = await _vm.join();
     if (!mounted) return;
-    if (error == null) {
+    final notice = _vm.takeNotice();
+    if (error == null && notice != null) {
+      // Queued (or cancelled): nothing was sent yet
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(notice)));
+    } else if (error == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Successfully joined the table!'),
@@ -68,7 +73,11 @@ class _OpenTableDetailViewState extends State<OpenTableDetailView> {
 
     final error = await _vm.leave();
     if (!mounted) return;
-    if (error == null) {
+    final notice = _vm.takeNotice();
+    if (error == null && notice != null) {
+      // Queued (or cancelled): nothing was sent yet
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(notice)));
+    } else if (error == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('You left the table')),
       );
@@ -92,7 +101,15 @@ class _OpenTableDetailViewState extends State<OpenTableDetailView> {
         if (vm.loadError != null) {
           return Scaffold(
             appBar: const CustomTopBar(title: 'Error', showBack: true),
-            body: Center(child: Text('Error: ${vm.loadError}')),
+            body: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Text(
+                  vm.isOffline ? 'Sin conexión y aún no tenemos esta mesa guardada.' : 'Error: ${vm.loadError}',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
           );
         }
 
@@ -113,6 +130,12 @@ class _OpenTableDetailViewState extends State<OpenTableDetailView> {
           ),
           body: Column(
             children: [
+              // Detail and participants saved in SQLite because there is no connection
+              if (vm.isOffline)
+                OfflineBanner(
+                  message: 'Sin conexión · mostrando el último detalle guardado',
+                  lastUpdated: vm.lastUpdated,
+                ),
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(24),
@@ -226,6 +249,23 @@ class _OpenTableDetailViewState extends State<OpenTableDetailView> {
                             label: 'Table ended',
                             color: Colors.grey[400]!,
                             onClick: null,
+                          )
+                    : vm.hasPendingAction
+                        ? Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              // One action waits in the outbox: the button stays off until it is sent
+                              CustomButton(
+                                label: 'Pendiente de enviar',
+                                color: Colors.grey[400]!,
+                                onClick: null,
+                              ),
+                              TextButton(
+                                // Tapping the opposite action cancels the pending one
+                                onPressed: vm.isJoinPending ? _handleLeave : _handleJoin,
+                                child: const Text('Cancelar solicitud'),
+                              ),
+                            ],
                           )
                     : vm.isMember
                         ? CustomButton(
