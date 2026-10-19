@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
+import 'package:gapfinderfrontend_dart/data/local/joel/joel_local_cache.dart';
 import 'package:gapfinderfrontend_dart/models/enums/match_mode_enum.dart';
 import 'package:gapfinderfrontend_dart/models/enums/match_status_enum.dart';
 import 'package:gapfinderfrontend_dart/models/gap.dart';
@@ -11,15 +12,19 @@ import 'package:gapfinderfrontend_dart/services/match_service.dart';
 class MatchViewModel extends ChangeNotifier {
   final GapService _gapService;
   final MatchService _matchService;
+  final JoelLocalCache _localCache;
 
-  MatchViewModel({GapService? gapService, MatchService? matchService})
+  MatchViewModel({GapService? gapService, MatchService? matchService, JoelLocalCache? localCache})
       : _gapService = gapService ?? GapService(),
-        _matchService = matchService ?? MatchService();
+        _matchService = matchService ?? MatchService(),
+        _localCache = localCache ?? JoelLocalCache.instance;
 
   MatchModeEnum _selectedMode = MatchModeEnum.career;
   Gap? _currentGap;
   Match? _gapMatch;
   int? _userId;
+  // Ids of the user's gaps, to know which matches are theirs when caching
+  Set<int> _userGapIds = {};
   DateTime? _lastCheckTime;
   bool _isLoading = true;
   int _loadId = 0;
@@ -80,6 +85,7 @@ class MatchViewModel extends ChangeNotifier {
 
     try {
       final gaps = await _gapService.getUserGaps(userId);
+      _userGapIds = gaps.map((g) => g.id).toSet();
       return gaps.where((g) => !now.isBefore(g.startTime) && now.isBefore(g.endTime)).firstOrNull;
     } catch (e) {
       debugPrint("Advertencia: No se pudieron cargar los GAPs en Match: $e");
@@ -93,6 +99,7 @@ class MatchViewModel extends ChangeNotifier {
     if (gap == null) return null;
     try {
       final all = await _matchService.getAll();
+      _cacheUserMatches(all);
       final booked = all.where((m) =>
         (m.proposerGapId == gap.id || m.acceptorGapId == gap.id) &&
         (m.status == MatchStatusEnum.ACCEPTED || m.status == MatchStatusEnum.COMPLETED)
@@ -108,6 +115,17 @@ class MatchViewModel extends ChangeNotifier {
       debugPrint('❌ [MatchMainScreen] Error loading the match of the gap: $e');
       return null;
     }
+  }
+
+  // Cached on network response: only the matches of the user's gaps (never blocks the screen)
+  void _cacheUserMatches(List<Match> all) {
+    final userId = _userId;
+    if (userId == null) return;
+    final gapIds = _userGapIds;
+    final mine = all
+        .where((m) => gapIds.contains(m.proposerGapId) || gapIds.contains(m.acceptorGapId))
+        .toList();
+    _localCache.saveMatches(userId, mine, gapIds);
   }
 
   void _notify() {
