@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:gapfinderfrontend_dart/core/cache/lru_cache.dart';
 import 'package:gapfinderfrontend_dart/core/network/network_errors.dart';
 import 'package:gapfinderfrontend_dart/core/storage/outbox_service.dart';
 import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
@@ -11,8 +12,23 @@ import 'package:gapfinderfrontend_dart/services/open_table_participant_service.d
 import 'package:gapfinderfrontend_dart/services/open_table_service.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/offline_aware_mixin.dart';
 
+// What the detail screen needs from one open table: the table and who is in it
+class OpenTableDetailData {
+  final OpenTable table;
+  final List<OpenTableParticipant> participants;
+  OpenTableDetailData(this.table, this.participants);
+}
+
 // State and logic of the open table detail screen
 class OpenTableDetailViewModel extends ChangeNotifier with OfflineAwareMixin {
+  // One cache shared by every detail screen. Memory first, then SQLite, then the network.
+  // 20 entries: in one gap a student looks at a handful of tables (a list of about 5 to 10 and goes
+  // back and forth between them), so 20 covers a whole session without keeping stale tables for long.
+  // 5 minutes: participants join and leave all the time but not every few seconds; after 5 minutes
+  // the list of people may be wrong, so it is better to ask the back again.
+  static final LruCache<int, OpenTableDetailData> _cache =
+      LruCache<int, OpenTableDetailData>(maxEntries: 20, ttl: const Duration(minutes: 5));
+
   final int openTableId;
   final OpenTableService _openTableService;
   final OpenTableParticipantService _participantService;
@@ -73,10 +89,13 @@ class OpenTableDetailViewModel extends ChangeNotifier with OfflineAwareMixin {
   // Load the table when the screen opens. It reloads by itself when the connection comes back and
   // when the outbox sends the pending join / leave (the key leaves the pending set).
   Future<void> init() {
-    listenToConnectivity(onRestored: refresh);
+    listenToConnectivity(onRestored: () => refresh(force: true));
     _watchOutbox();
     return refresh();
   }
+
+  void _logCache(String result) =>
+      debugPrint('[LRU detalle mesa $openTableId] $result (hits=${_cache.hits}, misses=${_cache.misses}, size=${_cache.length})');
 
   void _watchOutbox() {
     try {
@@ -84,23 +103,44 @@ class OpenTableDetailViewModel extends ChangeNotifier with OfflineAwareMixin {
         final sent = {_joinKey, _leaveKey}.any((k) => _pendingKeys.contains(k) && !keys.contains(k));
         _pendingKeys = keys;
         _notify();
-        if (sent) refresh();
+        if (sent) {
+          _cache.remove(openTableId);
+          refresh(force: true);
+        }
       }, onError: (e) => debugPrint('Error watching the outbox: $e'));
     } catch (e) {
       debugPrint('No se pudo vigilar la cola de envío: $e');
     }
   }
 
-  // Network falling back to cache: loads the table and its participants - GET /open-tables/{id},
-  // GET /open-table-participants/table/{tableId}. Without connection (or if the call fails or is
-  // too slow) it shows the detail saved in SQLite. Also used to refresh after join / leave.
-  Future<void> refresh() async {
+  // Memory (LRU) → SQLite → network: loads the table and its participants - GET /open-tables/{id},
+  // GET /open-table-participants/table/{tableId}. A fresh LRU entry is enough. On a miss the detail
+  // saved in SQLite is shown at once (if there is one) and, with connection, the network refreshes it.
+  // Without connection (or if the call fails or is too slow) the SQLite detail stays.
+  // force skips the LRU: used after join / leave and when the connection comes back.
+  Future<void> refresh({bool force = false}) async {
     _isLoading = _table == null;
     _loadError = null;
     _notify();
 
     try {
       _currentUserId = await TokenStorage.getUserId();
+
+      if (!force) {
+        final cached = _cache.get(openTableId);
+        if (cached != null) {
+          _logCache('ACIERTO');
+          _table = cached.table;
+          _participants = cached.participants;
+          _isMember = _participants.any((p) => p.user?.id == _currentUserId);
+          markFresh();
+          return;
+        }
+        _logCache('FALLO');
+        if (_table == null && hasConnection) await _loadSaved();
+        _isLoading = _table == null;
+        _notify();
+      }
 
       if (hasConnection) {
         try {
@@ -134,6 +174,8 @@ class OpenTableDetailViewModel extends ChangeNotifier with OfflineAwareMixin {
     _table = results[0] as OpenTable;
     _participants = results[1] as List<OpenTableParticipant>;
     _isMember = _participants.any((p) => p.user?.id == _currentUserId);
+
+    _cache.put(openTableId, OpenTableDetailData(_table!, _participants));
 
     // Save the detail the network answered; it is not awaited and never breaks the screen
     SofiaLocalCache.instance.saveOpenTableDetail(_table!, _participants);
@@ -195,6 +237,9 @@ class OpenTableDetailViewModel extends ChangeNotifier with OfflineAwareMixin {
     final userId = _currentUserId;
     if (userId == null) return null;
 
+    // The participants are about to change, so the saved copy in memory is no longer right
+    _cache.remove(openTableId);
+
     _isJoining = true;
     _notify();
     try {
@@ -216,14 +261,15 @@ class OpenTableDetailViewModel extends ChangeNotifier with OfflineAwareMixin {
 
       try {
         await send(userId);
-        refresh();
+        _cache.remove(openTableId);
+        refresh(force: true);
         return null;
       } catch (e) {
         if (isNetworkError(e)) {
           await _queue(key: key, type: type, method: method, endpoint: endpoint(userId));
           return null;
         }
-        refresh();
+        refresh(force: true);
         return e.toString().replaceAll('Exception: ', '');
       }
     } finally {

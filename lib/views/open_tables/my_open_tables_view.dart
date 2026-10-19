@@ -7,7 +7,7 @@ import 'package:gapfinderfrontend_dart/navigation/app_routes.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/open_tables/my_open_tables_view_model.dart';
 import 'package:gapfinderfrontend_dart/models/open_table.dart';
 import 'package:gapfinderfrontend_dart/models/enums/open_table_status_enum.dart';
-import 'package:gapfinderfrontend_dart/views/widgets/common/avatar_widget.dart';
+import 'package:gapfinderfrontend_dart/views/widgets/open_tables/cached_avatar.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/custom_top_bar.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/offline_banner.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/open_tables/open_table_photo.dart';
@@ -166,7 +166,7 @@ class _MyOpenTablesViewState extends State<MyOpenTablesView> {
             padding: const EdgeInsets.fromLTRB(16, 14, 16, 10),
             child: Row(
               children: [
-                AvatarWidget(url: table.creator?.avatarUrl, name: table.creator?.name, size: 48),
+                CachedAvatar(url: table.creator?.avatarUrl, name: table.creator?.name, size: 48),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
