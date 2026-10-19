@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
+import 'package:gapfinderfrontend_dart/data/local/joel/joel_local_cache.dart';
 import 'package:gapfinderfrontend_dart/models/activity.dart';
 import 'package:gapfinderfrontend_dart/models/building.dart';
 import 'package:gapfinderfrontend_dart/models/enums/open_table_status_enum.dart';
@@ -155,6 +156,8 @@ class CreateOpenTableViewModel extends ChangeNotifier {
       if (image == null) return PhotoResult.cancelled;
 
       _photo = File(image.path);
+      // Keep a copy in pending_photos/ so it is not lost if the app closes before publishing
+      JoelLocalCache.instance.savePendingPhoto(_photo!);
       _notify();
       return PhotoResult.taken;
     } catch (e) {
@@ -193,6 +196,7 @@ class CreateOpenTableViewModel extends ChangeNotifier {
       );
 
       await _openTableService.createOpenTable(userId, _selectedBuilding!.id, newTable, _photo!);
+      JoelLocalCache.instance.clearPendingPhoto();
       return PublishResult.published;
     } catch (e) {
       _publishError = 'Error publishing: $e';

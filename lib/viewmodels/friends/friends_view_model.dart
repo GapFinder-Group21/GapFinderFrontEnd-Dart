@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
+import 'package:gapfinderfrontend_dart/data/local/joel/joel_local_cache.dart';
+import 'package:gapfinderfrontend_dart/models/friendship.dart';
 import 'package:gapfinderfrontend_dart/models/gap.dart';
 import 'package:gapfinderfrontend_dart/models/user.dart';
 import 'package:gapfinderfrontend_dart/services/friendship_service.dart';
@@ -33,14 +35,17 @@ class FriendsViewModel extends ChangeNotifier {
   final FriendshipService _friendshipService;
   final GapService _gapService;
   final UserService _userService;
+  final JoelLocalCache _localCache;
 
   FriendsViewModel({
     FriendshipService? friendshipService,
     GapService? gapService,
     UserService? userService,
+    JoelLocalCache? localCache,
   })  : _friendshipService = friendshipService ?? FriendshipService(),
         _gapService = gapService ?? GapService(),
-        _userService = userService ?? UserService();
+        _userService = userService ?? UserService(),
+        _localCache = localCache ?? JoelLocalCache.instance;
 
   FriendsData? _data;
   bool _isLoading = true;
@@ -168,6 +173,7 @@ class FriendsViewModel extends ChangeNotifier {
     final pending = await _friendshipService.getPendingReceived(userId);
 
     final pendingRequests = <PendingFriendRequest>[];
+    final savedRequests = <Friendship>[];
     for (final p in pending) {
       User? u = p.requester;
       if (u == null && p.requesterId != null) {
@@ -177,8 +183,19 @@ class FriendsViewModel extends ChangeNotifier {
       }
       if (u != null) {
         pendingRequests.add(PendingFriendRequest(p.id, u));
+        savedRequests.add(Friendship(
+          id: p.id,
+          status: p.status,
+          createdAt: p.createdAt,
+          requesterId: p.requesterId ?? u.id,
+          receiverId: p.receiverId,
+          requester: u,
+        ));
       }
     }
+
+    // Cached on network response (never blocks the screen)
+    _localCache.saveFriends(userId, friends, savedRequests);
 
     final now = DateTime.now();
     final freeNow = <FriendWithGap>[];

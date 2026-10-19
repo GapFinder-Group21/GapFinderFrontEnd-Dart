@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
+import 'package:gapfinderfrontend_dart/data/local/joel/joel_local_cache.dart';
 import 'package:gapfinderfrontend_dart/models/app_notification.dart';
 import 'package:gapfinderfrontend_dart/models/enums/match_status_enum.dart';
 import 'package:gapfinderfrontend_dart/models/enums/notification_type_enum.dart';
@@ -22,16 +23,19 @@ class MainViewModel extends ChangeNotifier {
   final MatchService _matchService;
   final AppSessionService _appSessionService;
   final GapReminderService _reminderService;
+  final JoelLocalCache _localCache;
 
   MainViewModel({
     NotificationService? notificationService,
     MatchService? matchService,
     AppSessionService? appSessionService,
     GapReminderService? reminderService,
+    JoelLocalCache? localCache,
   })  : _notificationService = notificationService ?? NotificationService(),
         _matchService = matchService ?? MatchService(),
         _appSessionService = appSessionService ?? AppSessionService(),
-        _reminderService = reminderService ?? GapReminderService();
+        _reminderService = reminderService ?? GapReminderService(),
+        _localCache = localCache ?? JoelLocalCache.instance;
 
   static const scheduleTab = 0;
   static const friendsTab = 1;
@@ -74,6 +78,7 @@ class MainViewModel extends ChangeNotifier {
     final index = _navMap[tabId] ?? 0;
     final changed = index != _selectedIndex;
     _selectedIndex = index;
+    if (changed) _localCache.saveMainTab(index);
     _notify();
     return changed ? index : null;
   }
@@ -125,6 +130,8 @@ class MainViewModel extends ChangeNotifier {
       _userId = userId;
 
       final unread = await _notificationService.getUnreadByUser(userId);
+      // Cached on network response (never blocks the poller)
+      _localCache.saveNotifications(userId, unread);
       final proposals = unread
           .where((n) =>
               n.type == NotificationTypeEnum.MATCH_PROPOSED &&

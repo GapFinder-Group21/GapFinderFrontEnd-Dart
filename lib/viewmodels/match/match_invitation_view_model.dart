@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
+import 'package:gapfinderfrontend_dart/data/local/joel/joel_local_cache.dart';
 import 'package:gapfinderfrontend_dart/models/match.dart';
 import 'package:gapfinderfrontend_dart/services/match_service.dart';
 
@@ -10,9 +11,11 @@ enum InvitationAnswer { done, noSession, failed }
 class MatchInvitationViewModel extends ChangeNotifier {
   final int matchId;
   final MatchService _matchService;
+  final JoelLocalCache _localCache;
 
-  MatchInvitationViewModel(this.matchId, {MatchService? matchService})
-      : _matchService = matchService ?? MatchService();
+  MatchInvitationViewModel(this.matchId, {MatchService? matchService, JoelLocalCache? localCache})
+      : _matchService = matchService ?? MatchService(),
+        _localCache = localCache ?? JoelLocalCache.instance;
 
   Match? _match;
   Match? _acceptedMatch;
@@ -34,6 +37,7 @@ class MatchInvitationViewModel extends ChangeNotifier {
     try {
       final match = await _matchService.getById(matchId);
       _match = match;
+      _localCache.saveInvitationMatch(match);
       _isLoading = false;
       _notify();
       return true;
@@ -52,6 +56,7 @@ class MatchInvitationViewModel extends ChangeNotifier {
       final userId = await TokenStorage.getUserId();
       if (userId == null) return InvitationAnswer.noSession;
       _acceptedMatch = await _matchService.accept(_match!.id, userId);
+      _localCache.saveInvitationMatch(_acceptedMatch!);
       return InvitationAnswer.done;
     } catch (e) {
       _isProcessing = false;
