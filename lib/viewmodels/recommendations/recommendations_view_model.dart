@@ -59,23 +59,24 @@ class RecommendationsViewModel extends ChangeNotifier with OfflineAwareMixin {
 
       // 2. Network: only when there is a connection
       if (hasConnection) {
-        try {
-          final fresh = await _recommendationService
-              .recommendOpenTables(userId)
-              .timeout(OfflineAwareMixin.loadTimeout);
-
+        // Estrategia: Future con handler + async/await.
+        // await waits for the whole chain; .then handles the answer (it worked) and
+        // .catchError handles the failure (keeps the saved answer, or rethrows if there is none).
+        await _recommendationService
+            .recommendOpenTables(userId)
+            .timeout(OfflineAwareMixin.loadTimeout)
+            .then((fresh) {
           // Save what the network answered; it is not awaited and never breaks the screen
           SofiaLocalCache.instance.saveRecommendation(userId, fresh);
 
           _recommendation = fresh;
           markFresh();
-          return;
-        } catch (e) {
+        }).catchError((Object e) {
           debugPrint('Sin red para las recomendaciones: $e');
-          if (_recommendation == null) rethrow;
+          if (_recommendation == null) throw e;
           markFromCache(lastUpdated);
-          return;
-        }
+        });
+        return;
       }
 
       // No connection: the saved answer stays, or the own message if there is none

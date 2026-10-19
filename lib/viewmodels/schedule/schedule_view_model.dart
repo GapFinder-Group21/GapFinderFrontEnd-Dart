@@ -1,10 +1,9 @@
+import 'dart:isolate';
+
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart' show TimeOfDay;
 import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
-import 'package:gapfinderfrontend_dart/core/utils/display_formatters.dart';
 import 'package:gapfinderfrontend_dart/data/local/sofia/sofia_local_cache.dart';
 import 'package:gapfinderfrontend_dart/models/class_block.dart';
-import 'package:gapfinderfrontend_dart/models/enums/day_of_week_enum.dart';
 import 'package:gapfinderfrontend_dart/models/gap.dart';
 import 'package:gapfinderfrontend_dart/services/app_open_delay_service.dart';
 import 'package:gapfinderfrontend_dart/services/auth_service.dart';
@@ -12,26 +11,11 @@ import 'package:gapfinderfrontend_dart/services/class_block_service.dart';
 import 'package:gapfinderfrontend_dart/services/gap_reminder_service.dart';
 import 'package:gapfinderfrontend_dart/services/gap_service.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/offline_aware_mixin.dart';
+import 'package:gapfinderfrontend_dart/viewmodels/schedule/schedule_processing.dart';
 
-// Kind of row in the day: a class or a free gap
-enum ScheduleItemType { classBlock, gap }
-
-// One row of the day: a class or a free gap
-class ScheduleItem {
-  final ScheduleItemType type;
-  final String name;
-  final String start;
-  final String end;
-  final int sortMinutes;
-
-  ScheduleItem({
-    required this.type,
-    required this.name,
-    required this.start,
-    required this.end,
-    required this.sortMinutes,
-  });
-}
+// The view and the tests keep importing ScheduleItem from here
+export 'package:gapfinderfrontend_dart/viewmodels/schedule/schedule_processing.dart'
+    show ScheduleItem, ScheduleItemType;
 
 // Classes and gaps loaded from the backend
 class ScheduleData {
@@ -61,6 +45,7 @@ class ScheduleViewModel extends ChangeNotifier with OfflineAwareMixin {
         _reminderService = reminderService ?? GapReminderService();
 
   ScheduleData? _data;
+  List<ScheduleItem> _todayItems = [];
   bool _isLoading = true;
   String? _loadError;
   bool _remindersEnabled = false;
@@ -92,7 +77,9 @@ class ScheduleViewModel extends ChangeNotifier with OfflineAwareMixin {
       final userId = await TokenStorage.getUserId();
       if (userId == null) throw Exception('No hay usuario logueado');
 
-      _data = await _loadFromNetworkOrCache(userId);
+      final loaded = await _loadFromNetworkOrCache(userId);
+      _todayItems = await _buildTodayItems(loaded); // network or SQLite, both go through the isolate
+      _data = loaded;
       scheduleReminders(); // not awaited: the reminders never block the schedule
     } catch (e) {
       _loadError = '$e';
@@ -219,64 +206,32 @@ class ScheduleViewModel extends ChangeNotifier with OfflineAwareMixin {
   // Logs out in the backend and clears the session - POST /auth/logout
   Future<void> logout() => _authService.logout();
 
-  // Today's classes and gaps, sorted by time
-  List<ScheduleItem> get todayItems {
-    final data = _data;
-    if (data == null) return [];
+  // Today's classes and gaps, sorted by time (calculated in an isolate when the data arrives)
+  List<ScheduleItem> get todayItems => _todayItems;
 
-    final today = _todayEnum();
-    final todayBlocks = today == null
-        ? <ClassBlock>[]
-        : (data.blocks.where((b) => b.dayOfWeek == today).toList()
-          ..sort((a, b) => _minutesOf(a.startTime).compareTo(_minutesOf(b.startTime))));
-
-    return _buildDayItems(todayBlocks, data.gaps);
-  }
-
-  // Minutes since midnight, used to sort the rows
-  int _minutesOf(TimeOfDay time) => time.hour * 60 + time.minute;
-
-  // Today as a day enum (MON ... SUN)
-  DayOfWeekEnum? _todayEnum() {
-    final index = DateTime.now().weekday - 1;
-    return index < DayOfWeekEnum.values.length ? DayOfWeekEnum.values[index] : null;
-  }
-
-  // Builds today's list of classes and gaps, sorted by time
-  List<ScheduleItem> _buildDayItems(List<ClassBlock> blocks, List<Gap> gaps) {
-    final items = <ScheduleItem>[];
-
-    for (final b in blocks) {
-      items.add(ScheduleItem(
-        type: ScheduleItemType.classBlock,
-        name: b.subject,
-        start: DisplayFormatters.timeOfDay(b.startTime),
-        end: DisplayFormatters.timeOfDay(b.endTime),
-        sortMinutes: _minutesOf(b.startTime),
-      ));
-    }
-
-    final now = DateTime.now();
-    final todayGaps = gaps.where((g) =>
-        g.startTime.year == now.year &&
-        g.startTime.month == now.month &&
-        g.startTime.day == now.day
-    ).toList();
-
-    for (final g in todayGaps) {
-      final startTimeOfDay = TimeOfDay.fromDateTime(g.startTime);
-      final endTimeOfDay = TimeOfDay.fromDateTime(g.endTime);
-      items.add(ScheduleItem(
-        type: ScheduleItemType.gap,
-        name: 'GAP',
-        start: DisplayFormatters.timeOfDay(startTimeOfDay),
-        end: DisplayFormatters.timeOfDay(endTimeOfDay),
-        sortMinutes: _minutesOf(startTimeOfDay),
-      ));
-    }
-
-    items.sort((a, b) => a.sortMinutes.compareTo(b.sortMinutes));
-    return items;
+  // Estrategia: Isolate. Filtering, mixing and sorting the day runs in another isolate so the
+  // main one (the UI) is never blocked. The isolate only receives simple data (maps), not models.
+  Future<List<ScheduleItem>> _buildTodayItems(ScheduleData data) async {
+    final payload = SchedulePayload(
+      classes: data.blocks
+          .map((b) => <String, dynamic>{
+                'subject': b.subject,
+                'dayIndex': b.dayOfWeek.index,
+                'startMinutes': b.startTime.hour * 60 + b.startTime.minute,
+                'endMinutes': b.endTime.hour * 60 + b.endTime.minute,
+              })
+          .toList(),
+      gaps: data.gaps
+          .map((g) => <String, dynamic>{
+                'startMillis': g.startTime.millisecondsSinceEpoch,
+                'endMillis': g.endTime.millisecondsSinceEpoch,
+              })
+          .toList(),
+      todayMillis: DateTime.now().millisecondsSinceEpoch,
+    );
+    debugPrint('ScheduleViewModel sends the work from isolate: ${Isolate.current.debugName}');
+    final result = await Isolate.run(() => processSchedule(payload));
+    return result.items;
   }
 
   void _notify() {
