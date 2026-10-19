@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
+import 'package:gapfinderfrontend_dart/data/local/sofia/sofia_local_cache.dart';
 import 'package:gapfinderfrontend_dart/data/local/joel/joel_local_cache.dart';
 import 'package:gapfinderfrontend_dart/models/activity.dart';
 import 'package:gapfinderfrontend_dart/models/building.dart';
@@ -93,6 +94,9 @@ class CreateOpenTableViewModel extends ChangeNotifier {
 
       _activities = catalogs[0] as List<Activity>;
       _buildings = catalogs[1] as List<Building>;
+
+      // Save the catalogs the network answered; it is not awaited and never breaks the screen
+      SofiaLocalCache.instance.saveCatalogs(_activities, _buildings);
 
       if (_activities.isNotEmpty) {
         _selectedActivity = _activities.first;

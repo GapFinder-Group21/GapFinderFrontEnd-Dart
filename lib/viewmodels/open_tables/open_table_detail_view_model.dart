@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
+import 'package:gapfinderfrontend_dart/data/local/sofia/sofia_local_cache.dart';
 import 'package:gapfinderfrontend_dart/models/enums/open_table_status_enum.dart';
 import 'package:gapfinderfrontend_dart/models/open_table.dart';
 import 'package:gapfinderfrontend_dart/models/open_table_participant.dart';
@@ -67,6 +68,9 @@ class OpenTableDetailViewModel extends ChangeNotifier {
       _table = results[0] as OpenTable;
       _participants = results[1] as List<OpenTableParticipant>;
       _isMember = _participants.any((p) => p.user?.id == _currentUserId);
+
+      // Save the detail the network answered; it is not awaited and never breaks the screen
+      SofiaLocalCache.instance.saveOpenTableDetail(_table!, _participants);
     } catch (e) {
       _loadError = '$e';
     } finally {

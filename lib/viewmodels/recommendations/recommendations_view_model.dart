@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
+import 'package:gapfinderfrontend_dart/data/local/sofia/sofia_local_cache.dart';
 import 'package:gapfinderfrontend_dart/models/responses/recommendation_response.dart';
 import 'package:gapfinderfrontend_dart/services/recommendation_service.dart';
 
@@ -44,7 +45,12 @@ class RecommendationsViewModel extends ChangeNotifier {
     if (userId == null) {
       throw Exception('No user session found');
     }
-    return _recommendationService.recommendOpenTables(userId);
+    final recommendation = await _recommendationService.recommendOpenTables(userId);
+
+    // Save what the network answered; it is not awaited and never breaks the screen
+    SofiaLocalCache.instance.saveRecommendation(userId, recommendation);
+
+    return recommendation;
   }
 
   void _notify() {

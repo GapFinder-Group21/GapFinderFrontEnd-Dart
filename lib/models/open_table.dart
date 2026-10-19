@@ -74,4 +74,32 @@ class OpenTable {
     'status': status.toJson(),
     if (activity != null) 'activity': {'id': activity!.id},
   };
+
+  // Full copy for the local cache: fromJson can read it back (toJson above is only for the back)
+  Map<String, dynamic> toCacheJson() => {
+    'id': id,
+    'title': title,
+    'description': description,
+    'startTime': DateFormatterUtil.formatDateTime(startTime),
+    'endTime': DateFormatterUtil.formatDateTime(endTime),
+    'maxParticipants': maxParticipants,
+    'status': status.toJson(),
+    'createdAt': createdAt != null ? DateFormatterUtil.formatDateTime(createdAt!) : null,
+    'activity': activity != null
+        ? {
+            ...activity!.toJson(),
+            if (activity!.interest != null) 'interest': activity!.interest!.toJson(),
+          }
+        : null,
+    'creator': creator != null ? _userToCacheJson(creator!) : null,
+    'building': building?.toJson(),
+    'photoUrl': photoUrl,
+  };
 }
+
+Map<String, dynamic> _userToCacheJson(User user) => {
+  ...user.toJson(),
+  'createdAt': user.createdAt != null ? DateFormatterUtil.formatDateTime(user.createdAt!) : null,
+  'interests': user.interests.map((i) => i.toJson()).toList(),
+  'currentBuilding': user.currentBuilding?.toJson(),
+};

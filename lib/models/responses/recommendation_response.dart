@@ -23,4 +23,12 @@ class RecommendationResponse {
           .toList() ?? [],
     );
   }
+
+  // Same keys that fromJson reads, so the saved copy can be read back
+  Map<String, dynamic> toJson() => {
+    'favoriteBuildingId': buildingId,
+    'favoriteBuildingName': buildingName,
+    'totalMinutes': totalMinutes,
+    'openTables': tables.map((t) => t.toCacheJson()).toList(),
+  };
 }

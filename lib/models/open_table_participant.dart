@@ -46,4 +46,14 @@ class OpenTableParticipant {
     if (openTableId != null) 'openTableId': openTableId,
     if (userId != null) 'userId': userId,
   };
+
+  // Copy for the local cache: it keeps the user so the participants list can be drawn again
+  Map<String, dynamic> toCacheJson() => {
+    ...toJson(),
+    if (user != null)
+      'user': {
+        ...user!.toJson(),
+        'interests': user!.interests.map((i) => i.toJson()).toList(),
+      },
+  };
 }

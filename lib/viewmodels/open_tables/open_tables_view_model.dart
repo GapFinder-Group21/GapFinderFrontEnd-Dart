@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
+import 'package:gapfinderfrontend_dart/data/local/sofia/open_table_cache_dao.dart';
+import 'package:gapfinderfrontend_dart/data/local/sofia/sofia_local_cache.dart';
 import 'package:gapfinderfrontend_dart/models/enums/open_table_status_enum.dart';
 import 'package:gapfinderfrontend_dart/models/open_table.dart';
 import 'package:gapfinderfrontend_dart/models/open_table_participant.dart';
@@ -79,6 +81,9 @@ class OpenTablesViewModel extends ChangeNotifier {
       _openTables = all
           .where((t) => t.status == OpenTableStatusEnum.OPEN && t.endTime.isAfter(now))
           .toList();
+
+      // Save the list the network answered; it is not awaited and never breaks the screen
+      SofiaLocalCache.instance.saveOpenTables(OpenTableListType.all, _openTables);
 
       final checks = await Future.wait(_openTables.map((t) => _isParticipant(t.id, userId)));
       final joinedIds = <int>{};
