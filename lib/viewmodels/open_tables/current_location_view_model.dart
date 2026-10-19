@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:gapfinderfrontend_dart/data/local/sofia/sofia_local_cache.dart';
 import 'package:gapfinderfrontend_dart/models/user.dart';
 import 'package:gapfinderfrontend_dart/services/building_service.dart';
 import 'package:gapfinderfrontend_dart/services/location_service.dart';
@@ -120,6 +121,11 @@ class CurrentLocationViewModel extends ChangeNotifier {
 
       final newBuildingName = building?.name;
       debugPrint('DEBUG: [Banner] Located building name: ${newBuildingName ?? "Outside campus"}');
+
+      // Remember the last building the user was in (SharedPreferences); not awaited
+      if (newBuildingName != null) {
+        SofiaLocalCache.instance.saveLastBuilding(newBuildingName);
+      }
 
       final buildingChanged = _previousBuildingName != newBuildingName;
 

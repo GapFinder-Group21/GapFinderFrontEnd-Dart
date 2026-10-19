@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
+import 'package:gapfinderfrontend_dart/data/local/sofia/open_table_cache_dao.dart';
+import 'package:gapfinderfrontend_dart/data/local/sofia/sofia_local_cache.dart';
 import 'package:gapfinderfrontend_dart/models/open_table.dart';
 import 'package:gapfinderfrontend_dart/models/open_table_participant.dart';
 import 'package:gapfinderfrontend_dart/services/open_table_participant_service.dart';
@@ -52,6 +54,10 @@ class MyOpenTablesViewModel extends ChangeNotifier {
 
       _createdTables = created;
       _joinedTables = joined;
+
+      // Save my tables (created + joined); it is not awaited and never breaks the screen
+      SofiaLocalCache.instance.saveOpenTables(OpenTableListType.mine, [...created, ...joined]);
+
       _isLoading = false;
       _notify();
     } catch (e) {

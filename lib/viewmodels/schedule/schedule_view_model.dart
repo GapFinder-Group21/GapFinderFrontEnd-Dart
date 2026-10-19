@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' show TimeOfDay;
 import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
 import 'package:gapfinderfrontend_dart/core/utils/display_formatters.dart';
+import 'package:gapfinderfrontend_dart/data/local/sofia/sofia_local_cache.dart';
 import 'package:gapfinderfrontend_dart/models/class_block.dart';
 import 'package:gapfinderfrontend_dart/models/enums/day_of_week_enum.dart';
 import 'package:gapfinderfrontend_dart/models/gap.dart';
@@ -166,10 +167,13 @@ class ScheduleViewModel extends ChangeNotifier {
       _gapService.getUserGaps(userId),
     ]);
 
-    return ScheduleData(
-      results[0] as List<ClassBlock>,
-      results[1] as List<Gap>,
-    );
+    final blocks = results[0] as List<ClassBlock>;
+    final gaps = results[1] as List<Gap>;
+
+    // Save what the network answered; it is not awaited and never breaks the screen
+    SofiaLocalCache.instance.saveSchedule(userId, blocks, gaps);
+
+    return ScheduleData(blocks, gaps);
   }
 
   // Logs out in the backend and clears the session - POST /auth/logout
