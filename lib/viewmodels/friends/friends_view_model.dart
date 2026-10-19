@@ -141,6 +141,7 @@ class FriendsViewModel extends ChangeNotifier {
   Future<void> init() {
     _isOffline = !_connectivity.isOnline;
     _connectivitySub ??= _connectivity.onStatusChange.listen(_onConnectivityChanged);
+    // Estrategia: Stream. The outbox emits the set of pending keys every time it changes
     _pendingSub ??= _outbox.pendingKeys.listen(_onPendingKeysChanged);
     return refresh();
   }
@@ -280,18 +281,19 @@ class FriendsViewModel extends ChangeNotifier {
     // Without connection it goes to the outbox with one key per user
     if (_isOffline) return queue();
 
-    try {
-      await _friendshipService.sendRequest(userId, targetUserId);
+    // Estrategia: Future con handler. The answer is handled with .then (it worked) and
+    // .catchError (it failed) instead of await + try/catch.
+    return _friendshipService.sendRequest(userId, targetUserId).then<bool?>((_) {
       _searchResults = [];
       _isSearching = false;
       _notify();
       refresh();
       return true;
-    } catch (e) {
+    }).catchError((Object e) async {
       if (isNetworkError(e)) return queue();
       _errorMessage = e.toString().replaceAll('Exception: ', '');
       return false;
-    }
+    });
   }
 
   // Accepts a friend request - PATCH /friendships/{id}/accept

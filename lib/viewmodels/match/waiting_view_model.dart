@@ -44,6 +44,7 @@ class WaitingViewModel extends ChangeNotifier {
         _localCache = localCache ?? JoelLocalCache.instance,
         _connectivity = connectivity ?? ConnectivityService.instance;
 
+  // Estrategia: Stream. The polling sends MatchAccepted or MatchRejected here and the View listens
   final _events = StreamController<WaitingEvent>.broadcast();
   Timer? _pollTimer;
   StreamSubscription<bool>? _connectivitySub;

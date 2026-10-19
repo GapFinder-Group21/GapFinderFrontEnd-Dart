@@ -1,8 +1,10 @@
 import 'dart:io';
+import 'dart:isolate';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
+import 'package:gapfinderfrontend_dart/core/utils/photo_compression.dart';
 import 'package:gapfinderfrontend_dart/data/local/sofia/sofia_local_cache.dart';
 import 'package:gapfinderfrontend_dart/data/local/joel/joel_local_cache.dart';
 import 'package:gapfinderfrontend_dart/models/activity.dart';
@@ -176,6 +178,7 @@ class CreateOpenTableViewModel extends ChangeNotifier {
       if (image == null) return PhotoResult.cancelled;
 
       _photo = File(image.path);
+      await _compressPhoto(_photo!);
       // Keep a copy in pending_photos/ so it is not lost if the app closes before publishing
       JoelLocalCache.instance.savePendingPhoto(_photo!);
       _notify();
@@ -184,6 +187,26 @@ class CreateOpenTableViewModel extends ChangeNotifier {
       // Camera not available or closed with an error
       debugPrint('Camera error: $e');
       return PhotoResult.failed;
+    }
+  }
+
+  // Makes the photo lighter before it is saved in pending_photos/ and uploaded.
+  // Estrategia: Isolate. Compressing decodes and encodes the whole image, which is heavy,
+  // so it runs in another isolate (its own thread and memory) and the screen does not freeze.
+  // If it fails the original photo is kept.
+  Future<void> _compressPhoto(File photo) async {
+    try {
+      final original = await photo.readAsBytes();
+      debugPrint('Photo before compressing: ${(original.length / 1024).toStringAsFixed(1)} KB '
+          '(takePhoto runs in isolate: ${Isolate.current.debugName})');
+
+      final compressed = await Isolate.run(() => compressPhoto(original));
+      debugPrint('Photo after compressing: ${(compressed.length / 1024).toStringAsFixed(1)} KB');
+
+      // Only replace the file if it really got lighter
+      if (compressed.length < original.length) await photo.writeAsBytes(compressed);
+    } catch (e) {
+      debugPrint('Could not compress the photo, using the original: $e');
     }
   }
 
