@@ -14,6 +14,7 @@ import 'package:gapfinderfrontend_dart/views/open_tables/open_tables_view.dart';
 import 'package:gapfinderfrontend_dart/views/recommendations/recommendations_view.dart';
 import 'package:gapfinderfrontend_dart/views/schedule/schedule_view.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/bottom_nav.dart';
+import 'package:gapfinderfrontend_dart/views/widgets/common/offline_banner.dart';
 
 /// Home screen with the bottom navigation bar (Schedule, Friends, Match, Open Tables, Suggestions).
 /// It also checks the notifications to show match invitations.
@@ -105,15 +106,41 @@ class _MainTabsState extends State<_MainTabs> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final vm = context.watch<MainViewModel>();
 
+    final count = vm.unreadCount;
+    final saved = count == 1 ? '1 notificación guardada' : '$count notificaciones guardadas';
+
     return Scaffold(
-      body: IndexedStack(
-        index: vm.selectedIndex,
-        children: const [
-          ScheduleView(),
-          FriendsView(),
-          MatchView(),
-          OpenTablesView(),
-          RecommendationsView(),
+      body: Column(
+        children: [
+          // Without connection: the tabs still work, the invitations check is paused
+          // (always one child here, so the tabs below keep their position and their state)
+          vm.isOffline
+              ? SafeArea(
+                  bottom: false,
+                  child: OfflineBanner(
+                    message: 'Sin conexión · navegación local activa · $saved',
+                    lastUpdated: vm.lastUpdated,
+                  ),
+                )
+              : const SizedBox.shrink(),
+          Expanded(
+            // The banner already covers the status bar, so the tabs must not add it again.
+            // (Same widget types in both cases, so the tabs keep their state)
+            child: MediaQuery.removePadding(
+              context: context,
+              removeTop: vm.isOffline,
+              child: IndexedStack(
+                index: vm.selectedIndex,
+                children: const [
+                  ScheduleView(),
+                  FriendsView(),
+                  MatchView(),
+                  OpenTablesView(),
+                  RecommendationsView(),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
       bottomNavigationBar: BottomNav(

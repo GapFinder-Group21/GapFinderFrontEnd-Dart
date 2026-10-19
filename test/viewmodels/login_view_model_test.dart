@@ -1,3 +1,4 @@
+import 'noop_local_cache.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gapfinderfrontend_dart/models/responses/auth_response.dart';
 import 'package:gapfinderfrontend_dart/services/auth_service.dart';
@@ -27,7 +28,7 @@ void main() {
 
   setUp(() {
     auth = FakeAuthService();
-    vm = LoginViewModel(authService: auth);
+    vm = LoginViewModel(authService: auth, localCache: NoopLocalCache());
   });
 
   tearDown(() => vm.dispose());

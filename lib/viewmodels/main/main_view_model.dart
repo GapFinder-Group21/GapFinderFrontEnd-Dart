@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:gapfinderfrontend_dart/core/network/connectivity_service.dart';
 import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
 import 'package:gapfinderfrontend_dart/data/local/joel/joel_local_cache.dart';
 import 'package:gapfinderfrontend_dart/models/app_notification.dart';
@@ -17,13 +18,16 @@ class MatchInvitationEvent {
   MatchInvitationEvent(this.matchId, this.notificationId);
 }
 
-// Home screen: selected tab and the poller of match invitations
+// Home screen: selected tab and the poller of match invitations.
+// Navigation between tabs is local, so it works without connection. The poller needs the back:
+// it pauses without connection (the notifications come from SQLite) and resumes when it is back.
 class MainViewModel extends ChangeNotifier {
   final NotificationService _notificationService;
   final MatchService _matchService;
   final AppSessionService _appSessionService;
   final GapReminderService _reminderService;
   final JoelLocalCache _localCache;
+  final ConnectivityService _connectivity;
 
   MainViewModel({
     NotificationService? notificationService,
@@ -31,11 +35,13 @@ class MainViewModel extends ChangeNotifier {
     AppSessionService? appSessionService,
     GapReminderService? reminderService,
     JoelLocalCache? localCache,
+    ConnectivityService? connectivity,
   })  : _notificationService = notificationService ?? NotificationService(),
         _matchService = matchService ?? MatchService(),
         _appSessionService = appSessionService ?? AppSessionService(),
         _reminderService = reminderService ?? GapReminderService(),
-        _localCache = localCache ?? JoelLocalCache.instance;
+        _localCache = localCache ?? JoelLocalCache.instance,
+        _connectivity = connectivity ?? ConnectivityService.instance;
 
   static const scheduleTab = 0;
   static const friendsTab = 1;
@@ -63,6 +69,11 @@ class MainViewModel extends ChangeNotifier {
   int _selectedIndex = scheduleTab;
   Timer? _notificationTimer;
   StreamSubscription<void>? _reminderTapSub;
+  StreamSubscription<bool>? _connectivitySub;
+  bool _isOffline = false;
+  bool _tabTouched = false;
+  List<AppNotification> _notifications = [];
+  DateTime? _lastUpdated;
   final Set<int> _handledMatchRequests = {};
   bool _checking = false;
   bool _invitationOpen = false;
@@ -72,11 +83,18 @@ class MainViewModel extends ChangeNotifier {
   Stream<MatchInvitationEvent> get events => _events.stream;
   int get selectedIndex => _selectedIndex;
   String get activeTabId => _indexMap[_selectedIndex]!;
+  bool get isOffline => _isOffline;
+  // When the notifications on screen were last updated (the network answer or the saved copy)
+  DateTime? get lastUpdated => _lastUpdated;
+  // The unread notifications (from the back, or from SQLite when there is no connection)
+  List<AppNotification> get notifications => _notifications;
+  int get unreadCount => _notifications.where((n) => !n.read).length;
 
   // Switch tab when the user taps the bottom bar; returns the new index if it changed
   int? selectTab(String tabId) {
     final index = _navMap[tabId] ?? 0;
     final changed = index != _selectedIndex;
+    _tabTouched = true;
     _selectedIndex = index;
     if (changed) _localCache.saveMainTab(index);
     _notify();
@@ -85,12 +103,70 @@ class MainViewModel extends ChangeNotifier {
 
   // The backend creates a MATCH_PROPOSED notification when someone sends you a match.
   // Check the unread notifications now and then every 10 seconds
+  // Without connection it does not poll: it shows the saved notifications and waits.
   void init() {
+    _isOffline = !_connectivity.isOnline;
+    _restoreLastTab();
     _listenReminderTaps();
-    _checkNotifications();
+    _connectivitySub = _connectivity.onStatusChange.listen(_onConnectivityChanged);
+
+    if (_isOffline) {
+      _loadSavedNotifications();
+    } else {
+      _checkNotifications();
+      _startPolling();
+    }
+  }
+
+  // Opens the tab the user had open last time (main_last_tab), unless they already moved
+  // or a reminder tap sent them somewhere
+  Future<void> _restoreLastTab() async {
+    final saved = await _localCache.safeRead('main tab', _localCache.mainTab.get);
+    if (saved == null || _tabTouched || _disposed) return;
+    if (!_indexMap.containsKey(saved)) return;
+    _selectedIndex = saved;
+    _notify();
+  }
+
+  void _startPolling() {
+    _notificationTimer?.cancel();
     _notificationTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      if (_isOffline) return;
       _checkNotifications();
     });
+  }
+
+  void _stopPolling() {
+    _notificationTimer?.cancel();
+    _notificationTimer = null;
+  }
+
+  // Pauses the poller without connection and resumes it (checking at once) when it is back
+  void _onConnectivityChanged(bool online) {
+    _isOffline = !online;
+    if (online) {
+      _checkNotifications();
+      _startPolling();
+    } else {
+      _stopPolling();
+      _loadSavedNotifications();
+    }
+    _notify();
+  }
+
+  // Notifications saved in SQLite (the unread ones of the last network answer)
+  Future<void> _loadSavedNotifications() async {
+    final userId = await TokenStorage.getUserId();
+    if (userId == null) return;
+    final saved = await _localCache.safeRead('notifications', () async {
+      final list = await _localCache.notifications.getAllForUser(userId);
+      final savedAt = await _localCache.notifications.lastSavedAt(userId);
+      return (list, savedAt);
+    });
+    if (saved == null || _disposed) return;
+    _notifications = saved.$1;
+    _lastUpdated = saved.$2;
+    _notify();
   }
 
   // Registers that the user opened the app - POST /app-sessions/user/{userId}
@@ -121,7 +197,7 @@ class MainViewModel extends ChangeNotifier {
 
   // Sends one event per new match request - GET /api/notifications/user/{userId}/unread
   Future<void> _checkNotifications() async {
-    if (_checking || _invitationOpen) return;
+    if (_checking || _invitationOpen || _isOffline) return;
     _checking = true;
 
     try {
@@ -132,6 +208,9 @@ class MainViewModel extends ChangeNotifier {
       final unread = await _notificationService.getUnreadByUser(userId);
       // Cached on network response (never blocks the poller)
       _localCache.saveNotifications(userId, unread);
+      _notifications = unread;
+      _lastUpdated = DateTime.now();
+      _notify();
       final proposals = unread
           .where((n) =>
               n.type == NotificationTypeEnum.MATCH_PROPOSED &&
@@ -146,6 +225,7 @@ class MainViewModel extends ChangeNotifier {
 
         // If the match is no longer pending (expired or cancelled), just mark it as read
         final match = await _matchService.getById(matchId);
+        _localCache.saveInvitationMatch(match); // so the invitation can open without connection
         if (match.status != MatchStatusEnum.PENDING) {
           _markAsRead(n.id, userId);
           continue;
@@ -158,6 +238,8 @@ class MainViewModel extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint('⚠️ POLLER ERROR: $e');
+      // The network failed: show what is saved instead of leaving old data
+      _loadSavedNotifications();
     } finally {
       _checking = false;
     }
@@ -189,6 +271,7 @@ class MainViewModel extends ChangeNotifier {
     _disposed = true;
     _notificationTimer?.cancel();
     _reminderTapSub?.cancel();
+    _connectivitySub?.cancel();
     _events.close();
     super.dispose();
   }

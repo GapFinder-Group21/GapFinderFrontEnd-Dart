@@ -7,6 +7,7 @@ import 'package:gapfinderfrontend_dart/viewmodels/auth/login_view_model.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/top_bar.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/custom_input.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/custom_button.dart';
+import 'package:gapfinderfrontend_dart/views/widgets/common/offline_banner.dart';
 
 /// Log in with email and password.
 class LoginView extends StatefulWidget {
@@ -110,13 +111,25 @@ class _LoginViewState extends State<LoginView> {
 
             const SizedBox(height: 28),
 
-            // Log In button (shows a spinner while loading)
-            vm.isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : CustomButton(
-              label: 'Log In',
-              onClick: _handleLogin,
-            ),
+            // Log In button (spinner while loading; without connection the button is replaced
+            // by a notice and a retry, because logging in always needs the back)
+            if (vm.isLoading)
+              const Center(child: CircularProgressIndicator())
+            else if (vm.isOffline) ...[
+              const ClipRRect(
+                borderRadius: BorderRadius.all(Radius.circular(8)),
+                child: OfflineBanner(message: 'Necesitas conexión para iniciar sesión'),
+              ),
+              const SizedBox(height: 12),
+              CustomButton(
+                label: vm.isCheckingConnection ? 'Comprobando...' : 'Reintentar',
+                onClick: vm.isCheckingConnection ? null : vm.retryConnection,
+              ),
+            ] else
+              CustomButton(
+                label: 'Log In',
+                onClick: _handleLogin,
+              ),
 
             const SizedBox(height: 14),
 

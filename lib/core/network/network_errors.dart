@@ -9,4 +9,11 @@ bool isNetworkError(Object error) {
       error is TimeoutException ||
       error is http.ClientException ||
       error is HandshakeException;
+// True when the error comes from the network itself (no connection, server unreachable or too slow)
+// and not from the back answering with an error. Used to fall back to the saved data or the outbox.
+bool isNetworkError(Object error) {
+  return error is SocketException ||
+      error is http.ClientException ||
+      error is TimeoutException ||
+      error.toString().contains('No se pudo conectar');
 }

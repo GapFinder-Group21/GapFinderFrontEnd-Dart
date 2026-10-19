@@ -8,6 +8,7 @@ import 'package:gapfinderfrontend_dart/navigation/app_routes.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/match/match_view_model.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/match_mode_selector.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/animated_match_button.dart';
+import 'package:gapfinderfrontend_dart/views/widgets/common/offline_banner.dart';
 
 /// Match tab: shows your current free gap and the button to start looking for a match.
 /// The button is disabled if you have no gap now or the current gap already has an
@@ -49,11 +50,15 @@ class MatchView extends StatelessWidget {
                 ),
               ),
             ),
+            // Without connection: the gap and the match are the saved ones
+            if (vm.isOffline)
+              OfflineBanner(
+                message: 'Sin conexión · mostrando tu gap y tu match guardados',
+                lastUpdated: vm.lastUpdated,
+              ),
             Expanded(
               child: RefreshIndicator(
-                onRefresh: () async {
-                vm.refresh();
-              },
+                onRefresh: vm.pullToRefresh,
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
@@ -202,6 +207,19 @@ class MatchView extends StatelessWidget {
                             isEnabled: canMatch,
                             onTap: () => _startMatch(context),
                           ),
+
+                          // Looking for a match asks the back for candidates, so it needs connection
+                          if (vm.isOffline) ...[
+                            const SizedBox(height: 14),
+                            Text(
+                              'Buscar un match necesita conexión',
+                              textAlign: TextAlign.center,
+                              style: AppFonts.body(weight: FontWeight.w700).copyWith(
+                                fontSize: 13,
+                                color: AppColors.accent1,
+                              ),
+                            ),
+                          ],
 
                           const SizedBox(height: 28),
 

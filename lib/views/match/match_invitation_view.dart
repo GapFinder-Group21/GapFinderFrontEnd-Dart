@@ -8,6 +8,7 @@ import 'package:gapfinderfrontend_dart/navigation/app_routes.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/match/match_invitation_view_model.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/avatar_widget.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/custom_button.dart';
+import 'package:gapfinderfrontend_dart/views/widgets/common/offline_banner.dart';
 
 /// Shown when someone sends you a match request: accept or decline it.
 class MatchInvitationView extends StatefulWidget {
@@ -30,6 +31,8 @@ class _MatchInvitationViewState extends State<MatchInvitationView> {
     if (!ok && mounted) Navigator.pop(context);
   }
 
+  static const _queuedNotice = 'Tu respuesta a la invitación se enviará cuando vuelva la conexión';
+
   // Accepts the match and shows the "It's a match" screen
   Future<void> _accept() async {
     final vm = context.read<MatchInvitationViewModel>();
@@ -44,6 +47,10 @@ class _MatchInvitationViewState extends State<MatchInvitationView> {
           'matchId': vm.acceptedMatch!.id,
           'candidateUser': vm.acceptedMatch!.proposerGap?.user,
         },
+      );
+    } else if (answer == InvitationAnswer.queued) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text(_queuedNotice)),
       );
     } else if (answer == InvitationAnswer.failed) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -60,6 +67,10 @@ class _MatchInvitationViewState extends State<MatchInvitationView> {
 
     if (answer == InvitationAnswer.done) {
       Navigator.pop(context);
+    } else if (answer == InvitationAnswer.queued) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text(_queuedNotice)),
+      );
     } else if (answer == InvitationAnswer.failed) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(vm.errorMessage ?? '')),
@@ -74,6 +85,9 @@ class _MatchInvitationViewState extends State<MatchInvitationView> {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
+    // No connection and this invitation was never saved: explain it instead of loading forever
+    if (vm.unavailable) return _buildUnavailable(vm);
+
     final user = vm.match!.proposerGap?.user;
     if (user == null) {
       return const Scaffold(body: Center(child: Text('Match user not found')));
@@ -84,6 +98,12 @@ class _MatchInvitationViewState extends State<MatchInvitationView> {
       body: SafeArea(
         child: Column(
           children: [
+            // The invitation on screen is the saved one
+            if (vm.isOffline)
+              OfflineBanner(
+                message: 'Sin conexión · mostrando la invitación guardada',
+                lastUpdated: vm.lastUpdated,
+              ),
             Container(
               width: double.infinity,
               color: AppColors.accent3, // Azul para invitaciones
@@ -138,8 +158,47 @@ class _MatchInvitationViewState extends State<MatchInvitationView> {
 
                     const SizedBox(height: 48),
                     
-                    vm.isProcessing 
+                    vm.isProcessing
                       ? const Center(child: CircularProgressIndicator())
+                      : vm.isPending
+                      // The answer waits in the outbox: both buttons are replaced by one disabled button
+                      ? Column(
+                          children: [
+                            const CustomButton(
+                              label: 'Pendiente de enviar',
+                              color: AppColors.accent3,
+                              onClick: null,
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              _queuedNotice,
+                              textAlign: TextAlign.center,
+                              style: AppFonts.body().copyWith(
+                                fontSize: 12,
+                                color: context.palette.contrast.withValues(alpha: 0.5),
+                              ),
+                            ),
+                          ],
+                        )
+                      : vm.isAnswered
+                      // The back says it is not pending anymore (answered or expired)
+                      ? Column(
+                          children: [
+                            Text(
+                              'Esta invitación ya fue respondida (${vm.match!.status.name.toLowerCase()}).',
+                              textAlign: TextAlign.center,
+                              style: AppFonts.body().copyWith(
+                                color: context.palette.contrast.withValues(alpha: 0.6),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            CustomButton(
+                              label: 'Cerrar',
+                              color: AppColors.accent3,
+                              onClick: () => Navigator.pop(context),
+                            ),
+                          ],
+                        )
                       : Column(
                           children: [
                             CustomButton(
@@ -163,6 +222,43 @@ class _MatchInvitationViewState extends State<MatchInvitationView> {
                             ),
                           ],
                         ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Shown without connection when the invitation was not saved on the device
+  Widget _buildUnavailable(MatchInvitationViewModel vm) {
+    return Scaffold(
+      backgroundColor: context.palette.background,
+      body: SafeArea(
+        child: Column(
+          children: [
+            const OfflineBanner(message: 'Sin conexión · esta invitación no está guardada'),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(32),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.wifi_off_rounded, size: 56, color: context.palette.contrast.withValues(alpha: 0.25)),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No pudimos cargar la invitación sin conexión. Cuando vuelva la red, toca Reintentar.',
+                      textAlign: TextAlign.center,
+                      style: AppFonts.body().copyWith(color: context.palette.contrast.withValues(alpha: 0.6)),
+                    ),
+                    const SizedBox(height: 24),
+                    CustomButton(label: 'Reintentar', color: AppColors.accent3, onClick: vm.retry),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cerrar'),
+                    ),
                   ],
                 ),
               ),
