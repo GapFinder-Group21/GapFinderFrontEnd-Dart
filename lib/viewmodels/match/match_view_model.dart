@@ -78,6 +78,7 @@ class MatchViewModel extends ChangeNotifier {
   // Load the current gap and its match, and listen to the connection
   Future<void> init() {
     _isOffline = !_connectivity.isOnline;
+    // Estrategia: Stream. The connectivity service emits true/false every time the network changes
     _connectivitySub ??= _connectivity.onStatusChange.listen(_onConnectivityChanged);
     return refresh();
   }
@@ -102,15 +103,30 @@ class MatchViewModel extends ChangeNotifier {
     _isLoading = true;
     _notify();
 
-    final gap = await _loadActiveGap();
-    final match = await _loadGapMatch(gap);
+    // Estrategia: Future con handler + async/await.
+    // await waits for the gap, because the match search needs it first. Then the match
+    // Future is handled with .then (apply the result) and .catchError (do not leave the
+    // screen loading if it fails), the same way a handler works on a Future.
+    final gap = await _loadActiveGap().catchError((Object e) {
+      debugPrint('Error loading the active gap: $e');
+      return null;
+    });
 
-    // A newer reload already started, so this result is old
-    if (loadId != _loadId) return;
-    _currentGap = gap;
-    _gapMatch = match;
-    _isLoading = false;
-    _notify();
+    await _loadGapMatch(gap).then((match) {
+      // A newer reload already started, so this result is old
+      if (loadId != _loadId) return;
+      _currentGap = gap;
+      _gapMatch = match;
+      _isLoading = false;
+      _notify();
+    }).catchError((Object e) {
+      debugPrint('Error loading the match of the gap: $e');
+      if (loadId != _loadId) return;
+      _currentGap = gap;
+      _gapMatch = null;
+      _isLoading = false;
+      _notify();
+    });
   }
 
   // Finds the gap the user is in right now - GET /gaps/user/{userId}

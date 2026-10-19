@@ -65,6 +65,8 @@ class MainViewModel extends ChangeNotifier {
     suggestionsTab: 'suggest',
   };
 
+  // Estrategia: Stream. A broadcast StreamController sends one event per new match request
+  // and the View listens to it to open the invitation screen.
   final _events = StreamController<MatchInvitationEvent>.broadcast();
   int _selectedIndex = scheduleTab;
   Timer? _notificationTimer;
@@ -172,6 +174,7 @@ class MainViewModel extends ChangeNotifier {
   // Registers that the user opened the app - POST /app-sessions/user/{userId}
   // Never blocks the user: it is not awaited and an error only prints
   void registerAppOpen() {
+    // Estrategia: Future con handler (.then + .catchError)
     TokenStorage.getUserId().then((userId) {
       if (userId == null) return null;
       return _appSessionService.registerOpen(userId);
