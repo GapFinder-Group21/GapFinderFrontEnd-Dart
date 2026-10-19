@@ -18,6 +18,7 @@ import 'package:gapfinderfrontend_dart/views/auth/schedule_setup_view.dart';
 import 'package:gapfinderfrontend_dart/views/welcome/welcome_view.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/match/match_found_view_model.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/match/match_invitation_view_model.dart';
+import 'package:gapfinderfrontend_dart/viewmodels/match/its_a_match_view_model.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/match/searching_match_view_model.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/match/waiting_view_model.dart';
 import 'package:gapfinderfrontend_dart/views/match/its_a_match_view.dart';
@@ -101,11 +102,14 @@ class AppRoutes {
         },
         itsAMatch: (context) {
           final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
-          return ItsAMatchView(
-            matchId: args['matchId'],
-            candidateUser: args['candidateUser'],
-            suggestedActivity: args['suggestedActivity'],
-            chosenActivity: args['chosenActivity'],
+          return withViewModel(
+            () => ItsAMatchViewModel(args['matchId'])..init(),
+            ItsAMatchView(
+              matchId: args['matchId'],
+              candidateUser: args['candidateUser'],
+              suggestedActivity: args['suggestedActivity'],
+              chosenActivity: args['chosenActivity'],
+            ),
           );
         },
         matchInvitation: (context) {

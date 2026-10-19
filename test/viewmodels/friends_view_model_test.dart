@@ -1,3 +1,4 @@
+import 'noop_local_cache.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gapfinderfrontend_dart/models/enums/friendship_status_enum.dart';
 import 'package:gapfinderfrontend_dart/models/friendship.dart';
@@ -83,6 +84,7 @@ void main() {
       friendshipService: friendships,
       gapService: gaps,
       userService: FakeUserService(),
+      localCache: NoopLocalCache(),
     );
   });
 

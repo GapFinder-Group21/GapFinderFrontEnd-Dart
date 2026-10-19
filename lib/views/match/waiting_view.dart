@@ -4,7 +4,9 @@ import 'package:provider/provider.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_fonts.dart';
 import 'package:gapfinderfrontend_dart/navigation/app_routes.dart';
+import 'package:gapfinderfrontend_dart/models/enums/match_status_enum.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/match/waiting_view_model.dart';
+import 'package:gapfinderfrontend_dart/views/widgets/common/offline_banner.dart';
 
 /// Waits for the other person to accept or decline the match request you sent.
 class WaitingView extends StatefulWidget {
@@ -73,28 +75,66 @@ class _WaitingViewState extends State<WaitingView> {
     Navigator.pop(context);
   }
 
+  // Message of the last status we know, shown while there is no connection
+  String _savedStatusMessage(WaitingViewModel vm) {
+    switch (vm.lastKnownStatus) {
+      case MatchStatusEnum.PENDING:
+        return 'La última vez que revisamos, la otra persona todavía no respondía.';
+      case MatchStatusEnum.ACCEPTED:
+        return 'La última vez que revisamos, la otra persona ya había aceptado.';
+      case MatchStatusEnum.REJECTED:
+        return 'La última vez que revisamos, la otra persona había rechazado.';
+      case MatchStatusEnum.COMPLETED:
+        return 'La última vez que revisamos, este match ya estaba completado.';
+      case null:
+        return 'Todavía no tenemos un estado guardado de esta solicitud.';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final vm = context.watch<WaitingViewModel>();
+
     return Scaffold(
       backgroundColor: AppColors.contrast,
       body: SafeArea(
-        child: Padding(
+        child: Column(
+          children: [
+            // The polling is paused without connection
+            if (vm.isOffline)
+              OfflineBanner(
+                message: 'Sin conexión · revisión en pausa',
+                lastUpdated: vm.lastUpdated,
+              ),
+            Expanded(child: _buildBody(vm)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBody(WaitingViewModel vm) {
+    return Padding(
           padding: const EdgeInsets.all(24.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Spacer(),
-              const SizedBox(
-                width: 80,
-                height: 80,
-                child: CircularProgressIndicator(
-                  strokeWidth: 4,
-                  valueColor: AlwaysStoppedAnimation<Color>(AppColors.accent2),
+              // No spinner without connection: nothing is being checked
+              if (vm.isOffline)
+                const Icon(Icons.wifi_off_rounded, size: 72, color: AppColors.accent1)
+              else
+                const SizedBox(
+                  width: 80,
+                  height: 80,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 4,
+                    valueColor: AlwaysStoppedAnimation<Color>(AppColors.accent2),
+                  ),
                 ),
-              ),
               const SizedBox(height: 32),
               Text(
-                'WAITING FOR RESPONSE...',
+                vm.isOffline ? 'SIN CONEXIÓN' : 'WAITING FOR RESPONSE...',
                 style: AppFonts.display(weight: FontWeight.w900).copyWith(
                   fontSize: 22,
                   color: Colors.white,
@@ -103,7 +143,9 @@ class _WaitingViewState extends State<WaitingView> {
               ),
               const SizedBox(height: 12),
               Text(
-                'We sent your connection request. Waiting for them to accept.',
+                vm.isOffline
+                    ? '${_savedStatusMessage(vm)} Volveremos a revisar cuando regrese la conexión.'
+                    : 'We sent your connection request. Waiting for them to accept.',
                 textAlign: TextAlign.center,
                 style: AppFonts.body().copyWith(
                   fontSize: 14,
@@ -127,8 +169,6 @@ class _WaitingViewState extends State<WaitingView> {
               const SizedBox(height: 16),
             ],
           ),
-        ),
-      ),
-    );
+        );
   }
 }

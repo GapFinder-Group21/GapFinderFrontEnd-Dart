@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:gapfinderfrontend_dart/navigation/app_routes.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_fonts.dart';
@@ -6,9 +7,14 @@ import 'package:gapfinderfrontend_dart/models/user.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/avatar_widget.dart';
 import 'package:gapfinderfrontend_dart/models/activity.dart';
 import 'package:gapfinderfrontend_dart/models/enums/effort_type_enum.dart';
+import 'package:gapfinderfrontend_dart/models/enums/match_status_enum.dart';
+import 'package:gapfinderfrontend_dart/core/utils/display_formatters.dart';
+import 'package:gapfinderfrontend_dart/viewmodels/match/its_a_match_view_model.dart';
+import 'package:gapfinderfrontend_dart/views/widgets/common/offline_banner.dart';
 
 /// Shown when a match is accepted: the other person, their phone number
 /// and the suggested activity to do together.
+/// It shows the match saved on the device (read only); updating it needs connection.
 class ItsAMatchView extends StatelessWidget {
   final int matchId;
   final User candidateUser;
@@ -27,11 +33,25 @@ class ItsAMatchView extends StatelessWidget {
   Widget build(BuildContext context) {
     // Show the suggested activity, or the one the user picked
     final activityToShow = suggestedActivity ?? chosenActivity;
+    final vm = context.watch<ItsAMatchViewModel>();
 
     return Scaffold(
       backgroundColor: AppColors.contrast,
       body: SafeArea(
-        child: Padding(
+        child: Column(
+          children: [
+            // Without connection: only the saved data is shown
+            if (vm.isOffline)
+              OfflineBanner(
+                message: 'Sin conexión · mostrando el match guardado',
+                lastUpdated: vm.lastUpdated,
+              ),
+            Expanded(
+              child: LayoutBuilder(
+                builder: (context, constraints) => SingleChildScrollView(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                    child: Padding(
           padding: const EdgeInsets.all(32),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -164,7 +184,35 @@ class ItsAMatchView extends StatelessWidget {
                 ),
               ],
 
-              const SizedBox(height: 48),
+              // Saved details of the match (read only)
+              if (vm.match != null) ...[
+                const SizedBox(height: 30),
+                _buildSavedDetails(vm),
+              ],
+
+              const SizedBox(height: 24),
+              // Updating the match asks the back, so it is disabled without connection
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: vm.isOffline || vm.isRefreshing ? null : vm.refresh,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    disabledForegroundColor: Colors.white38,
+                    side: BorderSide(color: Colors.white.withValues(alpha: vm.isOffline ? 0.15 : 0.4)),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: Text(
+                    vm.isOffline
+                        ? 'Actualizar necesita conexión'
+                        : (vm.isRefreshing ? 'Actualizando...' : 'Actualizar match'),
+                    style: AppFonts.body(weight: FontWeight.w700).copyWith(fontSize: 14),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 24),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
@@ -182,7 +230,51 @@ class ItsAMatchView extends StatelessWidget {
               ),
             ],
           ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
+      ),
+    );
+  }
+
+  // Time and status of the saved match
+  Widget _buildSavedDetails(ItsAMatchViewModel vm) {
+    final match = vm.match!;
+    final status = switch (match.status) {
+      MatchStatusEnum.PENDING => 'Pendiente',
+      MatchStatusEnum.ACCEPTED => 'Aceptado',
+      MatchStatusEnum.REJECTED => 'Rechazado',
+      MatchStatusEnum.COMPLETED => 'Completado',
+    };
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+      ),
+      child: Column(
+        children: [
+          Text(
+            'MATCH GUARDADO',
+            style: AppFonts.subtitle(weight: FontWeight.w800).copyWith(
+              fontSize: 11,
+              letterSpacing: 1.5,
+              color: Colors.white.withValues(alpha: 0.4),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '${DisplayFormatters.time(match.startTime)} – ${DisplayFormatters.time(match.endTime)} · $status',
+            style: AppFonts.display(weight: FontWeight.w700).copyWith(fontSize: 15, color: Colors.white),
+          ),
+        ],
       ),
     );
   }
