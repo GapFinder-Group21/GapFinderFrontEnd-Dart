@@ -1,4 +1,5 @@
 import 'package:gapfinderfrontend_dart/core/theme/app_palette.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/avatar_widget.dart';
 
@@ -22,19 +23,19 @@ class OpenTablePhoto extends StatelessWidget {
 
     return ClipRRect(
       borderRadius: borderRadius,
-      child: Image.network(
-        resolved,
+      // Memory and disk cache: a photo seen once is still shown without connection
+      child: CachedNetworkImage(
+        imageUrl: resolved,
         height: height,
         width: double.infinity,
         fit: BoxFit.cover,
-        loadingBuilder: (context, child, progress) => progress == null
-            ? child
-            : SizedBox(
-                height: height,
-                child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
-              ),
-        // If the photo cannot load, a camera icon keeps the space
-        errorBuilder: (_, _, _) => Container(
+        // While the photo loads
+        placeholder: (context, _) => SizedBox(
+          height: height,
+          child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+        ),
+        // If the photo cannot load (and it was never cached), a camera icon keeps the space
+        errorWidget: (context, _, _) => Container(
           height: height,
           width: double.infinity,
           color: context.palette.background,

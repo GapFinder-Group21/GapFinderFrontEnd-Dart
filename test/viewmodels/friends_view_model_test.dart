@@ -66,13 +66,22 @@ class FakeGapService extends GapService {
       gapsByUser[userId] ?? [];
 }
 
-class FakeUserService extends UserService {}
+class FakeUserService extends UserService {
+  int searchCalls = 0;
+
+  @override
+  Future<List<User>> searchByName(String name) async {
+    searchCalls++;
+    return [_user(1, 'me'), _user(2, 'ana')];
+  }
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   final storage = SecureStorageMock();
   late FakeFriendshipService friendships;
   late FakeGapService gaps;
+  late FakeUserService users;
   late FriendsViewModel vm;
 
   setUp(() {
@@ -80,10 +89,12 @@ void main() {
     storage.setUserId(1);
     friendships = FakeFriendshipService();
     gaps = FakeGapService();
+    users = FakeUserService();
+    FriendsViewModel.clearSearchCache();
     vm = FriendsViewModel(
       friendshipService: friendships,
       gapService: gaps,
-      userService: FakeUserService(),
+      userService: users,
       localCache: NoopLocalCache(),
     );
   });
@@ -170,6 +181,19 @@ void main() {
       expect(await vm.acceptRequest(10), isNull);
       expect(await vm.rejectRequest(10), isNull);
       expect(friendships.calls, isEmpty);
+    });
+
+    test('searching the same text again uses the LRU cache, ignoring capitals and extra spaces', () async {
+      await vm.search('Ana');
+      await vm.search('  ana ');
+      await vm.search('ANA');
+
+      expect(users.searchCalls, 1);
+      // The user themself is filtered out of the cached results too
+      expect(vm.searchResults.map((u) => u.id), [2]);
+
+      await vm.search('leo');
+      expect(users.searchCalls, 2);
     });
   });
 }
