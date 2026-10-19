@@ -7,9 +7,11 @@ import 'package:gapfinderfrontend_dart/data/local/joel/main_tab_prefs.dart';
 import 'package:gapfinderfrontend_dart/data/local/joel/match_dao.dart';
 import 'package:gapfinderfrontend_dart/data/local/joel/notification_dao.dart';
 import 'package:gapfinderfrontend_dart/data/local/joel/pending_photo_store.dart';
+import 'package:gapfinderfrontend_dart/data/local/joel/user_gaps_store.dart';
 import 'package:gapfinderfrontend_dart/data/local/joel/user_profile_store.dart';
 import 'package:gapfinderfrontend_dart/models/app_notification.dart';
 import 'package:gapfinderfrontend_dart/models/friendship.dart';
+import 'package:gapfinderfrontend_dart/models/gap.dart';
 import 'package:gapfinderfrontend_dart/models/match.dart';
 import 'package:gapfinderfrontend_dart/models/user.dart';
 
@@ -24,6 +26,7 @@ class JoelLocalCache {
   final NotificationDao notifications;
   final MatchDao matches;
   final UserProfileStore profiles;
+  final UserGapsStore gaps;
   final PendingPhotoStore pendingPhoto;
   final MainTabPrefs mainTab;
 
@@ -33,6 +36,7 @@ class JoelLocalCache {
     NotificationDao? notifications,
     MatchDao? matches,
     UserProfileStore? profiles,
+    UserGapsStore? gaps,
     PendingPhotoStore? pendingPhoto,
     MainTabPrefs? mainTab,
   })  : friends = friends ?? FriendDao(),
@@ -40,6 +44,7 @@ class JoelLocalCache {
         notifications = notifications ?? NotificationDao(),
         matches = matches ?? MatchDao(),
         profiles = profiles ?? UserProfileStore(),
+        gaps = gaps ?? UserGapsStore(),
         pendingPhoto = pendingPhoto ?? PendingPhotoStore(),
         mainTab = mainTab ?? MainTabPrefs();
 
@@ -63,6 +68,32 @@ class JoelLocalCache {
       if (userId == null) return;
       await matches.upsertForUser(userId, match, match.acceptorGapId);
     });
+  }
+
+  void saveGaps(int userId, List<Gap> list) {
+    _run('gaps', () => gaps.save(userId, list));
+  }
+
+  // A match of the user fetched from the back (the user's own gap is found inside the match)
+  void saveMatchOfUser(int userId, Match match) {
+    _run('match', () => matches.upsertForUser(userId, match, _ownGapId(userId, match)));
+  }
+
+  static int? _ownGapId(int userId, Match match) {
+    if (match.proposerGap?.user?.id == userId) return match.proposerGapId;
+    if (match.acceptorGap?.user?.id == userId) return match.acceptorGapId;
+    return null;
+  }
+
+  // Reads from the device; null if there is nothing saved or the read fails.
+  // Reading never breaks a screen either: the error only prints.
+  Future<T?> safeRead<T>(String what, Future<T?> Function() read) async {
+    try {
+      return await read();
+    } catch (e) {
+      debugPrint('Could not read $what from the device: $e');
+      return null;
+    }
   }
 
   // Saves the profile; load gives the full user, fallback is used if it fails

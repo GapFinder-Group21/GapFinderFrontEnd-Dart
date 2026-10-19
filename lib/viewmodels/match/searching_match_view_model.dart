@@ -1,4 +1,7 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:gapfinderfrontend_dart/core/network/connectivity_service.dart';
+import 'package:gapfinderfrontend_dart/core/network/network_errors.dart';
 import 'package:gapfinderfrontend_dart/models/enums/match_mode_enum.dart';
 import 'package:gapfinderfrontend_dart/models/enums/match_status_enum.dart';
 import 'package:gapfinderfrontend_dart/models/responses/match_candidate.dart';
@@ -26,30 +29,80 @@ class CandidateFound extends SearchOutcome {
   CandidateFound(this.currentGapId, this.candidate);
 }
 
-// Looks for match candidates for the current gap
+// Looks for match candidates for the current gap.
+// The search needs the back: if the connection is lost while it runs, it is cancelled and the
+// screen offers "Reintentar" instead of waiting forever.
 class SearchingMatchViewModel extends ChangeNotifier {
+  // Each request of the search waits at most this long
+  static const requestTimeout = Duration(seconds: 20);
+
   final int userId;
   final MatchModeEnum mode;
   final GapService _gapService;
   final MatchService _matchService;
+  final ConnectivityService _connectivity;
 
   SearchingMatchViewModel(
     this.userId,
     this.mode, {
     GapService? gapService,
     MatchService? matchService,
+    ConnectivityService? connectivity,
   })  : _gapService = gapService ?? GapService(),
-        _matchService = matchService ?? MatchService();
+        _matchService = matchService ?? MatchService(),
+        _connectivity = connectivity ?? ConnectivityService.instance {
+    _connectivitySub = _connectivity.onStatusChange.listen((online) {
+      if (!online) _markConnectionLost();
+    });
+  }
 
+  StreamSubscription<bool>? _connectivitySub;
   bool _cancelled = false;
+  bool _connectionLost = false;
+  bool _isCheckingConnection = false;
+  bool _disposed = false;
+
+  // True when the connection was lost during the search (the screen shows "Reintentar")
+  bool get connectionLost => _connectionLost;
+  bool get isCheckingConnection => _isCheckingConnection;
+
+  // Cancels the search because there is no connection
+  void _markConnectionLost() {
+    if (_cancelled) return;
+    _cancelled = true;
+    _connectionLost = true;
+    _notify();
+  }
+
+  // "Reintentar": checks the connection and, if it is back, lets the View search again.
+  // Returns true when the search can start again.
+  Future<bool> retry() async {
+    _isCheckingConnection = true;
+    _notify();
+
+    final online = await _connectivity.checkNow();
+    _isCheckingConnection = false;
+    if (online) {
+      _cancelled = false;
+      _connectionLost = false;
+    }
+    _notify();
+    return online;
+  }
 
   // Finds the current gap, asks for candidates and picks the best one - GET /matches/gap/{gapId}/candidates.
   // The back returns no candidates when the current gap already has an accepted or completed match,
   // so in that case it returns the accepted match of that gap (a completed one just gives NoMatches).
   // Returns null when the search was cancelled.
   Future<SearchOutcome?> search() async {
+    // Without connection there is nothing to search: go straight to the "lost connection" state
+    if (!_connectivity.isOnline) {
+      _markConnectionLost();
+      return null;
+    }
+
     try {
-      final gaps = await _gapService.getUserGaps(userId);
+      final gaps = await _gapService.getUserGaps(userId).timeout(requestTimeout);
       final now = DateTime.now();
       final currentGap = gaps.where((g) => !now.isBefore(g.startTime) && now.isBefore(g.endTime)).firstOrNull;
 
@@ -64,12 +117,12 @@ class SearchingMatchViewModel extends ChangeNotifier {
         useSameCareer: mode == MatchModeEnum.career,
         useSharedInterests: mode == MatchModeEnum.interests,
         useEffort: mode == MatchModeEnum.effort,
-      );
+      ).timeout(requestTimeout);
 
       if (_cancelled) return null;
 
       if (results.isEmpty) {
-        final allMatches = await _matchService.getAll();
+        final allMatches = await _matchService.getAll().timeout(requestTimeout);
         final activeMatch = allMatches.where((m) =>
           (m.proposerGapId == currentGap.id || m.acceptorGapId == currentGap.id) &&
           m.status == MatchStatusEnum.ACCEPTED
@@ -94,6 +147,11 @@ class SearchingMatchViewModel extends ChangeNotifier {
       return CandidateFound(currentGap.id, bestCandidate);
     } catch (e) {
       debugPrint('Error searching match: $e');
+      // A network failure is not "no matches": it is a lost connection
+      if (isNetworkError(e)) {
+        _markConnectionLost();
+        return null;
+      }
       if (!_cancelled) {
         return NoMatches();
       }
@@ -104,5 +162,16 @@ class SearchingMatchViewModel extends ChangeNotifier {
   // Stops the search (its result is ignored)
   void cancel() {
     _cancelled = true;
+  }
+
+  void _notify() {
+    if (!_disposed) notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _connectivitySub?.cancel();
+    super.dispose();
   }
 }

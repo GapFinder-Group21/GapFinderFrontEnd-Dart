@@ -1,3 +1,4 @@
+import 'noop_local_cache.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gapfinderfrontend_dart/models/enums/match_mode_enum.dart';
 import 'package:gapfinderfrontend_dart/models/enums/match_status_enum.dart';
@@ -46,7 +47,7 @@ void main() {
     storage.setUserId(1);
     gapService = FakeGapService();
     matchService = FakeMatchService();
-    vm = MatchViewModel(gapService: gapService, matchService: matchService);
+    vm = MatchViewModel(gapService: gapService, matchService: matchService, localCache: NoopLocalCache());
   });
 
   tearDown(() {

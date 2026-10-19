@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:gapfinderfrontend_dart/core/storage/local_file_store.dart';
 
@@ -33,6 +35,15 @@ class PendingPhotoStore {
   Future<String?> currentPath() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_pathKey);
+  }
+
+  // The pending photo as a File, or null if there is none or the file is gone
+  Future<File?> currentFile() async {
+    final path = await currentPath();
+    if (path == null) return null;
+    final root = await getApplicationDocumentsDirectory();
+    final file = File(p.join(root.path, path));
+    return await file.exists() ? file : null;
   }
 
   // Removes the file and its path (after the table was published)

@@ -8,6 +8,7 @@ import 'package:gapfinderfrontend_dart/models/user.dart';
 import 'package:gapfinderfrontend_dart/models/gap.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/friends/friends_view_model.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/avatar_widget.dart';
+import 'package:gapfinderfrontend_dart/views/widgets/common/offline_banner.dart';
 
 /// Friends tab: search users, send and answer friend requests,
 /// and see which friends are free right now and which are in class.
@@ -30,15 +31,19 @@ class _FriendsViewState extends State<FriendsView> {
     super.dispose();
   }
 
-  // Sends a friend request and clears the search when it works
+  static const _queuedNotice = 'Se enviará cuando vuelva la conexión';
+
+  // Sends a friend request and clears the search when it works.
+  // Without connection it is queued: the search stays so the button shows "Pendiente de enviar".
   Future<void> _sendFriendRequest(int targetUserId) async {
     final result = await _vm.sendFriendRequest(targetUserId);
     if (result == null || !mounted) return;
     if (result) {
+      final queued = _vm.lastActionQueued;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Friend request sent!')),
+        SnackBar(content: Text(queued ? _queuedNotice : 'Friend request sent!')),
       );
-      _searchController.clear();
+      if (!queued) _searchController.clear();
     } else {
       _showError();
     }
@@ -47,13 +52,29 @@ class _FriendsViewState extends State<FriendsView> {
   // Accepts a friend request
   Future<void> _acceptRequest(int friendshipId) async {
     final result = await _vm.acceptRequest(friendshipId);
-    if (result == false && mounted) _showError();
+    if (!mounted) return;
+    if (result == false) {
+      _showError();
+    } else if (result == true && _vm.lastActionQueued) {
+      _showQueuedNotice();
+    }
   }
 
   // Rejects a friend request
   Future<void> _rejectRequest(int friendshipId) async {
     final result = await _vm.rejectRequest(friendshipId);
-    if (result == false && mounted) _showError();
+    if (!mounted) return;
+    if (result == false) {
+      _showError();
+    } else if (result == true && _vm.lastActionQueued) {
+      _showQueuedNotice();
+    }
+  }
+
+  void _showQueuedNotice() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text(_queuedNotice)),
+    );
   }
 
   void _showError() {
@@ -78,6 +99,12 @@ class _FriendsViewState extends State<FriendsView> {
         child: Column(
           children: [
             _buildHeader(),
+            // Without connection: the friends on screen are the saved ones
+            if (vm.isOffline)
+              OfflineBanner(
+                message: 'Sin conexión · mostrando tus amigos guardados',
+                lastUpdated: vm.lastUpdated,
+              ),
             _buildSearchBar(),
             Expanded(
               child: Builder(
@@ -101,7 +128,7 @@ class _FriendsViewState extends State<FriendsView> {
                   }
 
                   return RefreshIndicator(
-                    onRefresh: vm.refresh,
+                    onRefresh: vm.pullToRefresh,
                     child: ListView(
                       padding: const EdgeInsets.all(16),
                       children: [
@@ -127,14 +154,14 @@ class _FriendsViewState extends State<FriendsView> {
                         if (data.inClass.isNotEmpty) ...[
                           const SizedBox(height: 4),
                           _buildSectionHeader(
-                            label: 'In class',
+                            label: data.fromCache ? 'Amigos guardados' : 'In class',
                             count: data.inClass.length,
                             dotColor: context.palette.contrast.withValues(alpha: 0.18),
                             textColor: context.palette.contrast.withValues(alpha: 0.3),
                             small: true,
                           ),
                           const SizedBox(height: 12),
-                          _buildInClassGrid(data.inClass),
+                          _buildInClassGrid(data.inClass, saved: data.fromCache),
                         ],
                         const SizedBox(height: 24),
                       ],
@@ -156,10 +183,12 @@ class _FriendsViewState extends State<FriendsView> {
       padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
       child: TextField(
         controller: _searchController,
+        // Searching needs the back, so the field is disabled without connection
+        enabled: !_vm.isOffline,
         onChanged: _vm.search,
         style: AppFonts.body().copyWith(fontSize: 14),
         decoration: InputDecoration(
-          hintText: 'Search users by name...',
+          hintText: _vm.isOffline ? 'Buscar usuarios necesita conexión' : 'Search users by name...',
           hintStyle: AppFonts.body().copyWith(color: context.palette.contrast.withValues(alpha: 0.4)),
           prefixIcon: Icon(Icons.search_rounded, color: context.palette.contrast),
           suffixIcon: _vm.isSearching || _searchController.text.isNotEmpty
@@ -232,7 +261,8 @@ class _FriendsViewState extends State<FriendsView> {
                 ),
               ),
               ElevatedButton(
-                onPressed: () => _sendFriendRequest(user.id),
+                // Disabled while a request to this user waits in the outbox
+                onPressed: _vm.isSendPending(user.id) ? null : () => _sendFriendRequest(user.id),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.accent2,
                   foregroundColor: Colors.white,
@@ -241,7 +271,10 @@ class _FriendsViewState extends State<FriendsView> {
                   minimumSize: const Size(70, 32),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                 ),
-                child: Text('Add', style: AppFonts.display(weight: FontWeight.w900).copyWith(fontSize: 11)),
+                child: Text(
+                  _vm.isSendPending(user.id) ? 'Pendiente de enviar' : 'Add',
+                  style: AppFonts.display(weight: FontWeight.w900).copyWith(fontSize: 11),
+                ),
               ),
             ],
           ),
@@ -295,20 +328,30 @@ class _FriendsViewState extends State<FriendsView> {
               ],
             ),
           ),
-          Row(
-            children: [
-              IconButton(
-                onPressed: () => _acceptRequest(req.friendshipId),
-                icon: const Icon(Icons.check_circle_rounded, color: AppColors.accent2, size: 32),
-                tooltip: 'Accept',
+          // Accept and reject share one pending decision, so both wait together
+          if (_vm.isDecisionPending(req.friendshipId))
+            Text(
+              'Pendiente de enviar',
+              style: AppFonts.body(weight: FontWeight.w700).copyWith(
+                fontSize: 11,
+                color: context.palette.contrast.withValues(alpha: 0.5),
               ),
-              IconButton(
-                onPressed: () => _rejectRequest(req.friendshipId),
-                icon: const Icon(Icons.cancel_rounded, color: AppColors.accent1, size: 32),
-                tooltip: 'Reject',
-              ),
-            ],
-          ),
+            )
+          else
+            Row(
+              children: [
+                IconButton(
+                  onPressed: () => _acceptRequest(req.friendshipId),
+                  icon: const Icon(Icons.check_circle_rounded, color: AppColors.accent2, size: 32),
+                  tooltip: 'Accept',
+                ),
+                IconButton(
+                  onPressed: () => _rejectRequest(req.friendshipId),
+                  icon: const Icon(Icons.cancel_rounded, color: AppColors.accent1, size: 32),
+                  tooltip: 'Reject',
+                ),
+              ],
+            ),
         ],
       ),
     );
@@ -557,7 +600,7 @@ class _FriendsViewState extends State<FriendsView> {
   }
 
   // Grid of friends who are in class (Wrap so it never overflows)
-  Widget _buildInClassGrid(List<User> users) {
+  Widget _buildInClassGrid(List<User> users, {bool saved = false}) {
     return Wrap(
       spacing: 12,
       runSpacing: 12,
@@ -590,7 +633,7 @@ class _FriendsViewState extends State<FriendsView> {
                   ),
                 ),
                 Text(
-                  'In class',
+                  saved ? 'Guardado' : 'In class',
                   style: AppFonts.body().copyWith(
                     fontSize: 10,
                     color: context.palette.contrast.withValues(alpha: 0.4),
@@ -648,8 +691,12 @@ class _FriendsViewState extends State<FriendsView> {
         children: [
           Icon(Icons.cloud_off, size: 48, color: context.palette.contrast.withValues(alpha: 0.2)),
           const SizedBox(height: 16),
-          Text('Something went wrong', style: AppFonts.body(weight: FontWeight.w700)),
-          TextButton(onPressed: _vm.refresh, child: const Text('Try again')),
+          Text(
+            _vm.isOffline ? 'Sin conexión y sin amigos guardados todavía' : 'Something went wrong',
+            textAlign: TextAlign.center,
+            style: AppFonts.body(weight: FontWeight.w700),
+          ),
+          TextButton(onPressed: _vm.pullToRefresh, child: Text(_vm.isOffline ? 'Reintentar' : 'Try again')),
         ],
       ),
     );

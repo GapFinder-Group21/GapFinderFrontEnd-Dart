@@ -4,6 +4,7 @@ import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_fonts.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/custom_top_bar.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/custom_button.dart';
+import 'package:gapfinderfrontend_dart/views/widgets/common/offline_banner.dart';
 import 'package:provider/provider.dart';
 import 'package:gapfinderfrontend_dart/navigation/app_routes.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/auth/google_connect_view_model.dart';
@@ -28,7 +29,11 @@ class GoogleConnectView extends StatelessWidget {
         showBack: true,
       ),
       body: SafeArea(
-        child: Container(
+        child: Column(
+          children: [
+            if (vm.isOffline)
+              const OfflineBanner(message: 'Sin conexión · conectar Google necesita internet'),
+            Expanded(child: Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
           child: Column(
@@ -83,9 +88,16 @@ class GoogleConnectView extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: 40),
-              // Button: open Google first, then continue to the import
+              // Button: open Google first, then continue to the import.
+              // Without connection both steps are disabled (they need the back).
               if (vm.loading)
                 const CircularProgressIndicator()
+              else if (vm.isOffline)
+                const CustomButton(
+                  label: 'Conectar Google necesita conexión',
+                  color: AppColors.accent3,
+                  onClick: null,
+                )
               else if (!vm.opened)
                 CustomButton(
                   label: 'Continue with Google',
@@ -112,6 +124,8 @@ class GoogleConnectView extends StatelessWidget {
                 ],
             ],
           ),
+        )),
+          ],
         ),
       ),
     );
