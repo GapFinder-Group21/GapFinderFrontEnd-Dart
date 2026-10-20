@@ -7,6 +7,7 @@ import 'package:gapfinderfrontend_dart/data/local/joel/main_tab_prefs.dart';
 import 'package:gapfinderfrontend_dart/data/local/joel/match_dao.dart';
 import 'package:gapfinderfrontend_dart/data/local/joel/notification_dao.dart';
 import 'package:gapfinderfrontend_dart/data/local/joel/pending_photo_store.dart';
+import 'package:gapfinderfrontend_dart/data/local/joel/preferred_activity_prefs.dart';
 import 'package:gapfinderfrontend_dart/data/local/joel/user_gaps_store.dart';
 import 'package:gapfinderfrontend_dart/data/local/joel/user_profile_store.dart';
 import 'package:gapfinderfrontend_dart/models/app_notification.dart';
@@ -29,6 +30,7 @@ class JoelLocalCache {
   final UserGapsStore gaps;
   final PendingPhotoStore pendingPhoto;
   final MainTabPrefs mainTab;
+  final PreferredActivityPrefs preferredActivity;
 
   JoelLocalCache({
     FriendDao? friends,
@@ -39,6 +41,7 @@ class JoelLocalCache {
     UserGapsStore? gaps,
     PendingPhotoStore? pendingPhoto,
     MainTabPrefs? mainTab,
+    PreferredActivityPrefs? preferredActivity,
   })  : friends = friends ?? FriendDao(),
         friendRequests = friendRequests ?? FriendRequestDao(),
         notifications = notifications ?? NotificationDao(),
@@ -46,7 +49,8 @@ class JoelLocalCache {
         profiles = profiles ?? UserProfileStore(),
         gaps = gaps ?? UserGapsStore(),
         pendingPhoto = pendingPhoto ?? PendingPhotoStore(),
-        mainTab = mainTab ?? MainTabPrefs();
+        mainTab = mainTab ?? MainTabPrefs(),
+        preferredActivity = preferredActivity ?? PreferredActivityPrefs();
 
   void saveFriends(int userId, List<User> list, List<Friendship> requests) {
     _run('friends', () => friends.replaceAllForUser(userId, list));
@@ -108,6 +112,11 @@ class JoelLocalCache {
       }
       await profiles.save(user);
     });
+  }
+
+  // Last preferred activity of the user (null removes it)
+  void savePreferredActivity(int userId, int? activityId) {
+    _run('preferred activity', () => preferredActivity.save(userId, activityId));
   }
 
   void saveMainTab(int tabIndex) {

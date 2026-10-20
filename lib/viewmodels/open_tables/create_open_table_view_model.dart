@@ -16,6 +16,7 @@ import 'package:gapfinderfrontend_dart/services/activity_service.dart';
 import 'package:gapfinderfrontend_dart/services/building_service.dart';
 import 'package:gapfinderfrontend_dart/services/open_table_abandonment_service.dart';
 import 'package:gapfinderfrontend_dart/services/open_table_service.dart';
+import 'package:gapfinderfrontend_dart/services/preferred_activity_service.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/offline_aware_mixin.dart';
 
 // What happened when the user tapped "Publish"
@@ -30,21 +31,34 @@ class CreateOpenTableViewModel extends ChangeNotifier with OfflineAwareMixin {
   final BuildingService _buildingService;
   final OpenTableService _openTableService;
   final OpenTableAbandonmentService _abandonmentService;
+  final PreferredActivityService _preferredActivityService;
+
+  // The favorite activity must never hold the wizard: it is asked for this long at most
+  static const preferredTimeout = Duration(seconds: 4);
 
   CreateOpenTableViewModel({
     ActivityService? activityService,
     BuildingService? buildingService,
     OpenTableService? openTableService,
     OpenTableAbandonmentService? abandonmentService,
+    PreferredActivityService? preferredActivityService,
   })  : _activityService = activityService ?? ActivityService(),
         _buildingService = buildingService ?? BuildingService(),
         _openTableService = openTableService ?? OpenTableService(),
-        _abandonmentService = abandonmentService ?? OpenTableAbandonmentService();
+        _abandonmentService = abandonmentService ?? OpenTableAbandonmentService(),
+        _preferredActivityService = preferredActivityService ?? PreferredActivityService();
 
   List<Activity> _activities = [];
   List<Building> _buildings = [];
 
   Activity? _selectedActivity;
+
+  // BQ 6 (type 2): the activity this user creates most often, used to preselect it
+  int? _preferredActivityId;
+  bool _preferredFromNetwork = false;
+  bool _preferredInFlight = false;
+  // Once the user picks an activity themselves, the favorite never replaces it
+  bool _activityPickedByUser = false;
   Building? _selectedBuilding;
   int _durationMinutes = 0;
   int _maxParticipants = 4;
@@ -74,6 +88,10 @@ class CreateOpenTableViewModel extends ChangeNotifier with OfflineAwareMixin {
   List<Activity> get activities => _activities;
   List<Building> get buildings => _buildings;
   Activity? get selectedActivity => _selectedActivity;
+
+  // True when the selected activity is the favorite one (the View shows a small "Tu favorita" label)
+  bool get isPreferredActivitySelected =>
+      _preferredActivityId != null && _selectedActivity?.id == _preferredActivityId;
   Building? get selectedBuilding => _selectedBuilding;
   int get maxParticipants => _maxParticipants;
   File? get photo => _photo;
@@ -124,6 +142,9 @@ class CreateOpenTableViewModel extends ChangeNotifier with OfflineAwareMixin {
     _isLoading = _activities.isEmpty || _buildings.isEmpty;
     _errorMessage = null;
     _notify();
+
+    // Asked at the same time as the catalogs and never awaited: it cannot delay the wizard
+    _requestPreferredActivity();
 
     final saved = await _readSavedCatalogs();
     final savedAt = saved?.savedAt;
@@ -191,6 +212,7 @@ class CreateOpenTableViewModel extends ChangeNotifier with OfflineAwareMixin {
         : activities.where((a) => a.id == _selectedActivity!.id).firstOrNull;
     _selectedActivity = pickedActivity ?? (activities.isNotEmpty ? activities.first : null);
     if (_selectedActivity != null) _durationMinutes = _selectedActivity!.durationMinutes;
+    _selectPreferredActivity(); // the favorite replaces the first one, if it is already known
 
     _selectedBuilding = _selectedBuilding == null
         ? null
@@ -222,8 +244,60 @@ class CreateOpenTableViewModel extends ChangeNotifier with OfflineAwareMixin {
     _currentStep = step;
   }
 
+  // BQ 6 (type 2): asks for the activity the user creates most often. Network falling back to cache:
+  // without connection (or if the back fails) the last one saved in SharedPreferences is used.
+  // When the answer arrives it is applied only if the catalogs are loaded and the user has not picked
+  // an activity. It does not touch the form step.
+  void _requestPreferredActivity() {
+    if (_preferredInFlight || _preferredFromNetwork) return;
+    _preferredInFlight = true;
+
+    _loadPreferredActivityId().then((id) {
+      if (_disposed || id == null) return;
+      _preferredActivityId = id;
+      if (_selectPreferredActivity()) _notify();
+    }).catchError((Object e) {
+      debugPrint('Could not apply the preferred activity: $e');
+    }).whenComplete(() => _preferredInFlight = false);
+  }
+
+  Future<int?> _loadPreferredActivityId() async {
+    final userId = await TokenStorage.getUserId();
+    if (userId == null) return null;
+
+    if (hasConnection) {
+      try {
+        final response = await _preferredActivityService.getPreferredActivity(userId).timeout(preferredTimeout);
+        _preferredFromNetwork = true;
+        // Saved for the next time (or forgotten if the back says the user has none); never breaks the screen
+        JoelLocalCache.instance.savePreferredActivity(userId, response.activityId);
+        return response.activityId;
+      } catch (e) {
+        debugPrint('Preferred activity not loaded, using the saved one: $e');
+      }
+    }
+
+    final cache = JoelLocalCache.instance;
+    return cache.safeRead('preferred activity', () => cache.preferredActivity.get(userId));
+  }
+
+  // Selects the favorite activity (and its duration) if it is in the catalog and the user has not picked one.
+  // Returns true if the selection changed.
+  bool _selectPreferredActivity() {
+    final id = _preferredActivityId;
+    if (id == null || _activityPickedByUser) return false;
+
+    final preferred = _activities.where((a) => a.id == id).firstOrNull;
+    if (preferred == null || _selectedActivity?.id == preferred.id) return false;
+
+    _selectedActivity = preferred;
+    _durationMinutes = preferred.durationMinutes;
+    return true;
+  }
+
   // Picks the activity (it also sets the duration)
   void selectActivity(Activity activity) {
+    _activityPickedByUser = true;
     _selectedActivity = activity;
     _durationMinutes = activity.durationMinutes;
     _notify();
