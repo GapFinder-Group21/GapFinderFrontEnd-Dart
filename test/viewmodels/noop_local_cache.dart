@@ -30,6 +30,9 @@ class NoopLocalCache extends JoelLocalCache {
   void saveProfile(Future<User> Function() load, User fallback) {}
 
   @override
+  void savePreferredActivity(int userId, int? activityId) {}
+
+  @override
   void saveMainTab(int tabIndex) {}
 
   @override

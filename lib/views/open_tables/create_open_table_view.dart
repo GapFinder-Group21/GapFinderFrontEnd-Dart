@@ -315,6 +315,8 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
               title: 'Activity',
               value: vm.selectedActivity?.name ?? 'Select an activity',
               subtitle: vm.selectedActivity != null ? '${vm.selectedActivity!.durationMinutes} min' : null,
+              // The activity this user creates most often (BQ 6)
+              badge: vm.isPreferredActivitySelected ? 'Tu favorita' : null,
               onTap: _showActivityPicker,
             ),
 
@@ -506,7 +508,7 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
   }
 
   // Tappable field that shows the current value and opens a picker
-  Widget _buildSelectableField({required String title, required String value, String? subtitle, required VoidCallback onTap}) {
+  Widget _buildSelectableField({required String title, required String value, String? subtitle, String? badge, required VoidCallback onTap}) {
     return _buildSection(
       title: title,
       child: InkWell(
@@ -525,12 +527,35 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    value,
-                    style: AppFonts.body(weight: FontWeight.w700).copyWith(
-                      fontSize: 14,
-                      color: context.palette.contrast,
-                    ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        value,
+                        style: AppFonts.body(weight: FontWeight.w700).copyWith(
+                          fontSize: 14,
+                          color: context.palette.contrast,
+                        ),
+                      ),
+                      // Small discreet label, for example "Tu favorita"
+                      if (badge != null) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.accent3.withValues(alpha: 0.12),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            badge,
+                            style: AppFonts.body(weight: FontWeight.w700).copyWith(
+                              fontSize: 10,
+                              color: AppColors.accent3,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   if (subtitle != null)
                     Text(
