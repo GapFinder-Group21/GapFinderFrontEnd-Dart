@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:gapfinderfrontend_dart/core/cache/expiry_policy.dart';
 import 'package:gapfinderfrontend_dart/core/cache/lru_cache.dart';
 import 'package:gapfinderfrontend_dart/core/network/connectivity_service.dart';
 import 'package:gapfinderfrontend_dart/core/network/network_errors.dart';
@@ -63,10 +64,19 @@ class FriendsViewModel extends ChangeNotifier {
   // - maxEntries 15: every search text is one entry, and while typing "a", "an", "ana" each prefix
   //   is a different one. 15 covers a few searches and their back and forth, and each entry is
   //   only a short list of users, so the memory used is tiny.
-  // - ttl 3 minutes: long enough for the user to type, delete and type again without asking the
-  //   back every time, short enough that a new user or a changed name shows up soon.
-  static final LruCache<String, List<User>> _searchCache =
-      LruCache<String, List<User>>(maxEntries: 15, ttl: const Duration(minutes: 3));
+  // - 3 minutes with results: long enough for the user to type, delete and type again without asking
+  //   the back every time, short enough that a new user or a changed name shows up soon.
+  // - 30 seconds with no results: a new user can show up soon, so "nobody found" is not kept long.
+  static final LruCache<String, List<User>> _searchCache = LruCache<String, List<User>>(
+    maxEntries: 15,
+    name: 'busqueda amigos',
+    expiryPolicy: ValueBasedExpiry<String, List<User>>(searchExpiry),
+  );
+
+  // How long a search is kept: less when nobody was found
+  @visibleForTesting
+  static Duration? searchExpiry(String key, List<User> results) =>
+      results.isEmpty ? const Duration(seconds: 30) : const Duration(minutes: 3);
 
   // Empties the search cache (for tests)
   @visibleForTesting
@@ -248,9 +258,9 @@ class FriendsViewModel extends ChangeNotifier {
       final key = _searchKey(query);
       var results = _searchCache.get(key);
       if (results != null) {
-        debugPrint('LRU search "$key": HIT (hits=${_searchCache.hits}, misses=${_searchCache.misses}, size=${_searchCache.length})');
+        debugPrint('HIT "$key" ${_searchCache.describe()}');
       } else {
-        debugPrint('LRU search "$key": MISS (hits=${_searchCache.hits}, misses=${_searchCache.misses}, size=${_searchCache.length})');
+        debugPrint('MISS "$key" ${_searchCache.describe()}');
         results = await _userService.searchByName(query.trim());
         _searchCache.put(key, results);
       }
