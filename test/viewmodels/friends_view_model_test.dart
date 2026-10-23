@@ -68,10 +68,12 @@ class FakeGapService extends GapService {
 
 class FakeUserService extends UserService {
   int searchCalls = 0;
+  bool noResults = false;
 
   @override
   Future<List<User>> searchByName(String name) async {
     searchCalls++;
+    if (noResults) return [];
     return [_user(1, 'me'), _user(2, 'ana')];
   }
 }
@@ -194,6 +196,21 @@ void main() {
 
       await vm.search('leo');
       expect(users.searchCalls, 2);
+    });
+
+    test('a search with no results is also cached', () async {
+      users.noResults = true;
+
+      await vm.search('nobody');
+      await vm.search('nobody');
+
+      expect(users.searchCalls, 1);
+      expect(vm.searchResults, isEmpty);
+    });
+
+    test('searchExpiry keeps a search with results 3 minutes and one with no results 30 seconds', () {
+      expect(FriendsViewModel.searchExpiry('ana', [_user(2, 'ana')]), const Duration(minutes: 3));
+      expect(FriendsViewModel.searchExpiry('nobody', []), const Duration(seconds: 30));
     });
   });
 }
