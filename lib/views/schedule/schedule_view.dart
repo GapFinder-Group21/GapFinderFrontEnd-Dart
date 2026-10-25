@@ -122,7 +122,7 @@ class ScheduleView extends StatelessWidget {
                         child: Text(
                           vm.isOffline
                               ? 'Sin conexión y aún no tienes un horario guardado.'
-                              : 'No se pudo cargar tu horario.\n${vm.loadError}',
+                              : vm.loadError!,
                           textAlign: TextAlign.center,
                           style: AppFonts.body().copyWith(
                             color: context.palette.contrast.withValues(alpha: 0.6),

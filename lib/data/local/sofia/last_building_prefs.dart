@@ -12,6 +12,13 @@ class LastBuildingPrefs {
     await prefs.setString(atKey, DateTime.now().toIso8601String());
   }
 
+  // Forgets the last building (logout)
+  Future<void> clear() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(nameKey);
+    await prefs.remove(atKey);
+  }
+
   // The name of the last building, or null if there is none
   Future<String?> loadName() async {
     final prefs = await SharedPreferences.getInstance();

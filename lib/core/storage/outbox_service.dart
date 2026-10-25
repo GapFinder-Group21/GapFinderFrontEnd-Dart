@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:sqflite/sqflite.dart';
 import 'package:gapfinderfrontend_dart/core/network/api_client.dart';
 import 'package:gapfinderfrontend_dart/core/network/connectivity_service.dart';
+import 'package:gapfinderfrontend_dart/core/network/network_errors.dart';
 import 'package:gapfinderfrontend_dart/core/storage/app_database.dart';
 import 'package:gapfinderfrontend_dart/core/storage/database_module.dart';
 
@@ -50,18 +51,25 @@ class OutboxService {
     required this._database,
     required this._send,
     required this._isOnline,
-  });
+  }) : _flushOnEnqueue = true;
 
   @visibleForTesting
   OutboxService.forTesting({
     required this._database,
     required this._send,
     Future<bool> Function()? isOnline,
+    this._flushOnEnqueue = false,
   }) : _isOnline = isOnline ?? (() async => true);
 
   final Future<Database> Function() _database;
   final OutboxSender _send;
   final Future<bool> Function() _isOnline;
+  // The real app tries to send right after saving; tests turn it off to read the table as it was saved
+  final bool _flushOnEnqueue;
+
+  // A 4xx answer means the back refused the action for good (full table, ended...), so retrying
+  // is useless. These ones are the exception: they can pass later.
+  static const _retryableClientErrors = {401, 403, 408, 429};
 
   final Map<String, Future<bool> Function(Map<String, dynamic> row)> _handlers = {};
   final _changes = StreamController<void>.broadcast();
@@ -146,7 +154,12 @@ class OutboxService {
       return true;
     });
 
-    if (saved) _changes.add(null);
+    if (saved) {
+      _changes.add(null);
+      // With connection it leaves at once; without it, flush checks the real state of the network
+      // (this is what notices that the wifi came back when the platform did not warn)
+      if (_flushOnEnqueue) flush();
+    }
     return saved;
   }
 
@@ -204,8 +217,9 @@ class OutboxService {
       final rows = await db.query('outbox', where: 'attempts < ?', whereArgs: [maxAttempts], orderBy: 'id ASC');
 
       for (final row in rows) {
-        await _sendRow(db, Map<String, dynamic>.from(row));
+        final keepGoing = await _sendRow(db, Map<String, dynamic>.from(row));
         _changes.add(null);
+        if (!keepGoing) break; // the network failed: the rest waits without using attempts
       }
     } catch (e) {
       debugPrint('Error sending the outbox: $e');
@@ -214,7 +228,8 @@ class OutboxService {
     }
   }
 
-  Future<void> _sendRow(Database db, Map<String, dynamic> row) async {
+  // Returns false when the network failed, so flush stops and no attempt is wasted on the rest
+  Future<bool> _sendRow(Database db, Map<String, dynamic> row) async {
     final id = row['id'] as int;
 
     try {
@@ -227,15 +242,28 @@ class OutboxService {
 
         // 409: the back says the action was already done, so it is not an error
         final done = (res.statusCode >= 200 && res.statusCode < 300) || res.statusCode == 409;
-        if (!done) throw Exception('HTTP ${res.statusCode}');
+        if (!done) {
+          final refusedForGood =
+              res.statusCode >= 400 && res.statusCode < 500 && !_retryableClientErrors.contains(res.statusCode);
+          if (refusedForGood) {
+            // The row is removed; whoever was waiting for it sees the key leave and checks the result
+            debugPrint('Outbox: the back refused ${row['type']} (HTTP ${res.statusCode}), it is dropped');
+            await db.delete('outbox', where: 'id = ?', whereArgs: [id]);
+            return true;
+          }
+          throw Exception('HTTP ${res.statusCode}');
+        }
       }
 
       await db.delete('outbox', where: 'id = ?', whereArgs: [id]);
+      return true;
     } catch (e) {
+      if (isNetworkError(e)) return false;
       await db.rawUpdate(
         'UPDATE outbox SET attempts = attempts + 1, last_error = ? WHERE id = ?',
         [e.toString(), id],
       );
+      return true;
     }
   }
 

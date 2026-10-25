@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:gapfinderfrontend_dart/core/network/network_errors.dart';
 import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
 import 'package:gapfinderfrontend_dart/data/local/sofia/recommendations_hive_store.dart';
 import 'package:gapfinderfrontend_dart/data/local/sofia/sofia_local_cache.dart';
@@ -87,7 +88,7 @@ class RecommendationsViewModel extends ChangeNotifier with OfflineAwareMixin {
         _noSavedData = true;
       }
     } catch (e) {
-      _loadError = '$e';
+      _loadError = userMessage(e, network: 'No pudimos traer tus recomendaciones, intenta de nuevo');
     } finally {
       _isLoading = false;
       _notify();

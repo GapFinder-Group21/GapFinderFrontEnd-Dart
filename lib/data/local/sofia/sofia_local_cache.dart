@@ -79,6 +79,20 @@ class SofiaLocalCache {
     });
   }
 
+  // Logout: removes what was saved for this user so the next person on the phone does not see it.
+  // The catalogs stay because they are the same for everyone.
+  Future<void> clearUserData(int userId) {
+    return _safe('user data on logout', () async {
+      await classBlocks.deleteForUser(userId);
+      await gaps.deleteForUser(userId);
+      await openTables.clear();
+      await openTableDetails.clear();
+      await recommendations.delete(userId);
+      await lastBuilding.clear();
+      debugPrint('[Cache] Removed the saved data of user $userId');
+    });
+  }
+
   Future<void> _safe(String what, Future<void> Function() action) async {
     try {
       await action();

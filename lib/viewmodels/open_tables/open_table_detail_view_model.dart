@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:gapfinderfrontend_dart/core/cache/expiry_policy.dart';
 import 'package:gapfinderfrontend_dart/core/cache/lru_cache.dart';
 import 'package:gapfinderfrontend_dart/core/network/network_errors.dart';
 import 'package:gapfinderfrontend_dart/core/storage/outbox_service.dart';
@@ -22,12 +23,36 @@ class OpenTableDetailData {
 // State and logic of the open table detail screen
 class OpenTableDetailViewModel extends ChangeNotifier with OfflineAwareMixin {
   // One cache shared by every detail screen. Memory first, then SQLite, then the network.
-  // 20 entries: in one gap a student looks at a handful of tables (a list of about 5 to 10 and goes
-  // back and forth between them), so 20 covers a whole session without keeping stale tables for long.
-  // 5 minutes: participants join and leave all the time but not every few seconds; after 5 minutes
-  // the list of people may be wrong, so it is better to ask the back again.
-  static final LruCache<int, OpenTableDetailData> _cache =
-      LruCache<int, OpenTableDetailData>(maxEntries: 20, ttl: const Duration(minutes: 5));
+  // 20 entries: in one gap a student looks at a handful of tables (about 5 to 10, going back and
+  // forth between them), so 20 covers a whole session.
+  // The life of an entry depends on the table (see detailExpiry): at most 5 minutes because people
+  // join and leave all the time, less if the table is about to end, 15 minutes if it already finished.
+  static final LruCache<int, OpenTableDetailData> _cache = LruCache<int, OpenTableDetailData>(
+    maxEntries: 20,
+    name: 'detalle mesa',
+    expiryPolicy: ValueBasedExpiry<int, OpenTableDetailData>(
+      (_, data) => detailExpiry(data, DateTime.now()),
+    ),
+  );
+
+  static const _maxLife = Duration(minutes: 5);
+  static const _minLife = Duration(seconds: 30);
+  static const _completedLife = Duration(minutes: 15);
+
+  // How long a saved detail is trusted
+  @visibleForTesting
+  static Duration? detailExpiry(OpenTableDetailData data, DateTime now) {
+    // A completed table does not change anymore
+    if (data.table.status == OpenTableStatusEnum.COMPLETED) return _completedLife;
+
+    final untilEnd = data.table.endTime.difference(now);
+    final life = untilEnd < _maxLife ? untilEnd : _maxLife;
+    return life < _minLife ? _minLife : life;
+  }
+
+  // Empties the shared cache (tests share it between cases)
+  @visibleForTesting
+  static void clearCache() => _cache.clear();
 
   final int openTableId;
   final OpenTableService _openTableService;
@@ -51,6 +76,10 @@ class OpenTableDetailViewModel extends ChangeNotifier with OfflineAwareMixin {
   StreamSubscription<Set<String>>? _pendingSub;
   Set<String> _pendingKeys = {};
   String? _notice;
+  // A pending join / leave that the back refused when it was finally sent
+  String? _syncError;
+  // Pending actions the user cancelled by hand: their key leaving the outbox is not a failure
+  final Set<String> _cancelledKeys = {};
 
   String get _joinKey => 'open_table_join:$openTableId';
   String get _leaveKey => 'open_table_leave:$openTableId';
@@ -61,6 +90,7 @@ class OpenTableDetailViewModel extends ChangeNotifier with OfflineAwareMixin {
   bool get isJoining => _isJoining;
   bool get isLoading => _isLoading;
   String? get loadError => _loadError;
+  String? get syncError => _syncError;
 
   // A join or a leave is waiting in the outbox: the button is off and says "Pendiente de enviar"
   bool get isJoinPending => _pendingKeys.contains(_joinKey);
@@ -94,23 +124,38 @@ class OpenTableDetailViewModel extends ChangeNotifier with OfflineAwareMixin {
     return refresh();
   }
 
-  void _logCache(String result) =>
-      debugPrint('[LRU detalle mesa $openTableId] $result (hits=${_cache.hits}, misses=${_cache.misses}, size=${_cache.length})');
+  void _logCache(String result) => debugPrint('$result mesa $openTableId ${_cache.describe()}');
 
   void _watchOutbox() {
     try {
       _pendingSub = OutboxService.instance.pendingKeys.listen((keys) {
-        final sent = {_joinKey, _leaveKey}.any((k) => _pendingKeys.contains(k) && !keys.contains(k));
+        final left = {_joinKey, _leaveKey}.where((k) => _pendingKeys.contains(k) && !keys.contains(k)).toSet();
         _pendingKeys = keys;
         _notify();
-        if (sent) {
+        if (left.isNotEmpty) {
           _cache.remove(openTableId);
-          refresh(force: true);
+          refresh(force: true).then((_) => _checkSyncResult(left));
         }
       }, onError: (e) => debugPrint('Error watching the outbox: $e'));
     } catch (e) {
       debugPrint('No se pudo vigilar la cola de envío: $e');
     }
+  }
+
+  // After a pending action left the outbox and the table was reloaded: if the user is still not a
+  // member (join) or still is one (leave), the back refused it (full table, ended...) and the user
+  // must be told, because nobody was looking at the screen when it was sent.
+  void _checkSyncResult(Set<String> left) {
+    final cancelled = left.intersection(_cancelledKeys);
+    _cancelledKeys.removeAll(left);
+    if (_table == null || cancelled.isNotEmpty) return;
+
+    if (left.contains(_joinKey) && !_isMember) {
+      _syncError = 'No se pudo unir a la mesa (puede estar llena o haber terminado)';
+    } else if (left.contains(_leaveKey) && _isMember) {
+      _syncError = 'No se pudo salir de la mesa';
+    }
+    _notify();
   }
 
   // Memory (LRU) → SQLite → network: loads the table and its participants - GET /open-tables/{id},
@@ -133,7 +178,12 @@ class OpenTableDetailViewModel extends ChangeNotifier with OfflineAwareMixin {
           _table = cached.table;
           _participants = cached.participants;
           _isMember = _participants.any((p) => p.user?.id == _currentUserId);
-          markFresh();
+          // A memory hit without connection is still old data: the banner must show
+          if (hasConnection) {
+            markFresh();
+          } else {
+            markFromCache(lastUpdated);
+          }
           return;
         }
         _logCache('FALLO');
@@ -158,7 +208,7 @@ class OpenTableDetailViewModel extends ChangeNotifier with OfflineAwareMixin {
         _loadError = 'Sin conexión y aún no tenemos esta mesa guardada';
       }
     } catch (e) {
-      _loadError = '$e';
+      _loadError = userMessage(e, network: 'No pudimos conectar con el servidor para cargar esta mesa');
     } finally {
       _isLoading = false;
       _notify();
@@ -240,10 +290,12 @@ class OpenTableDetailViewModel extends ChangeNotifier with OfflineAwareMixin {
     // The participants are about to change, so the saved copy in memory is no longer right
     _cache.remove(openTableId);
 
+    _syncError = null;
     _isJoining = true;
     _notify();
     try {
       if (_pendingKeys.contains(oppositeKey) || await _isPending(oppositeKey)) {
+        _cancelledKeys.add(oppositeKey);
         await OutboxService.instance.cancelPending(oppositeKey);
         _notice = 'Se canceló la acción pendiente';
         return null;
@@ -260,7 +312,7 @@ class OpenTableDetailViewModel extends ChangeNotifier with OfflineAwareMixin {
       }
 
       try {
-        await send(userId);
+        await send(userId).timeout(OfflineAwareMixin.loadTimeout);
         _cache.remove(openTableId);
         refresh(force: true);
         return null;
@@ -275,6 +327,20 @@ class OpenTableDetailViewModel extends ChangeNotifier with OfflineAwareMixin {
     } finally {
       _isJoining = false;
       _notify();
+    }
+  }
+
+  // Cancels the join / leave that is waiting in the outbox, without asking to leave the table
+  Future<void> cancelPendingAction() async {
+    final key = isJoinPending ? _joinKey : (isLeavePending ? _leaveKey : null);
+    if (key == null) return;
+
+    _cancelledKeys.add(key);
+    _syncError = null;
+    try {
+      await OutboxService.instance.cancelPending(key);
+    } catch (e) {
+      debugPrint('No se pudo cancelar la solicitud: $e');
     }
   }
 

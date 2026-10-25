@@ -40,6 +40,12 @@ class ClassBlockDao {
     });
   }
 
+  // Removes the classes of the user (logout)
+  Future<void> deleteForUser(int userId) async {
+    final db = await _database();
+    await db.delete(table, where: 'user_id = ?', whereArgs: [userId]);
+  }
+
   Future<List<ClassBlock>> getAllForUser(int userId) async {
     final db = await _database();
     final rows = await db.query(table, where: 'user_id = ?', whereArgs: [userId], orderBy: 'id');

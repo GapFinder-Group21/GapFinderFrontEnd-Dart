@@ -25,7 +25,7 @@ class CachedAvatar extends StatelessWidget {
       height: size,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        border: Border.all(color: AppColors.contrast.withOpacity(0.12), width: 2),
+        border: Border.all(color: AppColors.contrast.withValues(alpha: 0.12), width: 2),
         color: context.palette.background,
       ),
       clipBehavior: Clip.antiAlias,

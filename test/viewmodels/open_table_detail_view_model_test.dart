@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gapfinderfrontend_dart/models/enums/open_table_status_enum.dart';
 import 'package:gapfinderfrontend_dart/models/open_table.dart';
@@ -40,9 +41,11 @@ OpenTableParticipant _participant(int userId) => OpenTableParticipant(
 class FakeOpenTableService extends OpenTableService {
   late OpenTable table;
   Object? error;
+  int calls = 0;
 
   @override
   Future<OpenTable> getOpenTable(int id) async {
+    calls++;
     if (error != null) throw error!;
     return table;
   }
@@ -75,6 +78,8 @@ void main() {
   late OpenTableDetailViewModel vm;
 
   setUp(() {
+    // The cache is static, so a table saved by one test would answer the next one
+    OpenTableDetailViewModel.clearCache();
     storage.install();
     storage.setUserId(1);
     tables = FakeOpenTableService()..table = _table();
@@ -171,6 +176,96 @@ void main() {
       expect(await vm.join(), 'Table is full');
       await settle();
       expect(vm.isJoining, isFalse);
+    });
+  });
+
+  group('detailExpiry', () {
+    final now = DateTime(2026, 10, 25, 12);
+
+    OpenTableDetailData data({
+      required Duration endsIn,
+      OpenTableStatusEnum status = OpenTableStatusEnum.OPEN,
+    }) {
+      final table = OpenTable(
+        id: 1,
+        title: 'Study table',
+        description: '',
+        startTime: now.subtract(const Duration(minutes: 30)),
+        endTime: now.add(endsIn),
+        maxParticipants: 3,
+        status: status,
+      );
+      return OpenTableDetailData(table, []);
+    }
+
+    test('a table that ends far away lives 5 minutes', () {
+      expect(OpenTableDetailViewModel.detailExpiry(data(endsIn: const Duration(hours: 3)), now),
+          const Duration(minutes: 5));
+    });
+
+    test('a table that ends in 2 minutes lives 2 minutes', () {
+      expect(OpenTableDetailViewModel.detailExpiry(data(endsIn: const Duration(minutes: 2)), now),
+          const Duration(minutes: 2));
+    });
+
+    test('never less than 30 seconds, even if it ends in 5 seconds or already ended', () {
+      expect(OpenTableDetailViewModel.detailExpiry(data(endsIn: const Duration(seconds: 5)), now),
+          const Duration(seconds: 30));
+      expect(OpenTableDetailViewModel.detailExpiry(data(endsIn: const Duration(minutes: -10)), now),
+          const Duration(seconds: 30));
+    });
+
+    test('a completed table lives 15 minutes', () {
+      expect(
+        OpenTableDetailViewModel.detailExpiry(
+            data(endsIn: const Duration(minutes: 1), status: OpenTableStatusEnum.COMPLETED), now),
+        const Duration(minutes: 15),
+      );
+    });
+  });
+
+  group('errors and pending actions', () {
+    test('a network failure while loading shows its own message, not the exception', () async {
+      tables.error = const SocketException('Failed host lookup: api');
+
+      await vm.init();
+
+      expect(vm.loadError, isNotNull);
+      expect(vm.loadError, isNot(contains('SocketException')));
+      expect(vm.loadError, contains('conectar'));
+    });
+
+    test('cancelPendingAction with nothing pending changes nothing', () async {
+      await vm.init();
+
+      await vm.cancelPendingAction();
+
+      expect(vm.hasPendingAction, isFalse);
+      expect(vm.syncError, isNull);
+    });
+  });
+
+  group('detail cache', () {
+    test('opening the same table twice asks the network only once', () async {
+      await vm.init();
+      expect(tables.calls, 1);
+
+      final second = OpenTableDetailViewModel(1, openTableService: tables, participantService: participants);
+      await second.init();
+      second.dispose();
+
+      expect(tables.calls, 1);
+      expect(second.table?.title, 'Study table');
+    });
+
+    test('joining empties the cache entry and reloads from the network', () async {
+      await vm.init();
+      expect(tables.calls, 1);
+
+      await vm.join();
+      await settle();
+
+      expect(tables.calls, 2);
     });
   });
 }

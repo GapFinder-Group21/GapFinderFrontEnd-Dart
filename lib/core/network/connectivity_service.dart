@@ -14,6 +14,8 @@ class ConnectivityService {
   final _controller = StreamController<bool>.broadcast();
   StreamSubscription<List<ConnectivityResult>>? _subscription;
   Future<bool>? _checking;
+  Timer? _retryTimer;
+  static const retryEvery = Duration(seconds: 15);
   bool _isOnline = true;
   bool _initialized = false;
 
@@ -63,10 +65,17 @@ class ConnectivityService {
     if (online == _isOnline) return;
     _isOnline = online;
     _controller.add(online);
+
+    // The platform only warns when the network type changes. If the wifi stays connected and the
+    // internet comes back later, nobody would notice, so while offline we ask again every 15 seconds.
+    _retryTimer?.cancel();
+    _retryTimer = online ? null : Timer.periodic(retryEvery, (_) => checkNow());
   }
 
   // Only for the app shutdown or tests
   Future<void> dispose() async {
+    _retryTimer?.cancel();
+    _retryTimer = null;
     await _subscription?.cancel();
     _subscription = null;
     _initialized = false;

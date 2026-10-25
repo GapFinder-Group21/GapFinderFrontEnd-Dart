@@ -1,6 +1,7 @@
 import 'dart:isolate';
 
 import 'package:flutter/foundation.dart';
+import 'package:gapfinderfrontend_dart/core/network/network_errors.dart';
 import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
 import 'package:gapfinderfrontend_dart/data/local/sofia/sofia_local_cache.dart';
 import 'package:gapfinderfrontend_dart/models/class_block.dart';
@@ -82,7 +83,7 @@ class ScheduleViewModel extends ChangeNotifier with OfflineAwareMixin {
       _data = loaded;
       scheduleReminders(); // not awaited: the reminders never block the schedule
     } catch (e) {
-      _loadError = '$e';
+      _loadError = userMessage(e, network: 'No pudimos traer tu horario, intenta de nuevo');
     } finally {
       _isLoading = false;
       _notify();
@@ -204,7 +205,12 @@ class ScheduleViewModel extends ChangeNotifier with OfflineAwareMixin {
   }
 
   // Logs out in the backend and clears the session - POST /auth/logout
-  Future<void> logout() => _authService.logout();
+  Future<void> logout() async {
+    // The user id is read first because logging out removes it
+    final userId = await TokenStorage.getUserId();
+    await _authService.logout();
+    if (userId != null) await SofiaLocalCache.instance.clearUserData(userId);
+  }
 
   // Today's classes and gaps, sorted by time (calculated in an isolate when the data arrives)
   List<ScheduleItem> get todayItems => _todayItems;

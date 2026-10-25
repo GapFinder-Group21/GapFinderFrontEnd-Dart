@@ -45,6 +45,12 @@ class OpenTableCacheDao {
     });
   }
 
+  // Removes every saved list (logout): these rows do not belong to a user
+  Future<void> clear() async {
+    final db = await _database();
+    await db.delete(table);
+  }
+
   Future<List<OpenTable>> getAll(String listType) async {
     final db = await _database();
     final rows = await db.query(table, where: 'list_type = ?', whereArgs: [listType], orderBy: 'id');
