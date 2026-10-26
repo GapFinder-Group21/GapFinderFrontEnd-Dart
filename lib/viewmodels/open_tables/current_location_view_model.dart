@@ -122,12 +122,28 @@ class CurrentLocationViewModel extends ChangeNotifier with OfflineAwareMixin {
       return;
     }
 
+    // The GPS has its own try: a slow or failed GPS is not a network problem, so it must not show
+    // the "last building" banner
+    final Position position;
     try {
       debugPrint('DEBUG: [Banner] Requesting current GPS position...');
-      final position = await Geolocator.getCurrentPosition(
+      position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
         timeLimit: const Duration(seconds: 10),
       );
+    } catch (e) {
+      debugPrint('❌ [Banner] GPS error: $e');
+      if (!_disposed) {
+        _isLocationEnabled = false;
+        _locationCalculated = false;
+        _isFirstLoad = false;
+        _isRefreshing = false;
+        _notify();
+      }
+      return;
+    }
+
+    try {
 
       debugPrint('📍 [Banner] LOCATION DETECTED: Lat: ${position.latitude}, Long: ${position.longitude}');
 

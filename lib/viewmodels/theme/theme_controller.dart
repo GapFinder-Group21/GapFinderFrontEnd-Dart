@@ -27,6 +27,7 @@ class ThemeController extends ChangeNotifier {
       // iOS has no public light sensor API, there the app follows the system theme
       final stream = lightStream ?? (!kIsWeb && Platform.isAndroid ? Light().lightSensorStream : null);
       if (stream == null) return;
+      // Estrategia: Stream. The light sensor sends a lux reading every time the light changes.
       _subscription = stream.listen(onLux, onError: _onSensorError, cancelOnError: false);
     } catch (e) {
       debugPrint('Light sensor not available: $e');

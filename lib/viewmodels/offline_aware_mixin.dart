@@ -26,6 +26,8 @@ mixin OfflineAwareMixin on ChangeNotifier {
   void listenToConnectivity({required Future<void> Function() onRestored}) {
     _connectivitySub?.cancel();
     _isOffline = !hasConnection;
+    // Estrategia: Stream. The service emits true or false only when the connection changes, so the
+    // screen reacts when it happens instead of asking all the time.
     _connectivitySub = ConnectivityService.instance.onStatusChange.listen((online) {
       _isOffline = !online;
       notifyListeners();

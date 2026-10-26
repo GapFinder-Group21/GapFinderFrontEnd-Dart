@@ -26,6 +26,12 @@ class RecommendationsHiveStore {
     );
   }
 
+  // Removes the saved recommendation of the user (logout)
+  Future<void> delete(int userId) async {
+    final box = await HiveStore.box(boxName);
+    await box.delete(keyFor(userId));
+  }
+
   // The last saved recommendation, or null if there is none
   Future<SavedRecommendation?> load(int userId) async {
     final box = await HiveStore.box(boxName);

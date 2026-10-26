@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:gapfinderfrontend_dart/core/network/network_errors.dart';
 import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
 import 'package:gapfinderfrontend_dart/data/local/sofia/open_table_cache_dao.dart';
 import 'package:gapfinderfrontend_dart/data/local/sofia/sofia_local_cache.dart';
@@ -63,7 +64,7 @@ class MyOpenTablesViewModel extends ChangeNotifier with OfflineAwareMixin {
         _error = 'Sin conexión y aún no tienes mesas guardadas.';
       }
     } catch (e) {
-      _error = e.toString();
+      _error = userMessage(e, network: 'No pudimos traer tus mesas, revisa tu conexión e intenta de nuevo');
     } finally {
       _isLoading = false;
       _notify();

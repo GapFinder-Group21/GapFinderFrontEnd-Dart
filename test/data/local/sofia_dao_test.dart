@@ -104,6 +104,41 @@ void main() {
     expect(await dao.lastSavedAt(OpenTableListType.mine), isNotNull);
   });
 
+  test('logout removes the saved data of the user and leaves the other users alone', () async {
+    final classes = ClassBlockDao(database: () async => db);
+    final gaps = GapDao(database: () async => db);
+    final lists = OpenTableCacheDao(database: () async => db);
+    final details = OpenTableDetailDao(database: () async => db);
+    ClassBlock block(int id) => ClassBlock(
+          id: id,
+          subject: 'Math',
+          location: 'ML 101',
+          dayOfWeek: DayOfWeekEnum.TUE,
+          startTime: const TimeOfDay(hour: 8, minute: 30),
+          endTime: const TimeOfDay(hour: 10, minute: 0),
+        );
+    Gap gap(int id) => Gap(id: id, startTime: DateTime(2026, 5, 1, 12), endTime: DateTime(2026, 5, 1, 13));
+
+    await classes.replaceAllForUser(1, [block(1)]);
+    await classes.replaceAllForUser(2, [block(2)]);
+    await gaps.replaceAllForUser(1, [gap(1)]);
+    await lists.replaceAll(OpenTableListType.all, [_table(1)]);
+    await lists.replaceAll(OpenTableListType.mine, [_table(2)]);
+    await details.save(_table(1), []);
+
+    await classes.deleteForUser(1);
+    await gaps.deleteForUser(1);
+    await lists.clear();
+    await details.clear();
+
+    expect(await classes.getAllForUser(1), isEmpty);
+    expect(await classes.getAllForUser(2), hasLength(1));
+    expect(await gaps.getAllForUser(1), isEmpty);
+    expect(await lists.getAll(OpenTableListType.all), isEmpty);
+    expect(await lists.getAll(OpenTableListType.mine), isEmpty);
+    expect(await details.getAll(), isEmpty);
+  });
+
   test('the detail keeps the table and its participants', () async {
     final dao = OpenTableDetailDao(database: () async => db);
     final participant = OpenTableParticipant(

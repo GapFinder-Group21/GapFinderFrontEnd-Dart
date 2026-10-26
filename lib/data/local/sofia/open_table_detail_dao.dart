@@ -45,6 +45,12 @@ class OpenTableDetailDao {
     });
   }
 
+  // Removes every saved detail (logout)
+  Future<void> clear() async {
+    final db = await _database();
+    await db.delete(table);
+  }
+
   Future<List<OpenTableDetailRecord>> getAll() async {
     final db = await _database();
     final rows = await db.query(table, orderBy: 'id');

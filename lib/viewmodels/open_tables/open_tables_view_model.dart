@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:gapfinderfrontend_dart/core/network/network_errors.dart';
 import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
 import 'package:gapfinderfrontend_dart/data/local/sofia/open_table_cache_dao.dart';
 import 'package:gapfinderfrontend_dart/data/local/sofia/sofia_local_cache.dart';
@@ -95,7 +96,7 @@ class OpenTablesViewModel extends ChangeNotifier with OfflineAwareMixin {
         _errorMessage = 'Sin conexión y aún no tenemos mesas guardadas.';
       }
     } catch (e) {
-      _errorMessage = e.toString().replaceAll('Exception: ', '');
+      _errorMessage = userMessage(e, network: 'No pudimos traer las mesas cercanas, intenta de nuevo');
     } finally {
       _isLoading = false;
       _notify();
@@ -137,6 +138,15 @@ class OpenTablesViewModel extends ChangeNotifier with OfflineAwareMixin {
       final now = DateTime.now();
       _openTables = saved.where((t) => t.endTime.isAfter(now)).toList();
       _joinedTableIds = mine.map((t) => t.id).toSet();
+
+      // "Mine" is only saved when that screen was opened; the saved details also know who was in each table
+      final userId = _userId;
+      if (userId != null) {
+        final details = await cache.openTableDetails.getAll();
+        for (final d in details) {
+          if (d.participants.any((p) => p.user?.id == userId)) _joinedTableIds.add(d.table.id);
+        }
+      }
       markFromCache(await cache.openTables.lastSavedAt(OpenTableListType.all));
       return true;
     } catch (e) {

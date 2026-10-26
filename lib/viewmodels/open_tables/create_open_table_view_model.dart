@@ -3,6 +3,7 @@ import 'dart:isolate';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:gapfinderfrontend_dart/core/network/network_errors.dart';
 import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
 import 'package:gapfinderfrontend_dart/core/utils/photo_compression.dart';
 import 'package:gapfinderfrontend_dart/data/local/sofia/sofia_local_cache.dart';
@@ -179,7 +180,7 @@ class CreateOpenTableViewModel extends ChangeNotifier with OfflineAwareMixin {
       } catch (e) {
         debugPrint('Sin red para los catálogos: $e');
         if (saved == null) {
-          _errorMessage = e.toString().replaceAll('Exception: ', '');
+          _errorMessage = userMessage(e, network: 'No pudimos traer las actividades y edificios, intenta de nuevo');
           _finishLoading();
           return;
         }
@@ -405,7 +406,7 @@ class CreateOpenTableViewModel extends ChangeNotifier with OfflineAwareMixin {
       JoelLocalCache.instance.clearPendingPhoto();
       return PublishResult.published;
     } catch (e) {
-      _publishError = 'Error publishing: $e';
+      _publishError = userMessage(e, network: 'No se pudo publicar por falta de conexión; lo que llenaste sigue aquí');
       return PublishResult.failed;
     } finally {
       _isPublishing = false;
@@ -422,6 +423,8 @@ class CreateOpenTableViewModel extends ChangeNotifier with OfflineAwareMixin {
 
     final userId = await TokenStorage.getUserId();
     if (userId != null) {
+      // Estrategia: Future con handler. There is no await: .catchError handles the failure and the
+      // user leaves the wizard without waiting for the report.
       // Without connection the report goes to the outbox; the dedupeKey (user + time the wizard
       // was opened) makes sure it is sent only once
       _abandonmentService

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:sqflite/sqflite.dart' show Sqflite;
@@ -151,6 +152,73 @@ void main() {
 
       expect(await outbox.pendingKeys.first, {'join-1'});
       expect(await outbox.pendingCount.first, 1);
+    });
+
+    test('a network error does not use an attempt and stops the rest of the flush', () async {
+      final calls = <String>[];
+      final flaky = OutboxService.forTesting(
+        database: () async => db,
+        send: (method, endpoint, body) async {
+          calls.add(endpoint);
+          throw const SocketException('no route');
+        },
+      );
+      await join(key: 'a');
+      await join(key: 'b');
+
+      await flaky.flush();
+
+      final rows = await db.query('outbox', orderBy: 'id');
+      expect(rows.map((r) => r['attempts']), [0, 0]);
+      expect(calls, hasLength(1)); // the second one was not even tried
+    });
+
+    test('a 4xx answer drops the row: the back refused it for good', () async {
+      statusCodes = [400];
+      await join();
+
+      await outbox.flush();
+
+      expect(await rowCount(), 0);
+      expect(await outbox.isPending('join-1'), isFalse);
+    });
+
+    test('401, 403, 408 and 429 are retried, not dropped', () async {
+      statusCodes = [401, 403, 408, 429];
+      await join();
+
+      for (var i = 0; i < 4; i++) {
+        await outbox.flush();
+      }
+
+      final row = (await db.query('outbox')).single;
+      expect(row['attempts'], 4);
+    });
+
+    test('a 5xx answer still adds an attempt', () async {
+      statusCodes = [503];
+      await join();
+
+      await outbox.flush();
+
+      expect((await db.query('outbox')).single['attempts'], 1);
+    });
+
+    test('with flushOnEnqueue the action leaves right after it is saved', () async {
+      final eager = OutboxService.forTesting(
+        database: () async => db,
+        send: (method, endpoint, body) async {
+          sent.add('$method $endpoint');
+          return http.Response('', 200);
+        },
+        flushOnEnqueue: true,
+      );
+
+      await eager.enqueue(type: 'join', method: 'POST', endpoint: '/x', dedupeKey: 'k');
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+
+      expect(sent, ['POST /x']);
+      expect(await rowCount(), 0);
     });
   });
 }

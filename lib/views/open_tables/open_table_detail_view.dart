@@ -105,7 +105,7 @@ class _OpenTableDetailViewState extends State<OpenTableDetailView> {
               child: Padding(
                 padding: const EdgeInsets.all(24),
                 child: Text(
-                  vm.isOffline ? 'Sin conexión y aún no tenemos esta mesa guardada.' : 'Error: ${vm.loadError}',
+                  vm.isOffline ? 'Sin conexión y aún no tenemos esta mesa guardada.' : vm.loadError!,
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -240,6 +240,20 @@ class _OpenTableDetailViewState extends State<OpenTableDetailView> {
                 ),
               ),
 
+              // A pending join / leave that the back refused once it was sent
+              if (vm.syncError != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 0),
+                  child: Text(
+                    vm.syncError!,
+                    textAlign: TextAlign.center,
+                    style: AppFonts.body(weight: FontWeight.w700).copyWith(
+                      fontSize: 12,
+                      color: AppColors.accent1,
+                    ),
+                  ),
+                ),
+
               Padding(
                 padding: const EdgeInsets.all(24),
                 child: vm.isJoining
@@ -261,8 +275,8 @@ class _OpenTableDetailViewState extends State<OpenTableDetailView> {
                                 onClick: null,
                               ),
                               TextButton(
-                                // Tapping the opposite action cancels the pending one
-                                onPressed: vm.isJoinPending ? _handleLeave : _handleJoin,
+                                // Removes the waiting action; it does not ask to leave the table
+                                onPressed: () => _vm.cancelPendingAction(),
                                 child: const Text('Cancelar solicitud'),
                               ),
                             ],

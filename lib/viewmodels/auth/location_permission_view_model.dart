@@ -12,6 +12,7 @@ class LocationPermissionViewModel extends ChangeNotifier with OfflineAwareMixin 
   // Starts listening to the connection (nothing to reload when it comes back)
   void init() => listenToConnectivity(onRestored: () async {});
 
+  // Estrategia: Future simple. The permission dialog answers once, so one await is enough.
   // Asks for the permission and tells the View the result
   Future<LocationPermissionResult> requestPermission() async {
     final permission = await LocationService.requestPermission();
