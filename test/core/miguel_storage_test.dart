@@ -316,6 +316,13 @@ void main() {
     });
   });
 
+  group('catalog expiry', () {
+    test('a catalog with interests is kept 1 hour and an empty one 30 seconds', () {
+      expect(InterestsViewModel.catalogExpiry('catalog', [Interest(id: 1, name: 'Chess')]), const Duration(hours: 1));
+      expect(InterestsViewModel.catalogExpiry('catalog', []), const Duration(seconds: 30));
+    });
+  });
+
   group('view models', () {
     late RecordingCache cache;
     late OutboxService outbox;
