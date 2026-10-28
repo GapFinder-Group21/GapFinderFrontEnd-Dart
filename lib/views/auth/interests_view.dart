@@ -4,6 +4,7 @@ import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_fonts.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/custom_top_bar.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/custom_button.dart';
+import 'package:gapfinderfrontend_dart/views/widgets/common/offline_banner.dart';
 import 'package:provider/provider.dart';
 import 'package:gapfinderfrontend_dart/navigation/app_routes.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/auth/interests_view_model.dart';
@@ -19,7 +20,13 @@ class InterestsView extends StatelessWidget {
     if (!context.mounted) return;
 
     if (ok) {
-      Navigator.pushReplacementNamed(context, AppRoutes.scheduleSetup);
+      final notice = vm.takeNotice();
+      if (notice == null) {
+        Navigator.pushReplacementNamed(context, AppRoutes.scheduleSetup);
+      } else {
+        // Queued: the user stays to see "Pendiente de enviar" and can go on with the button below
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(notice)));
+      }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(vm.errorMessage ?? '')),
@@ -44,15 +51,22 @@ class InterestsView extends StatelessWidget {
           }
 
           if (vm.loadError != null) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(32),
-                child: Text(
-                  'Error loading interests: ${vm.loadError}',
-                  textAlign: TextAlign.center,
-                  style: AppFonts.body().copyWith(color: context.palette.contrast.withOpacity(0.6)),
+            return Column(
+              children: [
+                if (vm.isOffline) const OfflineBanner(message: 'Sin conexión · el catálogo de intereses aún no está guardado'),
+                Expanded(
+                  child: Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Text(
+                        vm.loadError!,
+                        textAlign: TextAlign.center,
+                        style: AppFonts.body().copyWith(color: context.palette.contrast.withOpacity(0.6)),
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+              ],
             );
           }
 
@@ -60,6 +74,11 @@ class InterestsView extends StatelessWidget {
 
           return Column(
             children: [
+              if (vm.isOffline)
+                OfflineBanner(
+                  message: 'Sin conexión · tus intereses se guardarán cuando vuelva',
+                  lastUpdated: vm.lastUpdated,
+                ),
               // List of interests the user can tap
               Expanded(
                 child: SingleChildScrollView(
@@ -124,9 +143,24 @@ class InterestsView extends StatelessWidget {
                 padding: const EdgeInsets.all(24),
                 child: vm.isSaving
                     ? const CircularProgressIndicator()
-                    : CustomButton(
-                        label: 'Continue',
-                        onClick: () => _handleContinue(context),
+                    : Column(
+                        children: [
+                          // Pending: the button is off until the selection changes or it is sent
+                          CustomButton(
+                            label: vm.isSavePending ? 'Pendiente de enviar' : 'Continue',
+                            onClick: vm.isSavePending ? null : () => _handleContinue(context),
+                          ),
+                          // The user can go on without internet: the selection is already queued
+                          if (vm.isSavePending) ...[
+                            const SizedBox(height: 10),
+                            CustomButton(
+                              label: 'Seguir al siguiente paso',
+                              outline: true,
+                              small: true,
+                              onClick: () => Navigator.pushReplacementNamed(context, AppRoutes.scheduleSetup),
+                            ),
+                          ],
+                        ],
                       ),
               ),
             ],

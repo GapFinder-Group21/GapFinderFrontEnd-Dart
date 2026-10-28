@@ -1,13 +1,22 @@
 import 'package:flutter/foundation.dart';
 import 'package:gapfinderfrontend_dart/core/constants/careers.dart';
+import 'package:gapfinderfrontend_dart/core/network/connectivity_service.dart';
+import 'package:gapfinderfrontend_dart/core/network/network_errors.dart';
 import 'package:gapfinderfrontend_dart/data/local/miguel/miguel_local_cache.dart';
 import 'package:gapfinderfrontend_dart/data/local/miguel/onboarding_prefs.dart';
 import 'package:gapfinderfrontend_dart/data/local/miguel/register_draft_store.dart';
 import 'package:gapfinderfrontend_dart/models/enums/effort_type_enum.dart';
 import 'package:gapfinderfrontend_dart/services/auth_service.dart';
+import 'package:gapfinderfrontend_dart/viewmodels/offline_aware_mixin.dart';
 
-// State and logic of the sign up form
-class RegisterViewModel extends ChangeNotifier {
+// State and logic of the sign up form (network only to send it; the form works without internet)
+class RegisterViewModel extends ChangeNotifier with OfflineAwareMixin {
+  // Shown by the banner and by the error when there is no connection
+  static const offlineMessage = 'Necesitas conexión para crear tu cuenta; no perderás lo que escribiste';
+
+  // The sign up request never keeps the screen loading longer than this
+  static const requestTimeout = Duration(seconds: 15);
+
   final AuthService _authService;
   final MiguelLocalCache _localCache;
 
@@ -25,6 +34,32 @@ class RegisterViewModel extends ChangeNotifier {
   bool _isLoading = false;
   String? _errorMessage;
   bool _disposed = false;
+
+  // Starts listening to the connection; the form itself needs nothing from the network
+  void init() {
+    listenToConnectivity(onRestored: () async {});
+  }
+
+  // The Retry button: checks the connection for real (the listener updates isOffline)
+  Future<void> retryConnection() => ConnectivityService.instance.checkNow();
+
+  // The draft saved in Hive, to fill the form again when the user comes back; null if there is none
+  Future<RegisterDraft?> restoreDraft() async {
+    try {
+      final draft = await _localCache.registerDraft.get();
+      if (draft == null) return null;
+
+      _draftName = draft.name;
+      _draftEmail = draft.email;
+      _draftSemester = draft.semester;
+      if (draft.career != null && careers.contains(draft.career)) _selectedCareer = draft.career;
+      _notify();
+      return draft;
+    } catch (e) {
+      debugPrint('Could not read the register draft: $e');
+      return null;
+    }
+  }
 
   String? get selectedCareer => _selectedCareer;
   EffortTypeEnum get selectedEffort => _selectedEffort;
@@ -73,6 +108,11 @@ class RegisterViewModel extends ChangeNotifier {
   }) async {
     _errorMessage = null;
 
+    // Nothing is sent without internet, and the draft stays where it is
+    if (isOffline) {
+      return _fail(offlineMessage);
+    }
+
     if (name.isEmpty) {
       return _fail('Por favor ingresa tu nombre');
     }
@@ -112,21 +152,23 @@ class RegisterViewModel extends ChangeNotifier {
     _notify();
 
     try {
-      await _authService.register(
-        name: name,
-        email: email,
-        password: password,
-        career: _selectedCareer!,
-        semester: semester,
-        preferredEffort: _selectedEffort,
-        phoneNumber: normalizedPhone,
-      );
+      await _authService
+          .register(
+            name: name,
+            email: email,
+            password: password,
+            career: _selectedCareer!,
+            semester: semester,
+            preferredEffort: _selectedEffort,
+            phoneNumber: normalizedPhone,
+          )
+          .timeout(requestTimeout);
       // The account exists: the draft is not needed anymore and the next step is the interests
       _localCache.clearRegisterDraft();
       _localCache.advanceOnboarding(OnboardingStep.interests);
       return true;
     } catch (e) {
-      _errorMessage = e.toString().replaceAll('Exception: ', '');
+      _errorMessage = isNetworkError(e) ? offlineMessage : e.toString().replaceAll('Exception: ', '');
       return false;
     } finally {
       _isLoading = false;
