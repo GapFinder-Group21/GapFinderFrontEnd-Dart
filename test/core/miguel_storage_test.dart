@@ -5,6 +5,8 @@ import 'package:hive/hive.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:gapfinderfrontend_dart/core/storage/outbox_service.dart';
+import 'package:gapfinderfrontend_dart/core/cache/expiry_policy.dart';
+import 'package:gapfinderfrontend_dart/core/cache/lru_cache.dart';
 import 'package:gapfinderfrontend_dart/core/storage/app_database.dart';
 import 'package:gapfinderfrontend_dart/data/local/miguel/google_import_store.dart';
 import 'package:gapfinderfrontend_dart/data/local/miguel/interests_catalog_dao.dart';
@@ -320,6 +322,26 @@ void main() {
     test('a catalog with interests is kept 1 hour and an empty one 30 seconds', () {
       expect(InterestsViewModel.catalogExpiry('catalog', [Interest(id: 1, name: 'Chess')]), const Duration(hours: 1));
       expect(InterestsViewModel.catalogExpiry('catalog', []), const Duration(seconds: 30));
+    });
+
+    test('an empty catalog expires before one with interests (same rule, scaled to milliseconds)', () async {
+      // The real lives are 30 seconds and 1 hour, so they are scaled down to milliseconds to wait for them
+      final cache = LruCache<String, List<Interest>>(
+        maxEntries: 5,
+        expiryPolicy: ValueBasedExpiry<String, List<Interest>>((key, interests) {
+          final real = InterestsViewModel.catalogExpiry(key, interests)!;
+          return real < const Duration(minutes: 1) ? const Duration(milliseconds: 40) : const Duration(milliseconds: 400);
+        }),
+      );
+
+      cache.put('empty', []);
+      cache.put('full', [Interest(id: 1, name: 'Chess')]);
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+
+      expect(cache.get('empty'), isNull); // the 30 seconds rule: already expired
+      expect(cache.get('full'), isNotNull); // the 1 hour rule: still saved
+      expect(cache.stats.expired, 1);
+      expect(cache.stats.hits, 1);
     });
   });
 
