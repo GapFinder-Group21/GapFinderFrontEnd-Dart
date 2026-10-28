@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:gapfinderfrontend_dart/data/local/miguel/miguel_local_cache.dart';
 import 'package:gapfinderfrontend_dart/models/enums/match_mode_enum.dart';
 import 'package:gapfinderfrontend_dart/models/match.dart';
 import 'package:gapfinderfrontend_dart/models/responses/match_candidate.dart';
@@ -11,6 +12,7 @@ class MatchFoundViewModel extends ChangeNotifier {
   final MatchCandidate candidate;
   final MatchModeEnum selectedMode;
   final MatchService _matchService;
+  final MiguelLocalCache _localCache;
 
   MatchFoundViewModel({
     required this.userId,
@@ -18,7 +20,9 @@ class MatchFoundViewModel extends ChangeNotifier {
     required this.candidate,
     required this.selectedMode,
     MatchService? matchService,
-  }) : _matchService = matchService ?? MatchService();
+    MiguelLocalCache? localCache,
+  })  : _matchService = matchService ?? MatchService(),
+        _localCache = localCache ?? MiguelLocalCache.instance;
 
   bool _isLoading = false;
   String? _errorMessage;
@@ -33,11 +37,14 @@ class MatchFoundViewModel extends ChangeNotifier {
     _isLoading = true;
     _notify();
     try {
-      return await _matchService.sendRequest(
+      final match = await _matchService.sendRequest(
         currentGapId,
         candidate.acceptorGap.id,
         candidate.score,
       );
+      // Cached on network response: the candidate that was shown, with the id of its match
+      _localCache.saveSeenCandidate(match.id, candidate);
+      return match;
     } catch (e) {
       // The spinner only stops on error; on success the screen is replaced
       _isLoading = false;

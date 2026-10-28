@@ -27,6 +27,23 @@ class _RegisterViewState extends State<RegisterView> {
   final _phoneController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    // The draft (never the password) is saved while the user types
+    _nameController.addListener(_saveDraft);
+    _emailController.addListener(_saveDraft);
+    _semesterController.addListener(_saveDraft);
+  }
+
+  void _saveDraft() {
+    context.read<RegisterViewModel>().saveDraft(
+          name: _nameController.text,
+          email: _emailController.text,
+          semesterText: _semesterController.text,
+        );
+  }
+
+  @override
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
