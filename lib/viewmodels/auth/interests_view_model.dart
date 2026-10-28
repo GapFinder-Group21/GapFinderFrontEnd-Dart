@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:isolate';
 import 'package:flutter/foundation.dart';
 import 'package:gapfinderfrontend_dart/core/cache/lru_cache.dart';
 import 'package:gapfinderfrontend_dart/core/network/network_errors.dart';
@@ -8,6 +9,7 @@ import 'package:gapfinderfrontend_dart/data/local/miguel/miguel_local_cache.dart
 import 'package:gapfinderfrontend_dart/data/local/miguel/onboarding_prefs.dart';
 import 'package:gapfinderfrontend_dart/data/local/miguel/user_interests_outbox.dart';
 import 'package:gapfinderfrontend_dart/models/interest.dart';
+import 'package:gapfinderfrontend_dart/viewmodels/auth/interests_processing.dart';
 import 'package:gapfinderfrontend_dart/services/interest_service.dart';
 import 'package:gapfinderfrontend_dart/services/user_service.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/offline_aware_mixin.dart';
@@ -47,6 +49,7 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
   OutboxService get _outboxService => _outbox ?? OutboxService.instance;
 
   List<Interest> _interests = [];
+  final Map<int, String> _searchNames = {};
   final Set<int> _selectedInterestIds = {};
   bool _isLoading = true;
   String? _loadError;
@@ -60,6 +63,9 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
   StreamSubscription<Set<String>>? _pendingSub;
 
   List<Interest> get interests => _interests;
+
+  // The name in lower case and without accents, made by the isolate (to search)
+  String searchNameOf(Interest interest) => _searchNames[interest.id] ?? normalizeInterestName(interest.name);
   bool get isLoading => _isLoading;
   String? get loadError => _loadError;
   bool get isSaving => _isSaving;
@@ -84,15 +90,26 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
 
   // Loads the catalog when the screen opens. It loads again by itself when the connection comes
   // back (only if there was no catalog) and when the outbox sends the pending selection.
-  Future<void> init() {
+  // Estrategia: Future con handler + async/await. The await waits for the catalog; the handlers
+  // (.then / .catchError) say what happens when it ends well or when it fails, without a try/catch.
+  Future<void> init() async {
     _localCache.advanceOnboarding(OnboardingStep.interests);
     listenToConnectivity(onRestored: () async {
       if (_interests.isEmpty) await _loadCatalog();
     });
     _watchOutbox();
-    return _loadCatalog();
+
+    await _loadCatalog().then((_) {
+      debugPrint('[Intereses] catálogo listo: ${_interests.length}');
+    }).catchError((Object e) {
+      _loadError = '$e';
+      _isLoading = false;
+      _notify();
+    });
   }
 
+  // Estrategia: Stream. The outbox sends a new set of pending keys every time the queue changes;
+  // the subscription is cancelled in dispose.
   void _watchOutbox() {
     try {
       _pendingSub = _outboxService.pendingKeys.listen((keys) {
@@ -138,11 +155,12 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
 
       final saved = await _localCache.interestsCatalog.getAll();
       if (saved.isNotEmpty) {
-        _interests = saved;
-        _cache.put(_catalogKey, saved);
+        _interests = await _process(saved);
+        _cache.put(_catalogKey, _interests);
         markUpdatedAt(await _localCache.interestsCatalog.lastSavedAt());
       } else if (hasConnection) {
-        _interests = await _interestService.getInterests().timeout(OfflineAwareMixin.loadTimeout);
+        final loaded = await _interestService.getInterests().timeout(OfflineAwareMixin.loadTimeout);
+        _interests = await _process(loaded);
         _cache.put(_catalogKey, _interests);
         _localCache.saveInterestsCatalog(_interests);
         markFresh();
@@ -161,7 +179,22 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
     }
   }
 
-  // The interests this user already chose, saved in SQLite
+  // Estrategia: Isolate. Normalizing the names, removing the duplicates and sorting runs in another
+  // isolate so a long catalog never blocks the screen. processInterests is a top-level function and
+  // gets only simple data (maps), because an isolate does not share memory with the app.
+  Future<List<Interest>> _process(List<Interest> interests) async {
+    final raw = interests.map((i) => i.toJson()).toList();
+    debugPrint('InterestsViewModel sends the work from isolate: ${Isolate.current.debugName}');
+    final processed = await Isolate.run(() => processInterests(raw));
+
+    _searchNames.clear();
+    for (final item in processed) {
+      _searchNames[item['id'] as int] = item['searchName'] as String;
+    }
+    return processed.map((item) => Interest(id: item['id'] as int, name: item['name'] as String)).toList();
+  }
+
+  // Estrategia: Future. It returns when the saved interests of this user are read from SQLite.
   Future<void> _loadSelection() async {
     final userId = _userId;
     if (userId == null || _selectedInterestIds.isNotEmpty) return;

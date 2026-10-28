@@ -91,17 +91,19 @@ class MatchFoundViewModel extends ChangeNotifier with OfflineAwareMixin {
     try {
       if (!hasConnection) return await _queue();
 
-      try {
-        final match = await _matchService
-            .sendRequest(currentGapId, candidate.acceptorGap.id, candidate.score)
-            .timeout(OfflineAwareMixin.loadTimeout);
-        // Cached on network response: the candidate that was shown, with the id of its match
+      // Estrategia: Future con handler. .then runs when the request works (it saves the candidate
+      // that was shown, with the id of its match); .catchError runs when it fails: a network error
+      // queues the request and any other error goes to the catch below.
+      return await _matchService
+          .sendRequest(currentGapId, candidate.acceptorGap.id, candidate.score)
+          .timeout(OfflineAwareMixin.loadTimeout)
+          .then<Match?>((match) {
         _localCache.saveSeenCandidate(match.id, candidate);
         return match;
-      } catch (e) {
-        if (!isNetworkError(e)) rethrow;
-        return await _queue();
-      }
+      }).catchError((Object e) {
+        if (!isNetworkError(e)) throw e;
+        return _queue();
+      });
     } catch (e) {
       _errorMessage = 'Error: ${e.toString().replaceAll('Exception: ', '')}';
       return null;
