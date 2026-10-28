@@ -8,6 +8,7 @@ import 'package:gapfinderfrontend_dart/viewmodels/auth/register_view_model.dart'
 import 'package:gapfinderfrontend_dart/views/widgets/common/top_bar.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/custom_input.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/custom_button.dart';
+import 'package:gapfinderfrontend_dart/views/widgets/common/offline_banner.dart';
 import 'package:gapfinderfrontend_dart/models/enums/effort_type_enum.dart';
 
 /// Sign up form: name, email, career, semester, phone, preferred effort and password.
@@ -29,6 +30,20 @@ class _RegisterViewState extends State<RegisterView> {
   @override
   void initState() {
     super.initState();
+    _restoreDraft();
+  }
+
+  // Fills the form with the draft saved in Hive (if any) and then starts saving what the user types
+  Future<void> _restoreDraft() async {
+    final draft = await context.read<RegisterViewModel>().restoreDraft();
+    if (!mounted) return;
+
+    if (draft != null) {
+      _nameController.text = draft.name;
+      _emailController.text = draft.email;
+      _semesterController.text = draft.semester;
+    }
+
     // The draft (never the password) is saved while the user types
     _nameController.addListener(_saveDraft);
     _emailController.addListener(_saveDraft);
@@ -90,7 +105,10 @@ class _RegisterViewState extends State<RegisterView> {
         title: 'GAP FINDER',
         subtitle: 'Create Account',
       ),
-      body: SingleChildScrollView(
+      body: Column(
+        children: [
+          if (vm.isOffline) const OfflineBanner(message: RegisterViewModel.offlineMessage),
+          Expanded(child: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -231,13 +249,22 @@ class _RegisterViewState extends State<RegisterView> {
 
             const SizedBox(height: 28),
 
-            // Submit Button
+            // Submit Button (off without internet, with a Retry to check the connection again)
             vm.isLoading
                 ? const Center(child: CircularProgressIndicator())
                 : CustomButton(
               label: 'Create Account',
-              onClick: _handleRegister,
+              onClick: vm.isOffline ? null : _handleRegister,
             ),
+            if (vm.isOffline) ...[
+              const SizedBox(height: 10),
+              CustomButton(
+                label: 'Reintentar',
+                outline: true,
+                small: true,
+                onClick: vm.retryConnection,
+              ),
+            ],
 
             const SizedBox(height: 14),
 
@@ -264,6 +291,8 @@ class _RegisterViewState extends State<RegisterView> {
             ),
           ],
         ),
+      )),
+        ],
       ),
     );
   }

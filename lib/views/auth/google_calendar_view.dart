@@ -4,14 +4,29 @@ import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_fonts.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/custom_top_bar.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/custom_button.dart';
+import 'package:gapfinderfrontend_dart/views/widgets/common/offline_banner.dart';
 import 'package:provider/provider.dart';
 import 'package:gapfinderfrontend_dart/navigation/app_routes.dart';
+import 'package:gapfinderfrontend_dart/data/local/miguel/google_import_store.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/auth/google_calendar_view_model.dart';
 
 /// Imports the user's class schedule from Google Calendar.
 /// Shows three states: importing, success or error.
 class GoogleCalendarView extends StatelessWidget {
   const GoogleCalendarView({super.key});
+
+  // dd/MM HH:mm of the last import
+  String _when(DateTime date) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(date.day)}/${two(date.month)} ${two(date.hour)}:${two(date.minute)}';
+  }
+
+  // The state of the last import saved in the file
+  String _lastImportText(GoogleImportState? last) {
+    if (last == null) return 'Aún no has importado tu horario.';
+    final result = last.success ? 'salió bien' : 'falló';
+    return 'Última importación (${_when(last.date)}): $result.';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -24,7 +39,10 @@ class GoogleCalendarView extends StatelessWidget {
         showBack: true,
       ),
       body: SafeArea(
-        child: Container(
+        child: Column(
+          children: [
+            if (vm.isOffline) const OfflineBanner(message: GoogleCalendarViewModel.offlineBanner),
+            Expanded(child: Container(
           width: double.infinity,
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
           child: Column(
@@ -91,6 +109,37 @@ class GoogleCalendarView extends StatelessWidget {
                     color: context.palette.contrast.withOpacity(0.55),
                   ),
                 ),
+              // State 4: no internet, so nothing was tried; the last saved import is shown
+              ] else if (vm.phase == GoogleImportPhase.offline) ...[
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: const BoxDecoration(
+                    color: AppColors.accent1,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Center(
+                    child: Icon(Icons.wifi_off_rounded, color: Colors.white, size: 36),
+                  ),
+                ),
+                const SizedBox(height: 28),
+                Text(
+                  GoogleCalendarViewModel.offlineTitle,
+                  textAlign: TextAlign.center,
+                  style: AppFonts.display(weight: FontWeight.w800).copyWith(
+                    fontSize: 20,
+                    color: context.palette.contrast,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  _lastImportText(vm.lastImport),
+                  textAlign: TextAlign.center,
+                  style: AppFonts.body(weight: FontWeight.w400).copyWith(
+                    fontSize: 14,
+                    color: context.palette.contrast.withOpacity(0.55),
+                  ),
+                ),
               // State 3: import failed
               ] else ...[
                 Container(
@@ -140,8 +189,17 @@ class GoogleCalendarView extends StatelessWidget {
                   color: AppColors.accent1,
                   onClick: vm.importSchedule,
                 ),
+              // No internet: the button turns on when the connection is back
+              if (vm.phase == GoogleImportPhase.offline)
+                CustomButton(
+                  label: 'Reintentar',
+                  color: AppColors.accent1,
+                  onClick: vm.canRetry ? vm.importSchedule : null,
+                ),
             ],
           ),
+        )),
+          ],
         ),
       ),
     );

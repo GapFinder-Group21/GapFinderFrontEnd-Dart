@@ -7,6 +7,8 @@ class ScheduleOptionCard extends StatelessWidget {
   final String subtitle;
   final Widget icon;
   final VoidCallback onTap;
+  // False when the option cannot be used now (for example without internet)
+  final bool enabled;
 
   const ScheduleOptionCard({
     super.key,
@@ -14,15 +16,18 @@ class ScheduleOptionCard extends StatelessWidget {
     required this.subtitle,
     required this.icon,
     required this.onTap,
+    this.enabled = true,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Material(
+    return Opacity(
+      opacity: enabled ? 1 : 0.5,
+      child: Material(
       color: context.palette.surface,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
-        onTap: onTap,
+        onTap: enabled ? onTap : null,
         borderRadius: BorderRadius.circular(14),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 22),
@@ -63,6 +68,6 @@ class ScheduleOptionCard extends StatelessWidget {
           ),
         ),
       ),
-    );
+    ));
   }
 }

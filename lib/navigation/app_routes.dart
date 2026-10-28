@@ -5,6 +5,7 @@ import 'package:gapfinderfrontend_dart/models/responses/match_candidate.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/auth/google_calendar_view_model.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/auth/google_connect_view_model.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/auth/interests_view_model.dart';
+import 'package:gapfinderfrontend_dart/viewmodels/auth/schedule_setup_view_model.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/auth/location_permission_view_model.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/auth/login_view_model.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/auth/register_view_model.dart';
@@ -59,14 +60,15 @@ class AppRoutes {
 
   static Map<String, WidgetBuilder> get routes => {
         welcome: (context) => const WelcomeView(),
-        register: (context) => withViewModel(() => RegisterViewModel(), const RegisterView()),
+        register: (context) => withViewModel(() => RegisterViewModel()..init(), const RegisterView()),
         login: (context) => withViewModel(() => LoginViewModel(), const LoginView()),
         locationPermission: (context) =>
             withViewModel(() => LocationPermissionViewModel()..init(), const LocationPermissionView()),
         home: (context) => const MainView(),
         interests: (context) => withViewModel(() => InterestsViewModel()..init(), const InterestsView()),
         schedule: (context) => withViewModel(() => ScheduleViewModel()..init(), const ScheduleView()),
-        scheduleSetup: (context) => const ScheduleSetupView(),
+        scheduleSetup: (context) =>
+            withViewModel(() => ScheduleSetupViewModel()..init(), const ScheduleSetupView()),
         googleCalendar: (context) =>
             withViewModel(() => GoogleCalendarViewModel()..init(), const GoogleCalendarView()),
         googleConnect: (context) => withViewModel(() => GoogleConnectViewModel(), const GoogleConnectView()),
@@ -85,7 +87,7 @@ class AppRoutes {
               currentGapId: args['currentGapId'],
               candidate: args['candidate'] as MatchCandidate,
               selectedMode: args['selectedMode'] as MatchModeEnum,
-            ),
+            )..init(),
             const MatchFoundView(),
           );
         },

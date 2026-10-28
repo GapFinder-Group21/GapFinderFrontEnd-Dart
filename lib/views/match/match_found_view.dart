@@ -7,6 +7,7 @@ import 'package:gapfinderfrontend_dart/navigation/app_routes.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/match/match_found_view_model.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/avatar_widget.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/custom_button.dart';
+import 'package:gapfinderfrontend_dart/views/widgets/common/offline_banner.dart';
 
 /// Shows the best candidate found for the current gap and lets the user send the match request.
 class MatchFoundView extends StatelessWidget {
@@ -29,8 +30,9 @@ class MatchFoundView extends StatelessWidget {
         },
       );
     } else {
+      // Queued (no internet) or failed
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(vm.errorMessage ?? '')),
+        SnackBar(content: Text(vm.takeNotice() ?? vm.errorMessage ?? '')),
       );
     }
   }
@@ -44,7 +46,10 @@ class MatchFoundView extends StatelessWidget {
     return Scaffold(
       backgroundColor: context.palette.background,
       body: SafeArea(
-        child: Padding(
+        child: Column(
+          children: [
+            if (vm.isOffline) const OfflineBanner(message: MatchFoundViewModel.offlineBanner),
+            Expanded(child: Padding(
           padding: const EdgeInsets.all(24.0),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -96,10 +101,15 @@ class MatchFoundView extends StatelessWidget {
                   ? const CircularProgressIndicator()
                   : Column(
                       children: [
+                        // Pending: the request is queued, so the button is off
                         CustomButton(
-                          label: 'Connect Now',
+                          label: vm.wasSent
+                              ? 'Solicitud enviada'
+                              : vm.isConnectPending
+                                  ? 'Pendiente de enviar'
+                                  : 'Connect Now',
                           color: AppColors.accent2,
-                          onClick: () => _connectNow(context),
+                          onClick: vm.isConnectPending || vm.wasSent ? null : () => _connectNow(context),
                         ),
                         const SizedBox(height: 12),
                         SizedBox(
@@ -120,6 +130,8 @@ class MatchFoundView extends StatelessWidget {
               const SizedBox(height: 16),
             ],
           ),
+        )),
+          ],
         ),
       ),
     );

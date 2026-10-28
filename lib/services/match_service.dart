@@ -26,15 +26,17 @@ class MatchService {
     return data.map((json) => MatchCandidate.fromJson(json)).toList();
   }
 
+  // The endpoint of a match request (also used to queue it in the outbox)
+  static String requestEndpoint(int proposerGapId, int acceptorGapId, double score) =>
+      '/matches/request'
+      '?proposerGapId=$proposerGapId'
+      '&acceptorGapId=$acceptorGapId'
+      '&score=$score';
+
   // Send a match request - POST /matches/request
   // El score debe ser el que devolvió getCandidates
   Future<Match> sendRequest(int proposerGapId, int acceptorGapId, double score) async {
-    final res = await ApiClient.post(
-      '/matches/request'
-          '?proposerGapId=$proposerGapId'
-          '&acceptorGapId=$acceptorGapId'
-          '&score=$score',
-    );
+    final res = await ApiClient.post(requestEndpoint(proposerGapId, acceptorGapId, score));
 
     if (res.statusCode != 201) {
       throw Exception(_errorMessage(res, 'Error sending match request'));

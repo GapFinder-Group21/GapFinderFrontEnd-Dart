@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hive/hive.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:gapfinderfrontend_dart/core/storage/outbox_service.dart';
 import 'package:gapfinderfrontend_dart/core/storage/app_database.dart';
 import 'package:gapfinderfrontend_dart/data/local/miguel/google_import_store.dart';
 import 'package:gapfinderfrontend_dart/data/local/miguel/interests_catalog_dao.dart';
@@ -35,6 +36,8 @@ import '../viewmodels/secure_storage_mock.dart';
 
 // Remembers what the view models ask to save, so the tests can read it
 class RecordingCache extends MiguelLocalCache {
+  RecordingCache({super.interestsCatalog, super.userInterests});
+
   final calls = <String>[];
   RegisterDraft? lastDraft;
   Set<int>? lastInterestIds;
@@ -98,15 +101,22 @@ class FakeAuthService extends AuthService {
 }
 
 class FakeInterestService extends InterestService {
+  int calls = 0;
+
   @override
-  Future<List<Interest>> getInterests() async => [Interest(id: 1, name: 'Chess'), Interest(id: 2, name: 'Music')];
+  Future<List<Interest>> getInterests() async {
+    calls++;
+    return [Interest(id: 1, name: 'Chess'), Interest(id: 2, name: 'Music')];
+  }
 }
 
 class FakeUserService extends UserService {
   final Set<int> failing = {};
+  Object? error;
 
   @override
   Future<void> addInterest(int userId, int interestId) async {
+    if (error != null) throw error!;
     if (failing.contains(interestId)) throw Exception('network');
   }
 }
@@ -130,13 +140,18 @@ Gap _gap(int id, int userId) => Gap(
     );
 
 class FakeMatchService extends MatchService {
+  Object? error;
+
   @override
-  Future<Match> sendRequest(int proposerGapId, int acceptorGapId, double score) async => Match(
-        id: 42,
-        startTime: DateTime(2026, 1, 1, 10),
-        endTime: DateTime(2026, 1, 1, 11),
-        status: MatchStatusEnum.PENDING,
-      );
+  Future<Match> sendRequest(int proposerGapId, int acceptorGapId, double score) async {
+    if (error != null) throw error!;
+    return Match(
+      id: 42,
+      startTime: DateTime(2026, 1, 1, 10),
+      endTime: DateTime(2026, 1, 1, 11),
+      status: MatchStatusEnum.PENDING,
+    );
+  }
 }
 
 void main() {
@@ -259,8 +274,22 @@ void main() {
 
   group('view models', () {
     late RecordingCache cache;
+    late OutboxService outbox;
 
-    setUp(() => cache = RecordingCache());
+    Future<List<Map<String, Object?>>> outboxRows() => db.query('outbox');
+
+    setUp(() {
+      cache = RecordingCache(
+        interestsCatalog: InterestsCatalogDao(database: () async => db),
+        userInterests: UserInterestsDao(database: () async => db),
+      );
+      outbox = OutboxService.forTesting(
+        database: () async => db,
+        send: (method, endpoint, body) async => throw UnimplementedError(),
+      );
+    });
+
+    tearDown(() => outbox.dispose());
 
     Future<bool> register(RegisterViewModel vm) => vm.register(
           name: 'Ana',
@@ -294,12 +323,70 @@ void main() {
       vm.dispose();
     });
 
-    test('interests: init saves the catalog and save marks synced only the ones that were sent', () async {
-      final users = FakeUserService()..failing.add(2);
-      final vm = InterestsViewModel(interestService: FakeInterestService(), userService: users, localCache: cache);
+    test('register: a network failure shows its own message and the draft stays', () async {
+      final auth = FakeAuthService()..error = const SocketException('no network');
+      final vm = RegisterViewModel(authService: auth, localCache: cache);
+
+      expect(await register(vm), isFalse);
+      expect(vm.errorMessage, RegisterViewModel.offlineMessage);
+      expect(cache.calls, isNot(contains('clearDraft')));
+      vm.dispose();
+    });
+
+    test('interests: the catalog comes from SQLite and the network is not asked', () async {
+      await InterestsCatalogDao(database: () async => db).replaceAll([Interest(id: 7, name: 'Chess')]);
+      final service = FakeInterestService();
+      final vm = InterestsViewModel(
+          interestService: service, userService: FakeUserService(), localCache: cache, outbox: outbox);
 
       await vm.init();
+      expect(vm.interests.map((i) => i.id), [7]);
+      expect(service.calls, 0);
+      vm.dispose();
+    });
+
+    test('interests: with no saved catalog it goes to the network once and saves it', () async {
+      final service = FakeInterestService();
+      final vm = InterestsViewModel(
+          interestService: service, userService: FakeUserService(), localCache: cache, outbox: outbox);
+
+      await vm.init();
+      expect(service.calls, 1);
       expect(cache.calls, containsAllInOrder(['step:interests', 'catalog:2']));
+      vm.dispose();
+    });
+
+    test('interests: saving many times without network leaves one pending action with the last selection', () async {
+      final users = FakeUserService()..error = const SocketException('no network');
+      final vm = InterestsViewModel(
+          interestService: FakeInterestService(), userService: users, localCache: cache, outbox: outbox);
+      await vm.init();
+
+      vm.toggleInterest(1);
+      expect(await vm.save(), isTrue);
+      expect(vm.takeNotice(), InterestsViewModel.offlineNotice);
+      expect(vm.isSavePending, isTrue);
+
+      vm.toggleInterest(2);
+      expect(vm.isSavePending, isFalse); // the selection changed, so it can be saved again
+      expect(await vm.save(), isTrue);
+      expect(await vm.save(), isTrue);
+
+      final rows = await outboxRows();
+      expect(rows, hasLength(1));
+      expect(rows.single['dedupe_key'], 'user_interests_save:1');
+      expect(rows.single['type'], 'user_interests_save');
+      expect(rows.single['body'], contains('[1,2]'));
+      expect(cache.lastSyncedIds, isEmpty); // synced = 0 until the back receives them
+      vm.dispose();
+    });
+
+    test('interests: save marks synced only the ones that were sent', () async {
+      final users = FakeUserService()..failing.add(2);
+      final vm = InterestsViewModel(
+          interestService: FakeInterestService(), userService: users, localCache: cache, outbox: outbox);
+
+      await vm.init();
 
       vm.toggleInterest(1);
       vm.toggleInterest(2);
@@ -344,11 +431,52 @@ void main() {
         selectedMode: MatchModeEnum.career,
         matchService: FakeMatchService(),
         localCache: cache,
+        outbox: outbox,
       );
 
       final match = await vm.connect();
       expect(match?.id, 42);
       expect(cache.lastCandidateMatchId, 42);
+      vm.dispose();
+    });
+
+    test('match found: connecting many times without network leaves one pending action', () async {
+      final service = FakeMatchService()..error = const SocketException('no network');
+      final vm = MatchFoundViewModel(
+        userId: 1,
+        currentGapId: 1,
+        candidate: MatchCandidate(proposerGap: _gap(1, 1), acceptorGap: _gap(2, 2), score: 0.5),
+        selectedMode: MatchModeEnum.career,
+        matchService: service,
+        localCache: cache,
+        outbox: outbox,
+      );
+
+      expect(await vm.connect(), isNull);
+      expect(vm.takeNotice(), MatchFoundViewModel.offlineNotice);
+      expect(vm.isConnectPending, isTrue);
+
+      for (var i = 0; i < 8; i++) {
+        expect(await vm.connect(), isNull);
+      }
+
+      final rows = await outboxRows();
+      expect(rows, hasLength(1));
+      expect(rows.single['type'], 'match_connect');
+      expect(rows.single['dedupe_key'], 'match_connect:1-2');
+      expect(rows.single['endpoint'], MatchService.requestEndpoint(1, 2, 0.5));
+      expect(vm.errorMessage, isNull);
+      vm.dispose();
+    });
+
+    test('google import: a network failure shows the offline state with the last saved import', () async {
+      await GoogleImportStore().save(GoogleImportState(date: DateTime(2026, 1, 2), success: true, message: 'ok'));
+      final google = FakeGoogleService()..error = const SocketException('no network');
+      final vm = GoogleCalendarViewModel(googleService: google, localCache: MiguelLocalCache());
+
+      await vm.importSchedule();
+      expect(vm.phase, GoogleImportPhase.offline);
+      expect(vm.lastImport?.success, isTrue);
       vm.dispose();
     });
   });
