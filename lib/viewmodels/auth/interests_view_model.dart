@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:isolate';
 import 'package:flutter/foundation.dart';
+import 'package:gapfinderfrontend_dart/core/cache/expiry_policy.dart';
 import 'package:gapfinderfrontend_dart/core/cache/lru_cache.dart';
 import 'package:gapfinderfrontend_dart/core/network/network_errors.dart';
 import 'package:gapfinderfrontend_dart/core/storage/outbox_service.dart';
@@ -20,11 +21,20 @@ import 'package:gapfinderfrontend_dart/viewmodels/offline_aware_mixin.dart';
 class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
   // The catalog of interests, in memory. Order: memory (LRU) -> SQLite -> network.
   // 1 entry: there is only one catalog, so a single key ("catalog") is enough.
-  // 1 hour: the back almost never adds an interest, so an hour old catalog is still right, and it
-  // makes opening the screen again instant. After an hour it is read again from SQLite / the network.
-  static final LruCache<String, List<Interest>> _cache =
-      LruCache<String, List<Interest>>(maxEntries: 1, ttl: const Duration(hours: 1));
+  // 1 hour with interests: the back almost never adds an interest, so an hour old catalog is still
+  // right, and it makes opening the screen again instant.
+  // 30 seconds when it is empty: an empty catalog is probably an incomplete answer, so it is asked again soon.
+  static final LruCache<String, List<Interest>> _cache = LruCache<String, List<Interest>>(
+    maxEntries: 1,
+    name: 'interests catalog',
+    expiryPolicy: ValueBasedExpiry<String, List<Interest>>(catalogExpiry),
+  );
   static const _catalogKey = 'catalog';
+
+  // How long the catalog is kept in memory: less when it has no interests
+  @visibleForTesting
+  static Duration? catalogExpiry(String key, List<Interest> interests) =>
+      interests.isEmpty ? const Duration(seconds: 30) : const Duration(hours: 1);
 
   // Empties the memory cache (for tests)
   @visibleForTesting
@@ -131,8 +141,7 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
     _notify();
   }
 
-  void _logCache(String result) =>
-      debugPrint('[LRU intereses] $result (hits=${_cache.hits}, misses=${_cache.misses}, size=${_cache.length})');
+  void _logCache(String result) => debugPrint('$result ${_cache.describe()}');
 
   // Memory (LRU) -> SQLite -> network: a fresh LRU entry is enough; on a miss the saved catalog is
   // used, and the network is only asked if nothing is saved
@@ -146,12 +155,12 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
 
       final cached = _cache.get(_catalogKey);
       if (cached != null) {
-        _logCache('ACIERTO');
+        _logCache('HIT');
         _interests = cached;
         await _loadSelection();
         return;
       }
-      _logCache('FALLO');
+      _logCache('MISS');
 
       final saved = await _localCache.interestsCatalog.getAll();
       if (saved.isNotEmpty) {
