@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart';
+import 'package:gapfinderfrontend_dart/data/local/miguel/miguel_local_cache.dart';
+import 'package:gapfinderfrontend_dart/data/local/miguel/onboarding_prefs.dart';
 import 'package:gapfinderfrontend_dart/services/google_service.dart';
 
 // Steps of the Google Calendar import
@@ -7,9 +9,11 @@ enum GoogleImportPhase { connecting, success, error }
 // State and logic of the Google Calendar import screen
 class GoogleCalendarViewModel extends ChangeNotifier {
   final GoogleService _googleService;
+  final MiguelLocalCache _localCache;
 
-  GoogleCalendarViewModel({GoogleService? googleService})
-      : _googleService = googleService ?? GoogleService();
+  GoogleCalendarViewModel({GoogleService? googleService, MiguelLocalCache? localCache})
+      : _googleService = googleService ?? GoogleService(),
+        _localCache = localCache ?? MiguelLocalCache.instance;
 
   GoogleImportPhase _phase = GoogleImportPhase.connecting;
   String? _errorMessage;
@@ -31,6 +35,9 @@ class GoogleCalendarViewModel extends ChangeNotifier {
       debugPrint('🚀 IMPORT: Starting Google Calendar import...');
       await _googleService.importSchedule();
       debugPrint('✅ IMPORT: Success (Standard)');
+      // Saved in a file how the import ended (never blocks the screen)
+      _localCache.saveGoogleImport(success: true, message: 'Schedule imported');
+      _localCache.advanceOnboarding(OnboardingStep.done);
       if (_disposed) return;
       _phase = GoogleImportPhase.success;
       _notify();
@@ -41,11 +48,14 @@ class GoogleCalendarViewModel extends ChangeNotifier {
       // A 409 means the classes were already imported, so it counts as success
       if (e.toString().contains('409')) {
         debugPrint('ℹ️ IMPORT: Conflict 409 detected, but data persists. Marking as success.');
+        _localCache.saveGoogleImport(success: true, message: 'The classes were already imported');
+        _localCache.advanceOnboarding(OnboardingStep.done);
         _phase = GoogleImportPhase.success;
         _notify();
         return;
       }
 
+      _localCache.saveGoogleImport(success: false, message: e.toString());
       _phase = GoogleImportPhase.error;
       _errorMessage = e.toString();
       _notify();

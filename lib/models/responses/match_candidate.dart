@@ -18,4 +18,10 @@ class MatchCandidate {
       score: (json['score'] as num).toDouble(),
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'proposerGap': proposerGap.toJson(),
+    'acceptorGap': acceptorGap.toJson(),
+    'score': score,
+  };
 }

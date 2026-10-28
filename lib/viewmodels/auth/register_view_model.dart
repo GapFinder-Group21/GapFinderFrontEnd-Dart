@@ -1,13 +1,24 @@
 import 'package:flutter/foundation.dart';
 import 'package:gapfinderfrontend_dart/core/constants/careers.dart';
+import 'package:gapfinderfrontend_dart/data/local/miguel/miguel_local_cache.dart';
+import 'package:gapfinderfrontend_dart/data/local/miguel/onboarding_prefs.dart';
+import 'package:gapfinderfrontend_dart/data/local/miguel/register_draft_store.dart';
 import 'package:gapfinderfrontend_dart/models/enums/effort_type_enum.dart';
 import 'package:gapfinderfrontend_dart/services/auth_service.dart';
 
 // State and logic of the sign up form
 class RegisterViewModel extends ChangeNotifier {
   final AuthService _authService;
+  final MiguelLocalCache _localCache;
 
-  RegisterViewModel({AuthService? authService}) : _authService = authService ?? AuthService();
+  RegisterViewModel({AuthService? authService, MiguelLocalCache? localCache})
+      : _authService = authService ?? AuthService(),
+        _localCache = localCache ?? MiguelLocalCache.instance;
+
+  // What the user has typed so far (the password is never kept here or saved)
+  String _draftName = '';
+  String _draftEmail = '';
+  String _draftSemester = '';
 
   String? _selectedCareer = careers.first;
   EffortTypeEnum _selectedEffort = EffortTypeEnum.MEDIUM;
@@ -22,7 +33,27 @@ class RegisterViewModel extends ChangeNotifier {
 
   void selectCareer(String? career) {
     _selectedCareer = career;
+    _persistDraft();
     _notify();
+  }
+
+  // Saves in Hive what the user has typed (name, email, career and semester) while they write.
+  // The password is not a parameter on purpose. It never blocks the form.
+  void saveDraft({required String name, required String email, required String semesterText}) {
+    _draftName = name;
+    _draftEmail = email;
+    _draftSemester = semesterText;
+    _persistDraft();
+  }
+
+  void _persistDraft() {
+    _localCache.saveRegisterDraft(RegisterDraft(
+      name: _draftName,
+      email: _draftEmail,
+      career: _selectedCareer,
+      semester: _draftSemester,
+    ));
+    _localCache.advanceOnboarding(OnboardingStep.register);
   }
 
   void selectEffort(EffortTypeEnum effort) {
@@ -90,6 +121,9 @@ class RegisterViewModel extends ChangeNotifier {
         preferredEffort: _selectedEffort,
         phoneNumber: normalizedPhone,
       );
+      // The account exists: the draft is not needed anymore and the next step is the interests
+      _localCache.clearRegisterDraft();
+      _localCache.advanceOnboarding(OnboardingStep.interests);
       return true;
     } catch (e) {
       _errorMessage = e.toString().replaceAll('Exception: ', '');
