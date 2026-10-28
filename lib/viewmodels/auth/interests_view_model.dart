@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:gapfinderfrontend_dart/core/cache/lru_cache.dart';
 import 'package:gapfinderfrontend_dart/core/network/network_errors.dart';
 import 'package:gapfinderfrontend_dart/core/storage/outbox_service.dart';
 import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
@@ -15,6 +16,18 @@ import 'package:gapfinderfrontend_dart/viewmodels/offline_aware_mixin.dart';
 // The catalog is read from SQLite (the network is only asked when nothing is saved) and the
 // selection is queued in the outbox when there is no connection.
 class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
+  // The catalog of interests, in memory. Order: memory (LRU) -> SQLite -> network.
+  // 1 entry: there is only one catalog, so a single key ("catalog") is enough.
+  // 1 hour: the back almost never adds an interest, so an hour old catalog is still right, and it
+  // makes opening the screen again instant. After an hour it is read again from SQLite / the network.
+  static final LruCache<String, List<Interest>> _cache =
+      LruCache<String, List<Interest>>(maxEntries: 1, ttl: const Duration(hours: 1));
+  static const _catalogKey = 'catalog';
+
+  // Empties the memory cache (for tests)
+  @visibleForTesting
+  static void clearCache() => _cache.clear();
+
   static const offlineNotice = 'Tus intereses se guardarán cuando vuelva la conexión';
 
   final InterestService _interestService;
@@ -101,7 +114,11 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
     _notify();
   }
 
-  // Cache falling back to network: SQLite first, the network only if there is no saved catalog
+  void _logCache(String result) =>
+      debugPrint('[LRU intereses] $result (hits=${_cache.hits}, misses=${_cache.misses}, size=${_cache.length})');
+
+  // Memory (LRU) -> SQLite -> network: a fresh LRU entry is enough; on a miss the saved catalog is
+  // used, and the network is only asked if nothing is saved
   Future<void> _loadCatalog() async {
     _isLoading = _interests.isEmpty;
     _loadError = null;
@@ -110,12 +127,23 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
     try {
       _userId ??= await TokenStorage.getUserId();
 
+      final cached = _cache.get(_catalogKey);
+      if (cached != null) {
+        _logCache('ACIERTO');
+        _interests = cached;
+        await _loadSelection();
+        return;
+      }
+      _logCache('FALLO');
+
       final saved = await _localCache.interestsCatalog.getAll();
       if (saved.isNotEmpty) {
         _interests = saved;
+        _cache.put(_catalogKey, saved);
         markUpdatedAt(await _localCache.interestsCatalog.lastSavedAt());
       } else if (hasConnection) {
         _interests = await _interestService.getInterests().timeout(OfflineAwareMixin.loadTimeout);
+        _cache.put(_catalogKey, _interests);
         _localCache.saveInterestsCatalog(_interests);
         markFresh();
       } else {

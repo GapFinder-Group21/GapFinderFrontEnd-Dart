@@ -5,7 +5,7 @@ import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_fonts.dart';
 import 'package:gapfinderfrontend_dart/navigation/app_routes.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/match/match_found_view_model.dart';
-import 'package:gapfinderfrontend_dart/views/widgets/common/avatar_widget.dart';
+import 'package:gapfinderfrontend_dart/views/widgets/open_tables/cached_avatar.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/custom_button.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/offline_banner.dart';
 
@@ -64,7 +64,8 @@ class MatchFoundView extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 32),
-              AvatarWidget(url: candidateUser?.avatarUrl, name: candidateUser?.name, size: 100),
+              // Kept on disk by cached_network_image: it still shows without internet after it loaded once
+              CachedAvatar(url: candidateUser?.avatarUrl, name: candidateUser?.name, size: 100),
               const SizedBox(height: 20),
               Text(
                 candidateUser?.name ?? 'User',

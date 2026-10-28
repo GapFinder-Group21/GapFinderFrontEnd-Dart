@@ -279,6 +279,7 @@ void main() {
     Future<List<Map<String, Object?>>> outboxRows() => db.query('outbox');
 
     setUp(() {
+      InterestsViewModel.clearCache();
       cache = RecordingCache(
         interestsCatalog: InterestsCatalogDao(database: () async => db),
         userInterests: UserInterestsDao(database: () async => db),
@@ -343,6 +344,25 @@ void main() {
       expect(vm.interests.map((i) => i.id), [7]);
       expect(service.calls, 0);
       vm.dispose();
+    });
+
+    test('interests: opening the screen a second time is a hit of the LRU, without SQLite or network', () async {
+      final dao = InterestsCatalogDao(database: () async => db);
+      await dao.replaceAll([Interest(id: 7, name: 'Chess')]);
+      final service = FakeInterestService();
+
+      final first = InterestsViewModel(
+          interestService: service, userService: FakeUserService(), localCache: cache, outbox: outbox);
+      await first.init(); // miss: it reads SQLite and fills the LRU
+      first.dispose();
+
+      await db.delete('interests_catalog'); // if the second open read SQLite, the list would be empty
+      final second = InterestsViewModel(
+          interestService: service, userService: FakeUserService(), localCache: cache, outbox: outbox);
+      await second.init(); // hit
+      expect(second.interests.map((i) => i.id), [7]);
+      expect(service.calls, 0);
+      second.dispose();
     });
 
     test('interests: with no saved catalog it goes to the network once and saves it', () async {
