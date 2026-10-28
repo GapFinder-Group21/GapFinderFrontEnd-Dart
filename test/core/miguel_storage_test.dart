@@ -27,6 +27,7 @@ import 'package:gapfinderfrontend_dart/services/match_service.dart';
 import 'package:gapfinderfrontend_dart/services/user_service.dart';
 import 'package:gapfinderfrontend_dart/models/enums/match_status_enum.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/auth/google_calendar_view_model.dart';
+import 'package:gapfinderfrontend_dart/viewmodels/auth/interests_processing.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/auth/interests_view_model.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/auth/register_view_model.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/match/match_found_view_model.dart';
@@ -269,6 +270,49 @@ void main() {
 
       await prefs.advanceTo(OnboardingStep.done);
       expect(await prefs.get(), OnboardingStep.done);
+    });
+  });
+
+  group('interests processing (isolate)', () {
+    test('it removes accents, lower cases, removes duplicates and sorts', () {
+      final result = processInterests([
+        {'id': 3, 'name': 'Música'},
+        {'id': 1, 'name': 'ajedrez'},
+        {'id': 2, 'name': 'MUSICA'},
+        {'id': 4, 'name': 'Fútbol'},
+        {'id': 5, 'name': '  '},
+      ]);
+
+      expect(result.map((r) => r['name']), ['ajedrez', 'Fútbol', 'Música']);
+      expect(result.map((r) => r['searchName']), ['ajedrez', 'futbol', 'musica']);
+    });
+
+    test('the view model shows the catalog sorted and without duplicates, made in another isolate', () async {
+      await InterestsCatalogDao(database: () async => db).replaceAll([
+        Interest(id: 1, name: 'Soccer'),
+        Interest(id: 2, name: 'chess'),
+        Interest(id: 3, name: 'Chess'),
+      ]);
+      final outbox = OutboxService.forTesting(
+        database: () async => db,
+        send: (method, endpoint, body) async => throw UnimplementedError(),
+      );
+      InterestsViewModel.clearCache();
+      final vm = InterestsViewModel(
+        interestService: FakeInterestService(),
+        userService: FakeUserService(),
+        localCache: RecordingCache(
+          interestsCatalog: InterestsCatalogDao(database: () async => db),
+          userInterests: UserInterestsDao(database: () async => db),
+        ),
+        outbox: outbox,
+      );
+
+      await vm.init();
+      expect(vm.interests.map((i) => i.name), ['chess', 'Soccer']);
+      expect(vm.searchNameOf(vm.interests.first), 'chess');
+      vm.dispose();
+      await outbox.dispose();
     });
   });
 
