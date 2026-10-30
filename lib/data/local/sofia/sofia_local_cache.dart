@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:gapfinderfrontend_dart/data/local/sofia/catalog_file_store.dart';
 import 'package:gapfinderfrontend_dart/data/local/sofia/class_block_dao.dart';
 import 'package:gapfinderfrontend_dart/data/local/sofia/gap_dao.dart';
@@ -79,18 +80,48 @@ class SofiaLocalCache {
     });
   }
 
-  // Logout: removes what was saved for this user so the next person on the phone does not see it.
-  // The catalogs stay because they are the same for everyone.
-  Future<void> clearUserData(int userId) {
-    return _safe('user data on logout', () async {
-      await classBlocks.deleteForUser(userId);
-      await gaps.deleteForUser(userId);
-      await openTables.clear();
-      await openTableDetails.clear();
-      await recommendations.delete(userId);
-      await lastBuilding.clear();
-      debugPrint('[Cache] Removed the saved data of user $userId');
+  // The list 'MINE' belongs to the user who saved it: the open_tables_cache rows have no user, so the owner is
+  // saved apart. Offline, another user never sees the tables of the previous one.
+  static const _myTablesOwnerKey = 'my_open_tables_owner';
+
+  Future<void> saveMyTablesOwner(int userId) {
+    return _safe('owner of my open tables', () async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt(_myTablesOwnerKey, userId);
     });
+  }
+
+  // The user the saved 'MINE' list belongs to (null if none)
+  Future<int?> myTablesOwner() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getInt(_myTablesOwnerKey);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // Logout or expired session: removes what was saved for this user so the next person on the phone does not
+  // see it. The catalogs stay because they are the same for everyone. If the user is not known, only what does
+  // not need it is removed. Each step has its own try, so one failure does not skip the rest.
+  Future<void> clearUserData(int? userId) async {
+    await _safe('class blocks on logout', () async {
+      if (userId != null) await classBlocks.deleteForUser(userId);
+    });
+    await _safe('gaps on logout', () async {
+      if (userId != null) await gaps.deleteForUser(userId);
+    });
+    await _safe('open tables on logout', () => openTables.clear());
+    await _safe('open table details on logout', () => openTableDetails.clear());
+    await _safe('recommendation on logout', () async {
+      if (userId != null) await recommendations.delete(userId);
+    });
+    await _safe('last building on logout', () => lastBuilding.clear());
+    await _safe('owner of my open tables on logout', () async {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_myTablesOwnerKey);
+    });
+    debugPrint('[Cache] Removed the saved data of user $userId');
   }
 
   Future<void> _safe(String what, Future<void> Function() action) async {

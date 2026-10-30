@@ -69,6 +69,6 @@ class OpenTableAbandonmentService {
     } catch (_) {
       // Not JSON, it is plain text
     }
-    return body;
+    return plainBackendText(body, fallback);
   }
 }

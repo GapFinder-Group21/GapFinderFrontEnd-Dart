@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:gapfinderfrontend_dart/core/network/api_client.dart';
+import 'package:gapfinderfrontend_dart/core/network/network_errors.dart';
 import 'package:gapfinderfrontend_dart/models/gap.dart';
 
 class GapService {
@@ -107,7 +108,7 @@ class GapService {
     } catch (_) {
       // Not JSON, it is plain text
     }
-    return body;
+    return plainBackendText(body, fallback);
   }
 
   // Get the gaps of a user for a week - GET /gaps/user/{userId}

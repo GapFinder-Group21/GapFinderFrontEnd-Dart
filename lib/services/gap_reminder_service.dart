@@ -10,7 +10,10 @@ class GapReminder {
   final int gapId;
   final DateTime fireAt;
   final int minutesLeft;
-  GapReminder(this.gapId, this.fireAt, this.minutesLeft);
+  // The id of the notification: it comes from the start of the gap, not from the id of the gap, because the
+  // gap ids can change when the back recalculates the week, and then the old reminders could not be cancelled
+  final int notificationId;
+  GapReminder(this.gapId, this.fireAt, this.minutesLeft, this.notificationId);
 }
 
 // Local notifications that remind the student of the free gaps of today
@@ -25,6 +28,8 @@ class GapReminderService {
   static const _channelId = 'gap_reminders';
   static const _openTablesPayload = 'open_tables';
   static const _enabledKey = 'gap_reminders_enabled';
+  // The ids of the notifications this service scheduled: only these are cancelled, never other notifications
+  static const _scheduledIdsKey = 'gap_reminder_ids';
 
   final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
   final _taps = StreamController<void>.broadcast();
@@ -105,6 +110,15 @@ class GapReminderService {
     await prefs.setBool(_enabledKey, enabled);
   }
 
+  // Forgets the switch (logout): the next user is asked again the first time, they do not inherit it
+  Future<void> clearEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_enabledKey);
+  }
+
+  // A stable id from the start of the gap (minutes since 1970, 30 bits so it is a valid notification id)
+  static int notificationIdFor(DateTime gapStart) => (gapStart.millisecondsSinceEpoch ~/ 60000) & 0x3fffffff;
+
   // Which reminders to schedule: one per gap of today, offsetMinutes after it starts,
   // only if that moment has not passed and the gap still has minMinutesLeft minutes then
   static List<GapReminder> plan(List<Gap> gaps, int offsetMinutes, DateTime now) {
@@ -122,20 +136,22 @@ class GapReminderService {
       final minutesLeft = gap.endTime.difference(fireAt).inMinutes;
       if (minutesLeft < minMinutesLeft) continue;
 
-      reminders.add(GapReminder(gap.id, fireAt, minutesLeft));
+      reminders.add(GapReminder(gap.id, fireAt, minutesLeft, notificationIdFor(gap.startTime)));
     }
 
     return reminders;
   }
 
-  // Cancels the old reminders and schedules the ones of today
+  // Cancels the old reminders (only the ones scheduled by this service) and schedules the ones of today
   Future<void> scheduleForGaps(List<Gap> gaps, int offsetMinutes) async {
     await init();
-    await _plugin.cancelAll();
+    await _cancelScheduledReminders();
 
+    final scheduledIds = <int>[];
     for (final reminder in plan(gaps, offsetMinutes, DateTime.now())) {
+      scheduledIds.add(reminder.notificationId);
       await _plugin.zonedSchedule(
-        id: reminder.gapId,
+        id: reminder.notificationId,
         title: 'Tienes tiempo libre',
         body: 'Tienes ${reminder.minutesLeft} min libres hasta tu próxima clase. '
             'Hay Open Tables cerca de ti',
@@ -155,10 +171,28 @@ class GapReminderService {
         payload: _openTablesPayload,
       );
     }
+
+    await _saveScheduledIds(scheduledIds);
   }
 
+  // Cancels every reminder of this service (for example when the user logs out). Other notifications stay.
   Future<void> cancelAll() async {
     await init();
-    await _plugin.cancelAll();
+    await _cancelScheduledReminders();
+  }
+
+  Future<void> _cancelScheduledReminders() async {
+    final prefs = await SharedPreferences.getInstance();
+    final ids = prefs.getStringList(_scheduledIdsKey) ?? const <String>[];
+    for (final id in ids) {
+      final parsed = int.tryParse(id);
+      if (parsed != null) await _plugin.cancel(id: parsed);
+    }
+    await prefs.remove(_scheduledIdsKey);
+  }
+
+  Future<void> _saveScheduledIds(List<int> ids) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_scheduledIdsKey, ids.map((id) => id.toString()).toList());
   }
 }

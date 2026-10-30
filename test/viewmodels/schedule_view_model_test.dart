@@ -37,9 +37,13 @@ class FakeGapService extends GapService {
 
 class FakeAuthService extends AuthService {
   bool loggedOut = false;
+  bool fails = false;
 
   @override
-  Future<void> logout() async => loggedOut = true;
+  Future<void> logout() async {
+    if (fails) throw Exception('the back cannot be reached');
+    loggedOut = true;
+  }
 }
 
 void main() {
@@ -49,6 +53,7 @@ void main() {
   late FakeGapService gaps;
   late FakeAuthService auth;
   late ScheduleViewModel vm;
+  late List<int?> cleanedFor; // the users whose data was removed on logout
 
   setUp(() {
     storage.install();
@@ -56,10 +61,15 @@ void main() {
     blocks = FakeClassBlockService();
     gaps = FakeGapService();
     auth = FakeAuthService();
+    cleanedFor = [];
     vm = ScheduleViewModel(
       classBlockService: blocks,
       gapService: gaps,
       authService: auth,
+      sessionCleanup: (userId) async {
+        cleanedFor.add(userId);
+        return [];
+      },
     );
   });
 
@@ -140,6 +150,20 @@ void main() {
       await vm.logout();
 
       expect(auth.loggedOut, isTrue);
+    });
+
+    test('logout() removes the data even if the back cannot be reached', () async {
+      auth.fails = true;
+
+      await expectLater(vm.logout(), throwsException);
+
+      expect(cleanedFor, [1]);
+    });
+
+    test('logout() removes the data of the user who leaves', () async {
+      await vm.logout();
+
+      expect(cleanedFor, [1]);
     });
   });
 }

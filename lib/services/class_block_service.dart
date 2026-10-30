@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'package:gapfinderfrontend_dart/core/network/api_client.dart';
+import 'package:gapfinderfrontend_dart/core/network/network_errors.dart';
 import 'package:gapfinderfrontend_dart/models/class_block.dart';
+import 'package:gapfinderfrontend_dart/services/gap_generation_guard.dart';
 
 class ClassBlockService {
   // Gets a class block by id - GET /class-blocks/{id}
@@ -34,6 +36,8 @@ class ClassBlockService {
       throw Exception(_errorMessage(res, 'Error creating class block'));
     }
 
+    // The schedule changed: the next refresh recalculates the gaps
+    await GapGenerationGuard.invalidate(userId);
     return ClassBlock.fromJson(jsonDecode(utf8.decode(res.bodyBytes)));
   }
 
@@ -45,6 +49,7 @@ class ClassBlockService {
       throw Exception(_errorMessage(res, 'Error updating class block'));
     }
 
+    await GapGenerationGuard.invalidateAll();
     return ClassBlock.fromJson(jsonDecode(utf8.decode(res.bodyBytes)));
   }
 
@@ -55,6 +60,9 @@ class ClassBlockService {
     if (res.statusCode != 204) {
       throw Exception(_errorMessage(res, 'Error deleting class block'));
     }
+
+    // The schedule changed (the id of the user is not known here, so every user is invalidated)
+    await GapGenerationGuard.invalidateAll();
   }
 
   // The back sends errors as plain text (400/403/404/409) or as JSON {"error": "..."} (409)
@@ -70,6 +78,6 @@ class ClassBlockService {
     } catch (_) {
       // Not JSON, it is plain text
     }
-    return body;
+    return plainBackendText(body, fallback);
   }
 }

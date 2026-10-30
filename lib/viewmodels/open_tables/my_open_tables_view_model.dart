@@ -4,7 +4,6 @@ import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
 import 'package:gapfinderfrontend_dart/data/local/sofia/open_table_cache_dao.dart';
 import 'package:gapfinderfrontend_dart/data/local/sofia/sofia_local_cache.dart';
 import 'package:gapfinderfrontend_dart/models/open_table.dart';
-import 'package:gapfinderfrontend_dart/models/open_table_participant.dart';
 import 'package:gapfinderfrontend_dart/services/open_table_participant_service.dart';
 import 'package:gapfinderfrontend_dart/services/open_table_service.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/offline_aware_mixin.dart';
@@ -38,7 +37,8 @@ class MyOpenTablesViewModel extends ChangeNotifier with OfflineAwareMixin {
     return refresh();
   }
 
-  // Network falling back to cache: loads the tables created and joined by the user - GET /open-tables.
+  // Network falling back to cache: loads the tables created and joined by the user - GET /open-tables and
+  // GET /open-table-participants/user/{userId}.
   // Without connection (or if the call fails or is too slow) it shows the 'MINE' list saved in SQLite.
   Future<void> refresh() async {
     _isLoading = isEmpty;
@@ -71,28 +71,32 @@ class MyOpenTablesViewModel extends ChangeNotifier with OfflineAwareMixin {
     }
   }
 
+  // Two requests, at the same time: all the tables (the ones the user created are found by their creator)
+  // and the tables the user joined. Never one request per table.
   Future<void> _loadFromNetwork(int userId) async {
-    final all = await _openTableService.getAll();
+    final results = await Future.wait([
+      _openTableService.getAll(),
+      _participantService.getJoinedOpenTables(userId),
+    ]);
+    final all = results[0];
     final created = all.where((t) => t.creator?.id == userId).toList();
-    final others = all.where((t) => t.creator?.id != userId).toList();
-
-    final joined = <OpenTable>[];
-    final checks = await Future.wait(others.map((t) => _isParticipant(t.id, userId)));
-    for (var i = 0; i < others.length; i++) {
-      if (checks[i]) joined.add(others[i]);
-    }
+    final joined = results[1].where((t) => t.creator?.id != userId).toList();
 
     _createdTables = created;
     _joinedTables = joined;
 
-    // Save my tables (created + joined); it is not awaited and never breaks the screen
+    // Save my tables (created + joined) and whose they are; it is not awaited and never breaks the screen
     SofiaLocalCache.instance.saveOpenTables(OpenTableListType.mine, [...created, ...joined]);
+    SofiaLocalCache.instance.saveMyTablesOwner(userId);
   }
 
   // Shows the 'MINE' list saved in SQLite; returns false if nothing is saved
   Future<bool> _loadSaved(int userId) async {
     try {
       final cache = SofiaLocalCache.instance;
+      // The saved list belongs to one user: another user (for example after the session expired) never sees it
+      final owner = await cache.myTablesOwner();
+      if (owner != null && owner != userId) return false;
       final saved = await cache.openTables.getAll(OpenTableListType.mine);
       if (saved.isEmpty) return false;
 
@@ -104,12 +108,6 @@ class MyOpenTablesViewModel extends ChangeNotifier with OfflineAwareMixin {
       debugPrint('No se pudieron leer mis mesas guardadas: $e');
       return false;
     }
-  }
-
-  // Check if the user is a participant - GET /open-table-participants/table/{tableId}
-  Future<bool> _isParticipant(int tableId, int userId) async {
-    final List<OpenTableParticipant> list = await _participantService.getByOpenTable(tableId).timeout(OfflineAwareMixin.loadTimeout);
-    return list.any((p) => p.user?.id == userId);
   }
 
   void _notify() {
