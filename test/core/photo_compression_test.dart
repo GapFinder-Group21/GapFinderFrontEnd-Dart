@@ -36,4 +36,17 @@ void main() {
     final notAnImage = Uint8List.fromList([1, 2, 3]);
     expect(compressPhoto(notAnImage), notAnImage);
   });
+
+  test('J-22: the compressed photo has no EXIF data (no GPS), even when it is small', () {
+    final photo = img.Image(width: 400, height: 300);
+    photo.exif.imageIfd['Make'] = img.IfdValueAscii('PhoneMaker');
+    photo.exif.gpsIfd['GPSLatitudeRef'] = img.IfdValueAscii('N');
+    final withExif = img.encodeJpg(photo, quality: 90);
+    expect(img.decodeJpgExif(withExif)!.isEmpty, isFalse);
+
+    final compressed = compressPhoto(withExif);
+
+    final exif = img.decodeJpgExif(compressed);
+    expect(exif == null || exif.isEmpty, isTrue);
+  });
 }

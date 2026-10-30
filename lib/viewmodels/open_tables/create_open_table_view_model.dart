@@ -379,8 +379,8 @@ class CreateOpenTableViewModel extends ChangeNotifier with OfflineAwareMixin {
       final compressed = await Isolate.run(() => compressPhoto(original));
       debugPrint('Photo after compressing: ${(compressed.length / 1024).toStringAsFixed(1)} KB');
 
-      // Only replace the file if it really got lighter
-      if (compressed.length < original.length) await photo.writeAsBytes(compressed);
+      // Always the processed bytes, even if they are not lighter: they have no EXIF (GPS) data
+      await photo.writeAsBytes(compressed);
     } catch (e) {
       debugPrint('Could not compress the photo, using the original: $e');
     }
