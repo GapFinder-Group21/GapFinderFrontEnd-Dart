@@ -3,7 +3,11 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gapfinderfrontend_dart/core/network/connectivity_service.dart';
 import 'package:gapfinderfrontend_dart/models/enums/match_mode_enum.dart';
+import 'package:gapfinderfrontend_dart/models/enums/match_status_enum.dart';
 import 'package:gapfinderfrontend_dart/models/gap.dart';
+import 'package:gapfinderfrontend_dart/models/match.dart';
+import 'package:gapfinderfrontend_dart/models/responses/match_candidate.dart';
+import 'package:gapfinderfrontend_dart/services/match_service.dart';
 import 'package:gapfinderfrontend_dart/services/gap_service.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/match/searching_match_view_model.dart';
 
@@ -48,6 +52,33 @@ class _SlowFirstGapService extends GapService {
   Future<List<Gap>> getUserGaps(int userId, {String? weekStart}) {
     calls++;
     return calls == 1 ? first.future : Future.value([]);
+  }
+}
+
+// A gap that is happening right now
+class _CurrentGapService extends GapService {
+  final Gap gap;
+  _CurrentGapService(this.gap);
+
+  @override
+  Future<List<Gap>> getUserGaps(int userId, {String? weekStart}) async => [gap];
+}
+
+// No candidates; the user's matches come from GET /matches/user/{userId}
+class _UserMatchesService extends MatchService {
+  final List<Match> matches;
+  final List<int> requestedUsers = [];
+  _UserMatchesService(this.matches);
+
+  @override
+  Future<List<MatchCandidate>> getCandidates(int gapId,
+          {bool useSameCareer = false, bool useSharedInterests = false, bool useEffort = false}) async =>
+      [];
+
+  @override
+  Future<List<Match>> getByUser(int userId) async {
+    requestedUsers.add(userId);
+    return matches;
   }
 }
 
@@ -108,6 +139,23 @@ void main() {
 
     expect(newResult, isA<NoMatches>());
     expect(await oldSearch, isNull);
+    vm.dispose();
+  });
+
+  test('J-8: the accepted match of the gap is found among the matches of the user', () async {
+    final now = DateTime.now();
+    final gap = Gap(id: 5, startTime: now.subtract(const Duration(minutes: 5)), endTime: now.add(const Duration(minutes: 30)));
+    final matchService = _UserMatchesService([
+      Match(id: 9, startTime: gap.startTime, endTime: gap.endTime, status: MatchStatusEnum.ACCEPTED, proposerGapId: 5, acceptorGapId: 8),
+    ]);
+    final vm = SearchingMatchViewModel(1, MatchModeEnum.career,
+        gapService: _CurrentGapService(gap), matchService: matchService, connectivity: _OnlineConnectivity());
+
+    final result = await vm.search();
+
+    expect(result, isA<ExistingMatch>());
+    expect((result as ExistingMatch).matchId, 9);
+    expect(matchService.requestedUsers, [1]);
     vm.dispose();
   });
 }

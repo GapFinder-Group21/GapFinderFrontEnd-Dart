@@ -54,9 +54,10 @@ class MatchService {
     return Match.fromJson(jsonDecode(utf8.decode(res.bodyBytes)));
   }
 
-  // Get all matches - GET /matches
-  Future<List<Match>> getAll() async {
-    final res = await ApiClient.get('/matches');
+  // The matches of one user, as proposer or as acceptor - GET /matches/user/{userId}
+  // (only the user's own matches, never the email and phone of everybody else)
+  Future<List<Match>> getByUser(int userId) async {
+    final res = await ApiClient.get('/matches/user/$userId');
 
     if (res.statusCode != 200) {
       throw Exception(_errorMessage(res, 'Error getting matches'));

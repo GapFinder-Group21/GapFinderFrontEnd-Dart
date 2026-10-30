@@ -161,16 +161,17 @@ class MatchViewModel extends ChangeNotifier {
     return gaps.where((g) => !now.isBefore(g.startTime) && now.isBefore(g.endTime)).firstOrNull;
   }
 
-  // Finds the accepted or completed match of the current gap - GET /matches
+  // Finds the accepted or completed match of the current gap - GET /matches/user/{userId}
   // Same rule as the back: only the current gap counts, matches of other gaps do not block.
   // Without connection (or if the back fails) it looks in the matches saved in SQLite.
   Future<Match?> _loadGapMatch(Gap? gap) async {
     if (gap == null) return null;
 
+    final userId = _userId;
     List<Match>? all;
-    if (!_isOffline) {
+    if (!_isOffline && userId != null) {
       try {
-        all = await _matchService.getAll().timeout(loadTimeout);
+        all = await _matchService.getByUser(userId).timeout(loadTimeout);
         _cacheUserMatches(all);
       } catch (e) {
         debugPrint('❌ [MatchMainScreen] Error loading the match of the gap: $e');
@@ -178,7 +179,6 @@ class MatchViewModel extends ChangeNotifier {
     }
 
     if (all == null) {
-      final userId = _userId;
       if (userId == null) return null;
       all = await _localCache.safeRead('matches', () => _localCache.matches.getAllForUser(userId));
       if (all == null) return null;

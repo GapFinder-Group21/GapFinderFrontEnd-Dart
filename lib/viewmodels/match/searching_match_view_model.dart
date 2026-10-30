@@ -128,7 +128,7 @@ class SearchingMatchViewModel extends ChangeNotifier {
       if (stale()) return null;
 
       if (results.isEmpty) {
-        final allMatches = await _matchService.getAll().timeout(requestTimeout);
+        final allMatches = await _matchService.getByUser(userId).timeout(requestTimeout);
         if (stale()) return null;
         final activeMatch = allMatches.where((m) =>
           (m.proposerGapId == currentGap.id || m.acceptorGapId == currentGap.id) &&
