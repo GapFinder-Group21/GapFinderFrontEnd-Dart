@@ -63,7 +63,7 @@ class ItsAMatchViewModel extends ChangeNotifier {
     final saved = await _localCache.safeRead('match', () async {
       final match = await _localCache.matches.getById(matchId);
       if (match == null) return null;
-      return (match, await _localCache.matches.lastSavedAt(userId));
+      return (match, await _localCache.matches.savedAtById(matchId));
     });
     if (saved == null || _disposed) return;
 

@@ -114,7 +114,7 @@ class WaitingViewModel extends ChangeNotifier {
     final saved = await _localCache.safeRead('waiting match', () async {
       final match = await _localCache.matches.getById(matchId);
       if (match == null) return null;
-      final savedAt = await _localCache.matches.lastSavedAt(requesterId);
+      final savedAt = await _localCache.matches.savedAtById(matchId);
       return (match.status, savedAt);
     });
     if (saved == null || _disposed || _lastUpdated != null) return;

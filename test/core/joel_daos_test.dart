@@ -96,4 +96,21 @@ void main() {
     final saved = await dao.getAllForUser(1);
     expect(saved.single.acceptorGap?.id, 30);
   });
+
+  test('J-18: savedAtById gives the time of that match, not the newest match of the user', () async {
+    final dao = MatchDao(database: () async => db);
+    Map<String, Object?> row(int id, String savedAt) => {
+          'id': id,
+          'user_id': 1,
+          'json': '{}',
+          'saved_at': savedAt,
+          'gap_id': null,
+        };
+    await dao.upsertRow(row(3, '2026-01-01T10:00:00.000'));
+    await dao.upsertRow(row(4, '2026-01-02T18:30:00.000'));
+
+    expect(await dao.savedAtById(3), DateTime(2026, 1, 1, 10));
+    expect(await dao.lastSavedAt(1), DateTime(2026, 1, 2, 18, 30));
+    expect(await dao.savedAtById(99), isNull);
+  });
 }
