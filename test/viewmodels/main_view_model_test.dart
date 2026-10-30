@@ -161,4 +161,22 @@ void main() {
       expect(notifications.calls, 2);
     });
   });
+
+  group('J-6: the invitation poller in the background', () {
+    test('it does not check while paused and checks at once when resumed', () async {
+      vm.pausePolling();
+      await vm.checkNotificationsNow();
+      expect(notifications.calls, 0);
+
+      vm.resumePolling();
+      await Future<void>.delayed(Duration.zero);
+      expect(notifications.calls, 1);
+    });
+
+    test('resume without a pause does nothing', () async {
+      vm.resumePolling();
+      await Future<void>.delayed(Duration.zero);
+      expect(notifications.calls, 0);
+    });
+  });
 }

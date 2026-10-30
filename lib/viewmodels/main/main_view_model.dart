@@ -83,6 +83,8 @@ class MainViewModel extends ChangeNotifier {
   final Set<int> _handledMatchRequests = {};
   bool _checking = false;
   bool _invitationOpen = false;
+  // The app is in the background: the poller does not run
+  bool _paused = false;
   int? _userId;
   bool _disposed = false;
 
@@ -147,12 +149,31 @@ class MainViewModel extends ChangeNotifier {
     _notificationTimer = null;
   }
 
+  // The app went to the background: the poller stops, so it uses no data or battery and never opens
+  // an invitation while the user is in another app
+  void pausePolling() {
+    _paused = true;
+    _stopPolling();
+  }
+
+  // The app is back: check at once and poll again (only with connection)
+  void resumePolling() {
+    if (!_paused) return;
+    _paused = false;
+    if (_isOffline || _disposed) return;
+    _checkNotifications();
+    _startPolling();
+  }
+
   // Pauses the poller without connection and resumes it (checking at once) when it is back
   void _onConnectivityChanged(bool online) {
     _isOffline = !online;
     if (online) {
-      _checkNotifications();
-      _startPolling();
+      // In the background it stays stopped: resumePolling starts it again
+      if (!_paused) {
+        _checkNotifications();
+        _startPolling();
+      }
     } else {
       _stopPolling();
       _loadSavedNotifications();
@@ -204,7 +225,7 @@ class MainViewModel extends ChangeNotifier {
 
   // Sends one event per new match request - GET /api/notifications/user/{userId}/unread
   Future<void> _checkNotifications() async {
-    if (_checking || _invitationOpen || _isOffline) return;
+    if (_checking || _invitationOpen || _isOffline || _paused) return;
     _checking = true;
 
     try {

@@ -53,6 +53,8 @@ class WaitingViewModel extends ChangeNotifier {
   MatchStatusEnum? _lastKnownStatus;
   DateTime? _lastUpdated;
   bool _cancelled = false;
+  // The app is in the background: the polling does not run
+  bool _paused = false;
   bool _disposed = false;
 
   Stream<WaitingEvent> get events => _events.stream;
@@ -70,11 +72,27 @@ class WaitingViewModel extends ChangeNotifier {
     if (!_isOffline) _startPolling();
   }
 
+  // The app went to the background: the polling stops (no data, battery or token refresh behind)
+  void pausePolling() {
+    _paused = true;
+    _pollTimer?.cancel();
+    _pollTimer = null;
+  }
+
+  // The app is back: check at once and poll again (only with connection)
+  void resumePolling() {
+    if (!_paused) return;
+    _paused = false;
+    if (_cancelled || _disposed || _isOffline) return;
+    _poll();
+    _startPolling();
+  }
+
   // Pauses the polling without connection; checks at once and resumes when it is back
   void _onConnectivityChanged(bool online) {
     _isOffline = !online;
     if (online) {
-      if (_cancelled || _disposed) return;
+      if (_cancelled || _disposed || _paused) return;
       _poll();
       _startPolling();
     } else {
@@ -107,7 +125,7 @@ class WaitingViewModel extends ChangeNotifier {
 
   // Accepted or rejected -> stops and sends an event to the View.
   Future<void> _poll() async {
-    if (_cancelled || _disposed || _isOffline || _polling) return;
+    if (_cancelled || _disposed || _isOffline || _polling || _paused) return;
     _polling = true;
     try {
       final Match match = await _matchService.getById(matchId).timeout(pollTimeout);

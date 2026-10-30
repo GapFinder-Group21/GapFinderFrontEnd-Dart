@@ -71,13 +71,16 @@ class _MainTabsState extends State<_MainTabs> with WidgetsBindingObserver {
   }
 
   @override
-  // Every time the user comes back to the app: register the open and re-schedule today's reminders.
+  // In the background the invitation poller stops. Every time the user comes back to the app: resume it,
+  // register the open and re-schedule today's reminders.
   // Only after the app was really in the background (not after a permission dialog).
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
       _wasInBackground = true;
+      context.read<MainViewModel>().pausePolling();
     } else if (state == AppLifecycleState.resumed && _wasInBackground) {
       _wasInBackground = false;
+      context.read<MainViewModel>().resumePolling();
       context.read<MainViewModel>().registerAppOpen();
       context.read<ScheduleViewModel>().scheduleReminders();
     }

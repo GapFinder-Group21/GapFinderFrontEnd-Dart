@@ -16,13 +16,14 @@ class WaitingView extends StatefulWidget {
   State<WaitingView> createState() => _WaitingViewState();
 }
 
-class _WaitingViewState extends State<WaitingView> {
+class _WaitingViewState extends State<WaitingView> with WidgetsBindingObserver {
   StreamSubscription<WaitingEvent>? _eventsSub;
 
   @override
   // Listen to the polling result
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     final vm = context.read<WaitingViewModel>();
     _eventsSub = vm.events.listen((event) {
       if (!mounted) return;
@@ -44,8 +45,20 @@ class _WaitingViewState extends State<WaitingView> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _eventsSub?.cancel();
     super.dispose();
+  }
+
+  @override
+  // The polling stops while the app is in the background and resumes when the user comes back
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final vm = context.read<WaitingViewModel>();
+    if (state == AppLifecycleState.paused) {
+      vm.pausePolling();
+    } else if (state == AppLifecycleState.resumed) {
+      vm.resumePolling();
+    }
   }
 
   // Dialog shown when the other person declines
