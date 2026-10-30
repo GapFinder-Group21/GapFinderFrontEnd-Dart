@@ -39,6 +39,11 @@ import 'package:gapfinderfrontend_dart/views/schedule/schedule_view.dart';
 
 // Route names of the app and the builder of each route (each View gets its ViewModel here)
 class AppRoutes {
+  // Goes to the home screen and clears the stack, so there is only one MainView (one poller, one back stack)
+  static void goHome(BuildContext context) {
+    Navigator.pushNamedAndRemoveUntil(context, home, (_) => false);
+  }
+
   static const welcome = '/welcome';
   static const register = '/register';
   static const login = '/login';

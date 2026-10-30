@@ -102,10 +102,6 @@ class SearchingMatchViewModel extends ChangeNotifier {
     }
 
     try {
-      // TEMP-SCREENSHOT: artificial delay to turn the internet off during the search. Remove before committing.
-      await Future<void>.delayed(const Duration(seconds: 20));
-      if (_cancelled) return null;
-
       final gaps = await _gapService.getUserGaps(userId).timeout(requestTimeout);
       final now = DateTime.now();
       final currentGap = gaps.where((g) => !now.isBefore(g.startTime) && now.isBefore(g.endTime)).firstOrNull;
