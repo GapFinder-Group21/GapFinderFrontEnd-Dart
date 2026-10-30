@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'noop_local_cache.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gapfinderfrontend_dart/models/enums/friendship_status_enum.dart';
@@ -69,10 +70,16 @@ class FakeGapService extends GapService {
 class FakeUserService extends UserService {
   int searchCalls = 0;
   bool noResults = false;
+  final List<String> searchedNames = [];
+  // Searches that answer only when the test completes them
+  final Map<String, Completer<List<User>>> slow = {};
 
   @override
   Future<List<User>> searchByName(String name) async {
     searchCalls++;
+    searchedNames.add(name);
+    final waiting = slow[name];
+    if (waiting != null) return waiting.future;
     if (noResults) return [];
     return [_user(1, 'me'), _user(2, 'ana')];
   }
@@ -98,6 +105,7 @@ void main() {
       gapService: gaps,
       userService: users,
       localCache: NoopLocalCache(),
+      searchDebounce: Duration.zero,
     );
   });
 
@@ -211,6 +219,39 @@ void main() {
     test('searchExpiry keeps a search with results 3 minutes and one with no results 30 seconds', () {
       expect(FriendsViewModel.searchExpiry('ana', [_user(2, 'ana')]), const Duration(minutes: 3));
       expect(FriendsViewModel.searchExpiry('nobody', []), const Duration(seconds: 30));
+    });
+  });
+
+  group('J-9: friend search while typing', () {
+    test('typing "a", "an", "ana" quickly sends one request, for the last text', () async {
+      vm.dispose();
+      vm = FriendsViewModel(
+        friendshipService: friendships,
+        gapService: gaps,
+        userService: users,
+        localCache: NoopLocalCache(),
+      );
+
+      vm.search('a');
+      vm.search('an');
+      await vm.search('ana');
+
+      expect(users.searchCalls, 1);
+      expect(users.searchedNames, ['ana']);
+    });
+
+    test('an old answer that arrives last does not replace the newer list', () async {
+      users.slow['an'] = Completer<List<User>>();
+
+      final old = vm.search('an');
+      await Future<void>.delayed(Duration.zero);
+      await vm.search('ana');
+      expect(vm.searchResults.map((u) => u.name), ['ana']);
+
+      users.slow['an']!.complete([_user(7, 'andres')]);
+      await old;
+
+      expect(vm.searchResults.map((u) => u.name), ['ana']);
     });
   });
 }

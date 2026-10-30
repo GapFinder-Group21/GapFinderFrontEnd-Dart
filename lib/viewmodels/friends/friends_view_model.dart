@@ -82,6 +82,9 @@ class FriendsViewModel extends ChangeNotifier {
   @visibleForTesting
   static void clearSearchCache() => _searchCache.clear();
 
+  // Typing waits this long before searching, so "a", "an", "ana" become one request
+  final Duration searchDebounce;
+
   // Same text with other capitals or extra spaces is the same search
   static String _searchKey(String query) => query.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
 
@@ -92,6 +95,7 @@ class FriendsViewModel extends ChangeNotifier {
     JoelLocalCache? localCache,
     ConnectivityService? connectivity,
     OutboxService? outbox,
+    this.searchDebounce = const Duration(milliseconds: 300),
   })  : _friendshipService = friendshipService ?? FriendshipService(),
         _gapService = gapService ?? GapService(),
         _userService = userService ?? UserService(),
@@ -114,6 +118,10 @@ class FriendsViewModel extends ChangeNotifier {
   Set<String> _pendingKeys = {};
   bool _lastActionQueued = false;
   int _loadId = 0;
+  Timer? _searchTimer;
+  Completer<void>? _waitingSearch;
+  // Number of the newest search: an older answer that arrives later is dropped
+  int _searchSeq = 0;
 
   // Last loaded data (kept while reloading, like the old FutureBuilder)
   FriendsData? get data => _data;
@@ -243,17 +251,40 @@ class FriendsViewModel extends ChangeNotifier {
   }
 
   // Searches users by name - GET /users/search?name=
-  Future<void> search(String query) async {
+  // Called on every key: it waits searchDebounce after the last key and only the newest answer is shown
+  Future<void> search(String query) {
     // Searching needs the back: the field is disabled without connection (clearing still works)
-    if (_isOffline && query.trim().isNotEmpty) return;
+    if (_isOffline && query.trim().isNotEmpty) return Future.value();
+    _cancelWaitingSearch();
     if (query.trim().isEmpty) {
+      _searchSeq++;
       _searchResults = [];
       _isSearching = false;
       _notify();
-      return;
+      return Future.value();
     }
     _isSearching = true;
     _notify();
+
+    final waiting = Completer<void>();
+    _waitingSearch = waiting;
+    _searchTimer = Timer(searchDebounce, () {
+      _waitingSearch = null;
+      _runSearch(query).whenComplete(waiting.complete);
+    });
+    return waiting.future;
+  }
+
+  // A newer key arrived before the wait ended: that search never starts
+  void _cancelWaitingSearch() {
+    _searchTimer?.cancel();
+    _searchTimer = null;
+    _waitingSearch?.complete();
+    _waitingSearch = null;
+  }
+
+  Future<void> _runSearch(String query) async {
+    final seq = ++_searchSeq;
     try {
       final key = _searchKey(query);
       var results = _searchCache.get(key);
@@ -265,6 +296,8 @@ class FriendsViewModel extends ChangeNotifier {
         _searchCache.put(key, results);
       }
       final currentUserId = await TokenStorage.getUserId();
+      // A newer search started while this one waited: its answer is old
+      if (seq != _searchSeq || _disposed) return;
       _searchResults = results.where((u) => u.id != currentUserId).toList();
       _notify();
     } catch (e) {
@@ -443,6 +476,7 @@ class FriendsViewModel extends ChangeNotifier {
     _disposed = true;
     _connectivitySub?.cancel();
     _pendingSub?.cancel();
+    _cancelWaitingSearch();
     super.dispose();
   }
 }
