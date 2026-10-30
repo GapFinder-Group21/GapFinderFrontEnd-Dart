@@ -50,9 +50,12 @@ class OpenTableDetailViewModel extends ChangeNotifier with OfflineAwareMixin {
     return life < _minLife ? _minLife : life;
   }
 
-  // Empties the shared cache (tests share it between cases)
+  // Empties the shared cache: used when the session ends (the details belong to the previous user's session)
+  // and by the tests, which share it between cases
+  static void clearSharedCache() => _cache.clear();
+
   @visibleForTesting
-  static void clearCache() => _cache.clear();
+  static void clearCache() => clearSharedCache();
 
   final int openTableId;
   final OpenTableService _openTableService;
@@ -81,8 +84,9 @@ class OpenTableDetailViewModel extends ChangeNotifier with OfflineAwareMixin {
   // Pending actions the user cancelled by hand: their key leaving the outbox is not a failure
   final Set<String> _cancelledKeys = {};
 
-  String get _joinKey => 'open_table_join:$openTableId';
-  String get _leaveKey => 'open_table_leave:$openTableId';
+  // The user id is part of the keys: a pending action of one user is never shown to (or cancelled by) the next one
+  String get _joinKey => 'open_table_join:${_currentUserId ?? ''}:$openTableId';
+  String get _leaveKey => 'open_table_leave:${_currentUserId ?? ''}:$openTableId';
 
   OpenTable? get table => _table;
   List<OpenTableParticipant> get participants => _participants;
@@ -118,8 +122,14 @@ class OpenTableDetailViewModel extends ChangeNotifier with OfflineAwareMixin {
 
   // Load the table when the screen opens. It reloads by itself when the connection comes back and
   // when the outbox sends the pending join / leave (the key leaves the pending set).
-  Future<void> init() {
+  Future<void> init() async {
     listenToConnectivity(onRestored: () => refresh(force: true));
+    // The keys of the pending actions need the user id, so it is read before watching the outbox
+    try {
+      _currentUserId = await TokenStorage.getUserId();
+    } catch (e) {
+      debugPrint('No se pudo leer el usuario: $e');
+    }
     _watchOutbox();
     return refresh();
   }
@@ -145,10 +155,20 @@ class OpenTableDetailViewModel extends ChangeNotifier with OfflineAwareMixin {
   // After a pending action left the outbox and the table was reloaded: if the user is still not a
   // member (join) or still is one (leave), the back refused it (full table, ended...) and the user
   // must be told, because nobody was looking at the screen when it was sent.
-  void _checkSyncResult(Set<String> left) {
+  // The outbox keeps the reason the back gave (lastRefusalFor): it is the text shown to the user.
+  Future<void> _checkSyncResult(Set<String> left) async {
     final cancelled = left.intersection(_cancelledKeys);
     _cancelledKeys.removeAll(left);
     if (_table == null || cancelled.isNotEmpty) return;
+
+    for (final key in left) {
+      final refusal = await _lastRefusal(key);
+      if (refusal != null) {
+        _syncError = refusal.message;
+        _notify();
+        return;
+      }
+    }
 
     if (left.contains(_joinKey) && !_isMember) {
       _syncError = 'No se pudo unir a la mesa (puede estar llena o haber terminado)';
@@ -156,6 +176,14 @@ class OpenTableDetailViewModel extends ChangeNotifier with OfflineAwareMixin {
       _syncError = 'No se pudo salir de la mesa';
     }
     _notify();
+  }
+
+  Future<OutboxRefusal?> _lastRefusal(String key) async {
+    try {
+      return await OutboxService.instance.lastRefusalFor(key);
+    } catch (_) {
+      return null;
+    }
   }
 
   // Memory (LRU) → SQLite → network: loads the table and its participants - GET /open-tables/{id},
@@ -322,7 +350,7 @@ class OpenTableDetailViewModel extends ChangeNotifier with OfflineAwareMixin {
           return null;
         }
         refresh(force: true);
-        return e.toString().replaceAll('Exception: ', '');
+        return userMessage(e, network: 'No se pudo completar la acción. Intenta de nuevo.');
       }
     } finally {
       _isJoining = false;

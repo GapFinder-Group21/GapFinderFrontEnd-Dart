@@ -9,8 +9,10 @@ import 'package:gapfinderfrontend_dart/models/gap.dart';
 import 'package:gapfinderfrontend_dart/services/app_open_delay_service.dart';
 import 'package:gapfinderfrontend_dart/services/auth_service.dart';
 import 'package:gapfinderfrontend_dart/services/class_block_service.dart';
+import 'package:gapfinderfrontend_dart/services/gap_generation_guard.dart';
 import 'package:gapfinderfrontend_dart/services/gap_reminder_service.dart';
 import 'package:gapfinderfrontend_dart/services/gap_service.dart';
+import 'package:gapfinderfrontend_dart/services/session_cleanup.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/offline_aware_mixin.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/schedule/schedule_processing.dart';
 
@@ -32,6 +34,8 @@ class ScheduleViewModel extends ChangeNotifier with OfflineAwareMixin {
   final AuthService _authService;
   final AppOpenDelayService _appOpenDelayService;
   final GapReminderService _reminderService;
+  // What is removed from the phone when the user logs out (replaced in tests)
+  final Future<List<String>> Function(int? userId) _sessionCleanup;
 
   ScheduleViewModel({
     ClassBlockService? classBlockService,
@@ -39,7 +43,9 @@ class ScheduleViewModel extends ChangeNotifier with OfflineAwareMixin {
     AuthService? authService,
     AppOpenDelayService? appOpenDelayService,
     GapReminderService? reminderService,
-  })  : _classBlockService = classBlockService ?? ClassBlockService(),
+    Future<List<String>> Function(int? userId)? sessionCleanup,
+  })  : _sessionCleanup = sessionCleanup ?? SessionCleanup.run,
+        _classBlockService = classBlockService ?? ClassBlockService(),
         _gapService = gapService ?? GapService(),
         _authService = authService ?? AuthService(),
         _appOpenDelayService = appOpenDelayService ?? AppOpenDelayService(),
@@ -183,11 +189,15 @@ class ScheduleViewModel extends ChangeNotifier with OfflineAwareMixin {
   }
 
   Future<ScheduleData> _loadSchedule(int userId) async {
-    // Recalculate the week gaps - POST /gaps/user/{userId}/generate-week
-    try {
-      await _gapService.generateWeek(userId);
-    } catch (e) {
-      debugPrint("Advertencia: No se pudieron sincronizar los GAPs con el servidor: $e");
+    // Recalculate the week gaps - POST /gaps/user/{userId}/generate-week. Only once per day and after the
+    // class blocks change (GapGenerationGuard), not on every refresh
+    if (await GapGenerationGuard.isDue(userId)) {
+      try {
+        await _gapService.generateWeek(userId);
+        await GapGenerationGuard.markDone(userId);
+      } catch (e) {
+        debugPrint("Advertencia: No se pudieron sincronizar los GAPs con el servidor: $e");
+      }
     }
 
     final results = await Future.wait([
@@ -208,8 +218,12 @@ class ScheduleViewModel extends ChangeNotifier with OfflineAwareMixin {
   Future<void> logout() async {
     // The user id is read first because logging out removes it
     final userId = await TokenStorage.getUserId();
-    await _authService.logout();
-    if (userId != null) await SofiaLocalCache.instance.clearUserData(userId);
+    try {
+      await _authService.logout();
+    } finally {
+      // Even if the back could not be reached, what the user did on this phone is removed
+      await _sessionCleanup(userId);
+    }
   }
 
   // Today's classes and gaps, sorted by time (calculated in an isolate when the data arrives)

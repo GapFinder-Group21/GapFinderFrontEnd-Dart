@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:gapfinderfrontend_dart/core/network/api_client.dart';
+import 'package:gapfinderfrontend_dart/core/network/network_errors.dart';
 import 'package:gapfinderfrontend_dart/models/building.dart';
 
 class BuildingService {
@@ -86,6 +87,6 @@ class BuildingService {
     } catch (_) {
       // Not JSON, it is plain text
     }
-    return body;
+    return plainBackendText(body, fallback);
   }
 }

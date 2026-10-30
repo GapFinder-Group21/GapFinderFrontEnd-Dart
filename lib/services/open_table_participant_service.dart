@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'package:gapfinderfrontend_dart/core/network/api_client.dart';
+import 'package:gapfinderfrontend_dart/core/network/network_errors.dart';
+import 'package:gapfinderfrontend_dart/models/open_table.dart';
 import 'package:gapfinderfrontend_dart/models/open_table_participant.dart';
 
 class OpenTableParticipantService {
@@ -36,6 +38,19 @@ class OpenTableParticipantService {
 
     final List data = jsonDecode(utf8.decode(res.bodyBytes));
     return data.map((json) => OpenTableParticipant.fromJson(json)).toList();
+  }
+
+  // The open tables a user joined (not the ones they created), in ONE request -
+  // GET /open-table-participants/user/{userId}. Never ask the participants table by table.
+  Future<List<OpenTable>> getJoinedOpenTables(int userId) async {
+    final res = await ApiClient.get('/open-table-participants/user/$userId');
+
+    if (res.statusCode != 200) {
+      throw Exception(_errorMessage(res, 'Error getting the joined tables'));
+    }
+
+    final List data = jsonDecode(utf8.decode(res.bodyBytes));
+    return data.map((json) => OpenTable.fromJson(json)).toList();
   }
 
   // A user joins an open table - POST /open-table-participants/table/{tableId}/join?userId=
@@ -108,6 +123,6 @@ class OpenTableParticipantService {
     } catch (_) {
       // Not JSON, it is plain text
     }
-    return body;
+    return plainBackendText(body, fallback);
   }
 }

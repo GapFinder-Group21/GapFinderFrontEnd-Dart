@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:gapfinderfrontend_dart/core/network/api_config.dart';
 import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
 import 'package:gapfinderfrontend_dart/navigation/navigator_key.dart'; // Para acceder al navigatorKey
+import 'package:gapfinderfrontend_dart/services/session_cleanup.dart';
 
 class ApiClient {
   // GET autenticado
@@ -81,7 +82,11 @@ class ApiClient {
 
   static Future<void> _forceLogout() async {
     print('🚨 SESSION EXPIRED: Forced logout triggered (401/403)');
+    // The user is read first because clearing the tokens removes it
+    final userId = await TokenStorage.getUserId();
     await TokenStorage.clear();
+    // The same cleanup as the logout button: reminders, pending actions, caches and saved data of that user
+    await SessionCleanup.run(userId);
     
     // Importamos dinámicamente o usamos la llave global para navegar sin context
     final navigator = navigatorKey.currentState;

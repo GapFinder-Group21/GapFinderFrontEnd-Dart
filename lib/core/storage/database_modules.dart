@@ -7,6 +7,7 @@ import 'package:gapfinderfrontend_dart/data/local/miguel/miguel_database_module.
 // Cada integrante agrega aquí su módulo en una línea
 final List<DatabaseModule> databaseModules = [
   outboxModule,
+  outboxRefusalsModule,
   sofiaDatabaseModule,
   joelDatabaseModule,
   miguelDatabaseModule,

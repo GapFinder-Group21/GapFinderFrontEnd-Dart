@@ -33,6 +33,35 @@ const outboxModule = DatabaseModule(
   ],
 );
 
+// What the back answered when it refused an action for good (full table, ended, match time passed...).
+// It is saved so the screen that queued the action can tell the user why it did not happen, even if
+// nobody was looking when it was sent.
+const outboxRefusalsModule = DatabaseModule(
+  name: 'outbox_refusals',
+  createStatements: [
+    '''
+    CREATE TABLE IF NOT EXISTS outbox_refusals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      key TEXT NOT NULL,
+      type TEXT NOT NULL,
+      message TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    )
+    ''',
+    'CREATE INDEX IF NOT EXISTS idx_outbox_refusals_key ON outbox_refusals(key)',
+  ],
+);
+
+// An action that the back refused for good
+class OutboxRefusal {
+  final String key;
+  final String type;
+  final String message;
+  final DateTime createdAt;
+
+  const OutboxRefusal({required this.key, required this.type, required this.message, required this.createdAt});
+}
+
 // Sends one request to the back (replaced in tests)
 typedef OutboxSender = Future<http.Response> Function(String method, String endpoint, Map<String, dynamic>? body);
 
@@ -40,6 +69,12 @@ typedef OutboxSender = Future<http.Response> Function(String method, String endp
 class OutboxService {
   // After this many failed tries a row is not retried anymore
   static const maxAttempts = 5;
+
+  // A request that takes longer than this counts as a network failure (nothing is lost, it is retried)
+  static const sendTimeout = Duration(seconds: 15);
+
+  // After a network failure the rest of the rows is tried again after this time
+  static const retryDelay = Duration(seconds: 15);
 
   static final OutboxService instance = OutboxService._(
     database: () => AppDatabase.instance.database,
@@ -51,7 +86,9 @@ class OutboxService {
     required this._database,
     required this._send,
     required this._isOnline,
-  }) : _flushOnEnqueue = true;
+  })  : _flushOnEnqueue = true,
+        _sendTimeout = sendTimeout,
+        _retryDelay = retryDelay;
 
   @visibleForTesting
   OutboxService.forTesting({
@@ -59,6 +96,8 @@ class OutboxService {
     required this._send,
     Future<bool> Function()? isOnline,
     this._flushOnEnqueue = false,
+    this._sendTimeout = OutboxService.sendTimeout,
+    this._retryDelay,
   }) : _isOnline = isOnline ?? (() async => true);
 
   final Future<Database> Function() _database;
@@ -66,6 +105,9 @@ class OutboxService {
   final Future<bool> Function() _isOnline;
   // The real app tries to send right after saving; tests turn it off to read the table as it was saved
   final bool _flushOnEnqueue;
+  final Duration _sendTimeout;
+  // null = never retry by itself (tests)
+  final Duration? _retryDelay;
 
   // A 4xx answer means the back refused the action for good (full table, ended...), so retrying
   // is useless. These ones are the exception: they can pass later.
@@ -73,9 +115,13 @@ class OutboxService {
 
   final Map<String, Future<bool> Function(Map<String, dynamic> row)> _handlers = {};
   final _changes = StreamController<void>.broadcast();
+  final _refusals = StreamController<OutboxRefusal>.broadcast();
   StreamSubscription<bool>? _connectivitySub;
+  Timer? _retryTimer;
   bool _initialized = false;
   bool _flushing = false;
+  // Something was saved while a flush was running: that flush already read its rows, so it must run again
+  bool _flushAgain = false;
 
   // Sends the pending actions at start and every time the connection comes back
   Future<void> init() async {
@@ -155,6 +201,10 @@ class OutboxService {
     });
 
     if (saved) {
+      // A new action with the same key: the old refusal of that key is no longer valid
+      if (dedupeKey != null) {
+        await db.delete('outbox_refusals', where: 'key = ?', whereArgs: [dedupeKey]);
+      }
       _changes.add(null);
       // With connection it leaves at once; without it, flush checks the real state of the network
       // (this is what notices that the wifi came back when the platform did not warn)
@@ -183,6 +233,33 @@ class OutboxService {
     _changes.add(null);
   }
 
+  // Removes every pending action and every saved refusal (used when the session ends: the actions
+  // of one user must never be sent with the token of the next one)
+  Future<void> clearAll() async {
+    _retryTimer?.cancel();
+    final db = await _database();
+    await db.delete('outbox');
+    await db.delete('outbox_refusals');
+    _changes.add(null);
+  }
+
+  // Actions that the back refused for good, as they happen
+  Stream<OutboxRefusal> get refusals => _refusals.stream;
+
+  // The last refusal of the action with this key (null if there is none)
+  Future<OutboxRefusal?> lastRefusalFor(String key) async {
+    final db = await _database();
+    final rows = await db.query('outbox_refusals', where: 'key = ?', whereArgs: [key], orderBy: 'id DESC', limit: 1);
+    if (rows.isEmpty) return null;
+    final row = rows.first;
+    return OutboxRefusal(
+      key: row['key'] as String,
+      type: row['type'] as String,
+      message: row['message'] as String,
+      createdAt: DateTime.tryParse(row['created_at'] as String) ?? DateTime.now(),
+    );
+  }
+
   // The keys of the pending actions, to disable the button and show "Pendiente de enviar"
   Stream<Set<String>> get pendingKeys => _watch<Set<String>>(() async {
         final db = await _database();
@@ -202,25 +279,39 @@ class OutboxService {
         return Sqflite.firstIntValue(rows) ?? 0;
       }).distinct();
 
-  // Sends the pending actions in the order they were made. Two flushes never run at the same time.
+  // Sends the pending actions in the order they were made. Two flushes never run at the same time, but if
+  // something was saved while one was running, it runs again when it finishes (so nothing waits for an event
+  // that may never come).
   // A row is deleted when it works or when the back answers 409 (the action was already done).
+  // A 422 or another final 4xx means the back refused it: the row is deleted and the refusal is saved.
   // If it fails, attempts grows and the error is saved; after maxAttempts it is not retried.
   Future<void> flush() async {
-    if (_flushing) return;
+    if (_flushing) {
+      _flushAgain = true;
+      return;
+    }
     _flushing = true;
 
     try {
-      // Without connection nothing is sent, so the attempts are not wasted
-      if (!await _isOnline()) return;
+      do {
+        _flushAgain = false;
 
-      final db = await _database();
-      final rows = await db.query('outbox', where: 'attempts < ?', whereArgs: [maxAttempts], orderBy: 'id ASC');
+        // Without connection nothing is sent, so the attempts are not wasted
+        if (!await _isOnline()) break;
 
-      for (final row in rows) {
-        final keepGoing = await _sendRow(db, Map<String, dynamic>.from(row));
-        _changes.add(null);
-        if (!keepGoing) break; // the network failed: the rest waits without using attempts
-      }
+        final db = await _database();
+        final rows = await db.query('outbox', where: 'attempts < ?', whereArgs: [maxAttempts], orderBy: 'id ASC');
+
+        for (final row in rows) {
+          final keepGoing = await _sendRow(db, Map<String, dynamic>.from(row));
+          _changes.add(null);
+          if (!keepGoing) {
+            // The network failed: the rest waits without using attempts and is tried again later
+            _scheduleRetry();
+            break;
+          }
+        }
+      } while (_flushAgain);
     } catch (e) {
       debugPrint('Error sending the outbox: $e');
     } finally {
@@ -228,17 +319,31 @@ class OutboxService {
     }
   }
 
+  // After a network failure the platform may still say "online", so no event would ever call flush
+  // again: it tries again by itself after a while
+  void _scheduleRetry() {
+    final delay = _retryDelay;
+    if (delay == null || _retryTimer?.isActive == true) return;
+    _retryTimer = Timer(delay, flush);
+  }
+
   // Returns false when the network failed, so flush stops and no attempt is wasted on the rest
-  Future<bool> _sendRow(Database db, Map<String, dynamic> row) async {
-    final id = row['id'] as int;
+  Future<bool> _sendRow(Database db, Map<String, dynamic> queued) async {
+    final id = queued['id'] as int;
 
     try {
+      // The row is read again: the user may have cancelled it, or replaced its body, while the rows
+      // before it were being sent
+      final current = await db.query('outbox', where: 'id = ?', whereArgs: [id], limit: 1);
+      if (current.isEmpty) return true;
+      final row = Map<String, dynamic>.from(current.first);
+
       final handler = _handlers[row['type']];
       if (handler != null) {
         if (!await handler(row)) throw Exception('The handler could not do the action');
       } else {
         final body = row['body'] == null ? null : jsonDecode(row['body'] as String) as Map<String, dynamic>;
-        final res = await _send(row['method'] as String, row['endpoint'] as String, body);
+        final res = await _send(row['method'] as String, row['endpoint'] as String, body).timeout(_sendTimeout);
 
         // 409: the back says the action was already done, so it is not an error
         final done = (res.statusCode >= 200 && res.statusCode < 300) || res.statusCode == 409;
@@ -246,9 +351,11 @@ class OutboxService {
           final refusedForGood =
               res.statusCode >= 400 && res.statusCode < 500 && !_retryableClientErrors.contains(res.statusCode);
           if (refusedForGood) {
-            // The row is removed; whoever was waiting for it sees the key leave and checks the result
+            // The row is removed and the refusal is saved: whoever was waiting for the key to leave
+            // can tell the user why the action did not happen
             debugPrint('Outbox: the back refused ${row['type']} (HTTP ${res.statusCode}), it is dropped');
             await db.delete('outbox', where: 'id = ?', whereArgs: [id]);
+            await _saveRefusal(db, row, res);
             return true;
           }
           throw Exception('HTTP ${res.statusCode}');
@@ -265,6 +372,47 @@ class OutboxService {
       );
       return true;
     }
+  }
+
+  // Saves the refusal of the back and tells whoever is listening
+  Future<void> _saveRefusal(Database db, Map<String, dynamic> row, http.Response res) async {
+    final refusal = OutboxRefusal(
+      key: (row['dedupe_key'] as String?) ?? '',
+      type: row['type'] as String,
+      message: _refusalMessage(res),
+      createdAt: DateTime.now(),
+    );
+
+    try {
+      await db.insert('outbox_refusals', {
+        'key': refusal.key,
+        'type': refusal.type,
+        'message': refusal.message,
+        'created_at': refusal.createdAt.toIso8601String(),
+      });
+    } catch (e) {
+      debugPrint('Outbox: the refusal could not be saved: $e');
+    }
+    if (!_refusals.isClosed) _refusals.add(refusal);
+  }
+
+  // The text of the back in Spanish when it is readable, otherwise a message of our own
+  static String _refusalMessage(http.Response res) {
+    const fallback = 'El servidor no aceptó la acción';
+    final body = utf8.decode(res.bodyBytes, allowMalformed: true).trim();
+    if (body.isEmpty) return fallback;
+
+    try {
+      final decoded = jsonDecode(body);
+      if (decoded is Map) {
+        final text = (decoded['error'] ?? decoded['message'])?.toString() ?? '';
+        return plainBackendText(text, fallback);
+      }
+      if (decoded is String) return plainBackendText(decoded, fallback);
+    } catch (_) {
+      // Not JSON: plain text
+    }
+    return plainBackendText(body, fallback);
   }
 
   // Emits the current value when someone listens, and again every time the table changes
@@ -311,7 +459,9 @@ class OutboxService {
   // Only for tests
   @visibleForTesting
   Future<void> dispose() async {
+    _retryTimer?.cancel();
     await _connectivitySub?.cancel();
     await _changes.close();
+    await _refusals.close();
   }
 }
