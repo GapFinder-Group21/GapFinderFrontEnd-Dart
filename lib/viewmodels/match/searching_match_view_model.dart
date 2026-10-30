@@ -58,6 +58,8 @@ class SearchingMatchViewModel extends ChangeNotifier {
 
   StreamSubscription<bool>? _connectivitySub;
   bool _cancelled = false;
+  // Id of the newest search: results and errors of older searches are ignored
+  int _searchId = 0;
   bool _connectionLost = false;
   bool _isCheckingConnection = false;
   bool _disposed = false;
@@ -95,6 +97,10 @@ class SearchingMatchViewModel extends ChangeNotifier {
   // so in that case it returns the accepted match of that gap (a completed one just gives NoMatches).
   // Returns null when the search was cancelled.
   Future<SearchOutcome?> search() async {
+    final id = ++_searchId;
+    // True when this search was cancelled or a newer one started
+    bool stale() => _cancelled || id != _searchId;
+
     // Without connection there is nothing to search: go straight to the "lost connection" state
     if (!_connectivity.isOnline) {
       _markConnectionLost();
@@ -106,7 +112,7 @@ class SearchingMatchViewModel extends ChangeNotifier {
       final now = DateTime.now();
       final currentGap = gaps.where((g) => !now.isBefore(g.startTime) && now.isBefore(g.endTime)).firstOrNull;
 
-      if (_cancelled) return null;
+      if (stale()) return null;
 
       if (currentGap == null) {
         return NoMatches();
@@ -119,16 +125,17 @@ class SearchingMatchViewModel extends ChangeNotifier {
         useEffort: mode == MatchModeEnum.effort,
       ).timeout(requestTimeout);
 
-      if (_cancelled) return null;
+      if (stale()) return null;
 
       if (results.isEmpty) {
         final allMatches = await _matchService.getAll().timeout(requestTimeout);
+        if (stale()) return null;
         final activeMatch = allMatches.where((m) =>
           (m.proposerGapId == currentGap.id || m.acceptorGapId == currentGap.id) &&
           m.status == MatchStatusEnum.ACCEPTED
         ).firstOrNull;
         if (activeMatch != null) {
-          if (_cancelled) return null;
+          if (stale()) return null;
           // The other person is the owner of the gap that is not yours
           final isProposer = activeMatch.proposerGap?.user?.id == userId;
           final candidateUser = isProposer
@@ -142,11 +149,13 @@ class SearchingMatchViewModel extends ChangeNotifier {
 
       final bestCandidate = results.first;
 
-      if (_cancelled) return null;
+      if (stale()) return null;
 
       return CandidateFound(currentGap.id, bestCandidate);
     } catch (e) {
       debugPrint('Error searching match: $e');
+      // An older search that fails must not change the state of the newer one
+      if (id != _searchId) return null;
       // A network failure is not "no matches": it is a lost connection
       if (isNetworkError(e)) {
         _markConnectionLost();
