@@ -179,4 +179,39 @@ void main() {
       expect(notifications.calls, 0);
     });
   });
+
+  group('J-12: closing the invitation', () {
+    test('closed with the back button: it is not marked as read and opens again', () async {
+      notifications.unread = [_proposal(10, 77)];
+      final events = <MatchInvitationEvent>[];
+      vm.events.listen(events.add);
+
+      await vm.checkNotificationsNow();
+      await Future<void>.delayed(Duration.zero);
+      vm.onInvitationClosed(events.single, answered: false);
+
+      await vm.checkNotificationsNow();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(notifications.markedRead, isEmpty);
+      expect(events.map((e) => e.matchId), [77, 77]);
+    });
+
+    test('answered: it is marked as read and not opened again', () async {
+      notifications.unread = [_proposal(10, 77)];
+      final events = <MatchInvitationEvent>[];
+      vm.events.listen(events.add);
+
+      await vm.checkNotificationsNow();
+      await Future<void>.delayed(Duration.zero);
+      vm.onInvitationClosed(events.single, answered: true);
+      await Future<void>.delayed(Duration.zero);
+
+      await vm.checkNotificationsNow();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(notifications.markedRead, [10]);
+      expect(events, hasLength(1));
+    });
+  });
 }

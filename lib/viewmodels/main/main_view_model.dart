@@ -287,11 +287,16 @@ class MainViewModel extends ChangeNotifier {
   @visibleForTesting
   Future<void> checkNotificationsNow() => _checkNotifications();
 
-  // Called by the View when the invitation screen is closed
-  void onInvitationClosed(int notificationId) {
+  // Called by the View when the invitation screen is closed. Only an answered invitation is marked as
+  // read; one closed with the back button is offered again in a next check.
+  void onInvitationClosed(MatchInvitationEvent event, {required bool answered}) {
     _invitationOpen = false;
+    if (!answered) {
+      _handledMatchRequests.remove(event.matchId);
+      return;
+    }
     final userId = _userId;
-    if (userId != null) _markAsRead(notificationId, userId);
+    if (userId != null) _markAsRead(event.notificationId, userId);
   }
 
   // Marks a notification as read - PUT /api/notifications/{notificationId}/read

@@ -28,7 +28,8 @@ class _MatchInvitationViewState extends State<MatchInvitationView> {
 
   Future<void> _load() async {
     final ok = await context.read<MatchInvitationViewModel>().init();
-    if (!ok && mounted) Navigator.pop(context);
+    // The back refused it (it does not exist anymore): it counts as answered, so it is not offered again
+    if (!ok && mounted) Navigator.pop(context, true);
   }
 
   static const _queuedNotice = 'Tu respuesta a la invitación se enviará cuando vuelva la conexión';
@@ -40,9 +41,11 @@ class _MatchInvitationViewState extends State<MatchInvitationView> {
     if (!mounted) return;
 
     if (answer == InvitationAnswer.done) {
+      // result: true tells the home screen that the invitation was answered
       Navigator.pushReplacementNamed(
         context,
         AppRoutes.itsAMatch,
+        result: true,
         arguments: {
           'matchId': vm.acceptedMatch!.id,
           'candidateUser': vm.acceptedMatch!.proposerGap?.user,
@@ -66,7 +69,7 @@ class _MatchInvitationViewState extends State<MatchInvitationView> {
     if (!mounted) return;
 
     if (answer == InvitationAnswer.done) {
-      Navigator.pop(context);
+      Navigator.pop(context, true);
     } else if (answer == InvitationAnswer.queued) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text(_queuedNotice)),
@@ -79,8 +82,21 @@ class _MatchInvitationViewState extends State<MatchInvitationView> {
   }
 
   @override
+  // Leaving with the back button: the invitation counts as answered only if it was answered or the answer
+  // waits in the outbox; if not, the home screen offers it again later
   Widget build(BuildContext context) {
     final vm = context.watch<MatchInvitationViewModel>();
+    return PopScope<Object?>(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        Navigator.pop(context, vm.isAnswered || vm.isPending ? true : null);
+      },
+      child: _buildContent(vm),
+    );
+  }
+
+  Widget _buildContent(MatchInvitationViewModel vm) {
     if (vm.isLoading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
@@ -195,7 +211,7 @@ class _MatchInvitationViewState extends State<MatchInvitationView> {
                             CustomButton(
                               label: 'Cerrar',
                               color: AppColors.accent3,
-                              onClick: () => Navigator.pop(context),
+                              onClick: () => Navigator.pop(context, true),
                             ),
                           ],
                         )
