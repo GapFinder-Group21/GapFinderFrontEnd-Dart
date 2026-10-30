@@ -3,6 +3,15 @@ import 'package:gapfinderfrontend_dart/core/network/api_client.dart';
 import 'package:gapfinderfrontend_dart/models/match.dart';
 import 'package:gapfinderfrontend_dart/models/responses/match_candidate.dart';
 
+// The match does not exist anymore (the back answered 404)
+class MatchNotFoundException implements Exception {
+  final int matchId;
+  MatchNotFoundException(this.matchId);
+
+  @override
+  String toString() => 'Match $matchId not found';
+}
+
 class MatchService {
   // Candidates for a gap - GET /matches/gap/{gapId}/candidates
   Future<List<MatchCandidate>> getCandidates(
@@ -61,6 +70,7 @@ class MatchService {
   Future<Match> getById(int id) async {
     final res = await ApiClient.get('/matches/$id');
 
+    if (res.statusCode == 404) throw MatchNotFoundException(id);
     if (res.statusCode != 200) {
       throw Exception(_errorMessage(res, 'Error getting match'));
     }
