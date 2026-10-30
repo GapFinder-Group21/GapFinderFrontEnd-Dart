@@ -113,6 +113,18 @@ class MatchService {
     return Match.fromJson(jsonDecode(utf8.decode(res.bodyBytes)));
   }
 
+  // Cancel a request the user sent while it is still pending - POST /matches/{id}/cancel
+  // If it was already answered the back refuses it (422) with a Spanish message
+  Future<Match> cancel(int matchId) async {
+    final res = await ApiClient.post('/matches/$matchId/cancel');
+
+    if (res.statusCode != 200) {
+      throw Exception(_errorMessage(res, 'Error cancelling match'));
+    }
+
+    return Match.fromJson(jsonDecode(utf8.decode(res.bodyBytes)));
+  }
+
   // Mark an accepted match as completed - PATCH /matches/{id}/complete
   Future<Match> complete(int matchId) async {
     final res = await ApiClient.patch('/matches/$matchId/complete');

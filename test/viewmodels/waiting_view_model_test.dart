@@ -36,6 +36,16 @@ class _FakeConnectivity implements ConnectivityService {
 class _FakeMatches extends MatchService {
   MatchStatusEnum status = MatchStatusEnum.PENDING;
   int calls = 0;
+  int cancelCalls = 0;
+  Object? cancelError;
+
+  @override
+  Future<Match> cancel(int matchId) async {
+    cancelCalls++;
+    if (cancelError != null) throw cancelError!;
+    final now = DateTime.now();
+    return Match(id: matchId, startTime: now, endTime: now, status: MatchStatusEnum.REJECTED);
+  }
 
   @override
   Future<Match> getById(int id) async {
@@ -101,6 +111,37 @@ void main() {
 
       expect(events.whereType<MatchRejected>().length, 1);
       expect(matches.calls, 1);
+    });
+  });
+
+  group('J-15: Cancel Request', () {
+    test('it cancels the request in the back and stops the polling', () async {
+      expect(await vm.cancelRequest(), isNull);
+      expect(matches.cancelCalls, 1);
+
+      vm.pausePolling();
+      vm.resumePolling();
+      await Future<void>.delayed(Duration.zero);
+      expect(matches.calls, 0);
+    });
+
+    test('already answered (422): it shows the message of the back and keeps waiting', () async {
+      matches.cancelError = Exception('La solicitud ya fue respondida');
+
+      expect(await vm.cancelRequest(), 'La solicitud ya fue respondida');
+
+      vm.pausePolling();
+      vm.resumePolling();
+      await Future<void>.delayed(Duration.zero);
+      expect(matches.calls, 1);
+    });
+
+    test('without connection it says it needs connection and sends nothing', () async {
+      connectivity.emit(false);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(await vm.cancelRequest(), 'Cancelar la solicitud necesita conexión');
+      expect(matches.cancelCalls, 0);
     });
   });
 }

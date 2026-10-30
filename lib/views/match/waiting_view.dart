@@ -82,10 +82,15 @@ class _WaitingViewState extends State<WaitingView> with WidgetsBindingObserver {
     );
   }
 
-  // Stops waiting and goes back
-  void _cancel() {
-    context.read<WaitingViewModel>().cancel();
-    Navigator.pop(context);
+  // Cancels the request in the back and goes back; if it could not be cancelled, says why and keeps waiting
+  Future<void> _cancel() async {
+    final message = await context.read<WaitingViewModel>().cancelRequest();
+    if (!mounted) return;
+    if (message == null) {
+      Navigator.pop(context);
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   // Message of the last status we know, shown while there is no connection
@@ -169,7 +174,7 @@ class _WaitingViewState extends State<WaitingView> with WidgetsBindingObserver {
               SizedBox(
                 width: double.infinity,
                 child: TextButton(
-                  onPressed: _cancel,
+                  onPressed: vm.isCancelling ? null : _cancel,
                   child: Text(
                     'Cancel Request',
                     style: AppFonts.body(weight: FontWeight.w700).copyWith(
