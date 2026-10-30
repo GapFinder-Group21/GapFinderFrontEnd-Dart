@@ -23,7 +23,7 @@ class LocationPermissionView extends StatelessWidget {
       if (Navigator.canPop(context)) {
         Navigator.pop(context);
       } else {
-        Navigator.pushReplacementNamed(context, AppRoutes.home);
+        AppRoutes.goHome(context);
       }
     }
   }

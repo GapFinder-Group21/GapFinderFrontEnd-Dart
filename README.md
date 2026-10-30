@@ -15,3 +15,15 @@ A few resources to get you started if this is your first Flutter project:
 For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
+
+## Server address
+
+The app reads the address of the server from `API_BASE_URL` (see `lib/core/network/api_config.dart`). It is the only place where the address is written. Without it the app uses a placeholder that never answers, so always pass the real address:
+
+```bash
+# Debug build for the demo by USB
+flutter run --dart-define=API_BASE_URL=https://<domain>
+
+# Release APK
+flutter build apk --release --dart-define=API_BASE_URL=https://<domain>
+```

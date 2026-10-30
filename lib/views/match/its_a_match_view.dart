@@ -216,7 +216,7 @@ class ItsAMatchView extends StatelessWidget {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () => Navigator.pushReplacementNamed(context, AppRoutes.home),
+                  onPressed: () => AppRoutes.goHome(context),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.accent1,
                     padding: const EdgeInsets.symmetric(vertical: 16),
