@@ -292,7 +292,8 @@ class FriendsViewModel extends ChangeNotifier {
         debugPrint('HIT "$key" ${_searchCache.describe()}');
       } else {
         debugPrint('MISS "$key" ${_searchCache.describe()}');
-        results = await _userService.searchByName(query.trim());
+        // The back gets the same text as the cache key, so what is cached is what was asked
+        results = await _userService.searchByName(key);
         _searchCache.put(key, results);
       }
       final currentUserId = await TokenStorage.getUserId();

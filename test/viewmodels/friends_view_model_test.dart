@@ -267,4 +267,10 @@ void main() {
       expect(vm.searchResults.map((u) => u.name), ['ana']);
     });
   });
+
+  test('J-13: the back gets the same text as the cache key (no double spaces, lower case)', () async {
+    await vm.search('  Ana   Maria ');
+
+    expect(users.searchedNames, ['ana maria']);
+  });
 }
