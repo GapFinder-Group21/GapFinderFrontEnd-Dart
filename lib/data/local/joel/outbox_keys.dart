@@ -7,7 +7,6 @@ class OutboxTypes {
   static const friendRequestReject = 'friend_request_reject';
   static const matchInvitationAccept = 'match_invitation_accept';
   static const matchInvitationDecline = 'match_invitation_decline';
-  static const photoUpload = 'photo_upload';
 }
 
 class OutboxKeys {
@@ -19,8 +18,6 @@ class OutboxKeys {
 
   // Accept and decline share the key, same idea
   static String matchInvitation(int matchId) => 'match_invitation_$matchId';
-
-  static String photoUpload(String photoPath) => 'photo_upload:$photoPath';
 
   // Keys that belong to the friends screen
   static bool isFriendKey(String key) => key.startsWith('friend_request_');
