@@ -22,6 +22,12 @@ class ExistingMatch extends SearchOutcome {
   ExistingMatch(this.matchId, this.candidateUser);
 }
 
+// The search failed for another reason (not the connection): show the message and offer to retry
+class SearchError extends SearchOutcome {
+  final String message;
+  SearchError(this.message);
+}
+
 // Best candidate found: open the "match found" screen
 class CandidateFound extends SearchOutcome {
   final int currentGapId;
@@ -161,8 +167,9 @@ class SearchingMatchViewModel extends ChangeNotifier {
         _markConnectionLost();
         return null;
       }
+      // Any other error is not "no matches" either: the screen says it failed and offers to retry
       if (!_cancelled) {
-        return NoMatches();
+        return SearchError(userMessage(e, network: 'No pudimos buscar un match. Intenta de nuevo'));
       }
       return null;
     }

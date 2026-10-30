@@ -158,4 +158,22 @@ void main() {
     expect(matchService.requestedUsers, [1]);
     vm.dispose();
   });
+
+  test('J-16: an error that is not the connection gives SearchError with a message, not NoMatches', () async {
+    final vm = SearchingMatchViewModel(1, MatchModeEnum.career,
+        gapService: _FailingGapService(), connectivity: _OnlineConnectivity());
+
+    final result = await vm.search();
+
+    expect(result, isA<SearchError>());
+    expect((result as SearchError).message, 'No pudimos buscar un match. Intenta de nuevo');
+    expect(vm.connectionLost, isFalse);
+    vm.dispose();
+  });
+}
+
+// The back answers with an error that is not a network failure
+class _FailingGapService extends GapService {
+  @override
+  Future<List<Gap>> getUserGaps(int userId, {String? weekStart}) async => throw TypeError();
 }

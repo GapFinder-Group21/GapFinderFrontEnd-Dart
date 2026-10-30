@@ -31,6 +31,8 @@ class _SearchingMatchViewState extends State<SearchingMatchView> {
     switch (outcome) {
       case NoMatches():
         _showNoMatchesDialog();
+      case SearchError(:final message):
+        _showSearchErrorDialog(message);
       case ExistingMatch(:final matchId, :final candidateUser):
         Navigator.pushReplacementNamed(
           context,
@@ -71,6 +73,34 @@ class _SearchingMatchViewState extends State<SearchingMatchView> {
             onClick: () {
               Navigator.pop(context); // Pop dialog
               Navigator.pop(context); // Pop screen
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Dialog shown when the search failed (not "no matches"): retry or go back
+  void _showSearchErrorDialog(String message) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('No pudimos buscar', style: AppFonts.display(weight: FontWeight.w800)),
+        content: Text(message, style: AppFonts.body()),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(dialogContext); // Pop dialog
+              Navigator.pop(context); // Pop screen
+            },
+            child: const Text('Volver'),
+          ),
+          CustomButton(
+            label: 'Reintentar',
+            onClick: () {
+              Navigator.pop(dialogContext);
+              _searchMatch();
             },
           ),
         ],
