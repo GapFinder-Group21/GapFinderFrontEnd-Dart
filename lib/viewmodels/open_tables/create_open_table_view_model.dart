@@ -270,7 +270,8 @@ class CreateOpenTableViewModel extends ChangeNotifier with OfflineAwareMixin {
       try {
         final response = await _preferredActivityService.getPreferredActivity(userId).timeout(preferredTimeout);
         _preferredFromNetwork = true;
-        // Saved for the next time (or forgotten if the back says the user has none); never breaks the screen
+        // Saved for the next time, or forgotten only when the back answers that the user has none (a 200
+        // without a favorite); an error or an unknown user (404) keeps the saved one. Never breaks the screen
         JoelLocalCache.instance.savePreferredActivity(userId, response.activityId);
         return response.activityId;
       } catch (e) {
