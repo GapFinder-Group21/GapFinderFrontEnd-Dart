@@ -53,6 +53,8 @@ class WaitingViewModel extends ChangeNotifier {
   MatchStatusEnum? _lastKnownStatus;
   DateTime? _lastUpdated;
   bool _cancelled = false;
+  // The match got a final answer (accepted or rejected): nothing is checked or sent again
+  bool _finished = false;
   // The app is in the background: the polling does not run
   bool _paused = false;
   bool _disposed = false;
@@ -83,7 +85,7 @@ class WaitingViewModel extends ChangeNotifier {
   void resumePolling() {
     if (!_paused) return;
     _paused = false;
-    if (_cancelled || _disposed || _isOffline) return;
+    if (_cancelled || _disposed || _isOffline || _finished) return;
     _poll();
     _startPolling();
   }
@@ -92,7 +94,7 @@ class WaitingViewModel extends ChangeNotifier {
   void _onConnectivityChanged(bool online) {
     _isOffline = !online;
     if (online) {
-      if (_cancelled || _disposed || _paused) return;
+      if (_cancelled || _disposed || _paused || _finished) return;
       _poll();
       _startPolling();
     } else {
@@ -125,11 +127,11 @@ class WaitingViewModel extends ChangeNotifier {
 
   // Accepted or rejected -> stops and sends an event to the View.
   Future<void> _poll() async {
-    if (_cancelled || _disposed || _isOffline || _polling || _paused) return;
+    if (_cancelled || _disposed || _isOffline || _polling || _paused || _finished) return;
     _polling = true;
     try {
       final Match match = await _matchService.getById(matchId).timeout(pollTimeout);
-      if (_cancelled || _disposed) return;
+      if (_cancelled || _disposed || _finished) return;
 
       _lastKnownStatus = match.status;
       _lastUpdated = DateTime.now();
@@ -137,10 +139,10 @@ class WaitingViewModel extends ChangeNotifier {
       _notify();
 
       if (match.status == MatchStatusEnum.ACCEPTED) {
-        _pollTimer?.cancel();
+        _finish();
         _events.add(MatchAccepted(match));
       } else if (match.status == MatchStatusEnum.REJECTED) {
-        _pollTimer?.cancel();
+        _finish();
         _events.add(MatchRejected());
       }
     } catch (e) {
@@ -148,6 +150,13 @@ class WaitingViewModel extends ChangeNotifier {
     } finally {
       _polling = false;
     }
+  }
+
+  // A final answer arrived: the polling stops for good, so the View gets only one event
+  void _finish() {
+    _finished = true;
+    _pollTimer?.cancel();
+    _pollTimer = null;
   }
 
   // Stops waiting

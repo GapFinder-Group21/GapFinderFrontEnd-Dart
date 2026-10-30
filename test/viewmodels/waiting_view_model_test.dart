@@ -83,4 +83,24 @@ void main() {
       expect(matches.calls, 1);
     });
   });
+
+  group('J-7: one final answer gives one event', () {
+    test('a connection lost and back after a rejection does not send a second rejection', () async {
+      matches.status = MatchStatusEnum.REJECTED;
+      final events = <WaitingEvent>[];
+      vm.events.listen(events.add);
+
+      vm.pausePolling();
+      vm.resumePolling();
+      await Future<void>.delayed(Duration.zero);
+      expect(events.whereType<MatchRejected>().length, 1);
+
+      connectivity.emit(false);
+      connectivity.emit(true);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(events.whereType<MatchRejected>().length, 1);
+      expect(matches.calls, 1);
+    });
+  });
 }
