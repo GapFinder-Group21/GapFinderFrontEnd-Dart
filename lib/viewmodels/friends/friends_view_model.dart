@@ -108,6 +108,8 @@ class FriendsViewModel extends ChangeNotifier {
   bool _hasError = false;
   List<User> _searchResults = [];
   bool _isSearching = false;
+  bool _searchLoading = false;
+  String? _searchError;
   String? _errorMessage;
   bool _disposed = false;
 
@@ -129,6 +131,10 @@ class FriendsViewModel extends ChangeNotifier {
   bool get hasError => _hasError;
   List<User> get searchResults => _searchResults;
   bool get isSearching => _isSearching;
+  // A search request is running: the screen shows a spinner instead of "No users found"
+  bool get searchLoading => _searchLoading;
+  // The last search failed: the screen shows this message
+  String? get searchError => _searchError;
   String? get errorMessage => _errorMessage;
   bool get isOffline => _isOffline;
   // When the friends on screen were last updated (the network answer or the saved copy)
@@ -260,10 +266,14 @@ class FriendsViewModel extends ChangeNotifier {
       _searchSeq++;
       _searchResults = [];
       _isSearching = false;
+      _searchLoading = false;
+      _searchError = null;
       _notify();
       return Future.value();
     }
     _isSearching = true;
+    _searchLoading = true;
+    _searchError = null;
     _notify();
 
     final waiting = Completer<void>();
@@ -300,9 +310,15 @@ class FriendsViewModel extends ChangeNotifier {
       // A newer search started while this one waited: its answer is old
       if (seq != _searchSeq || _disposed) return;
       _searchResults = results.where((u) => u.id != currentUserId).toList();
+      _searchLoading = false;
       _notify();
     } catch (e) {
       debugPrint('Error searching users: $e');
+      if (seq != _searchSeq || _disposed) return;
+      _searchResults = [];
+      _searchLoading = false;
+      _searchError = userMessage(e, network: 'No pudimos buscar usuarios. Intenta de nuevo');
+      _notify();
     }
   }
 
@@ -328,6 +344,8 @@ class FriendsViewModel extends ChangeNotifier {
     // Estrategia: Future con handler. The answer is handled with .then (it worked) and
     // .catchError (it failed) instead of await + try/catch.
     return _friendshipService.sendRequest(userId, targetUserId).then<bool?>((_) {
+      // The saved searches still show this user with "Add"
+      _searchCache.clear();
       _searchResults = [];
       _isSearching = false;
       _notify();
@@ -353,6 +371,8 @@ class FriendsViewModel extends ChangeNotifier {
 
     try {
       await _friendshipService.acceptRequest(friendshipId, userId);
+      // The saved searches still show the new friend with "Add"
+      _searchCache.clear();
       refresh();
       return true;
     } catch (e) {

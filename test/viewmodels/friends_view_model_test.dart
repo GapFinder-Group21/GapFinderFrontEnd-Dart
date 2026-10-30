@@ -74,10 +74,13 @@ class FakeUserService extends UserService {
   // Searches that answer only when the test completes them
   final Map<String, Completer<List<User>>> slow = {};
 
+  Object? error;
+
   @override
   Future<List<User>> searchByName(String name) async {
     searchCalls++;
     searchedNames.add(name);
+    if (error != null) throw error!;
     final waiting = slow[name];
     if (waiting != null) return waiting.future;
     if (noResults) return [];
@@ -272,5 +275,50 @@ void main() {
     await vm.search('  Ana   Maria ');
 
     expect(users.searchedNames, ['ana maria']);
+  });
+
+  group('J-14: search states', () {
+    test('a sent friend request clears the saved searches, so the next search asks the back again', () async {
+      await vm.search('ana');
+      expect(await vm.sendFriendRequest(2), isTrue);
+
+      await vm.search('ana');
+
+      expect(users.searchCalls, 2);
+    });
+
+    test('an accepted friend request clears the saved searches too', () async {
+      await vm.search('ana');
+      expect(await vm.acceptRequest(10), isTrue);
+
+      await vm.search('ana');
+
+      expect(users.searchCalls, 2);
+    });
+
+    test('while the request runs the search is loading, so "No users found" is not shown', () async {
+      users.slow['ana'] = Completer<List<User>>();
+
+      final running = vm.search('ana');
+      await Future<void>.delayed(Duration.zero);
+      expect(vm.searchLoading, isTrue);
+
+      users.slow['ana']!.complete([_user(2, 'ana')]);
+      await running;
+      expect(vm.searchLoading, isFalse);
+    });
+
+    test('a failed search stops loading and shows a Spanish message', () async {
+      users.error = Exception('La búsqueda no está disponible');
+
+      await vm.search('ana');
+
+      expect(vm.searchLoading, isFalse);
+      expect(vm.searchError, 'La búsqueda no está disponible');
+
+      users.error = TypeError();
+      await vm.search('leo');
+      expect(vm.searchError, 'No pudimos buscar usuarios. Intenta de nuevo');
+    });
   });
 }
