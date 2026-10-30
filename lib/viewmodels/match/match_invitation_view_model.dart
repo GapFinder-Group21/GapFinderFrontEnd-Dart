@@ -179,7 +179,7 @@ class MatchInvitationViewModel extends ChangeNotifier {
       }
     } catch (e) {
       _isProcessing = false;
-      _errorMessage = 'Error accepting match: $e';
+      _errorMessage = userMessage(e, network: 'No pudimos aceptar la invitación. Intenta de nuevo');
       _notify();
       return InvitationAnswer.failed;
     }
@@ -210,7 +210,7 @@ class MatchInvitationViewModel extends ChangeNotifier {
       }
     } catch (e) {
       _isProcessing = false;
-      _errorMessage = 'Error declining match: $e';
+      _errorMessage = userMessage(e, network: 'No pudimos rechazar la invitación. Intenta de nuevo');
       _notify();
       return InvitationAnswer.failed;
     }

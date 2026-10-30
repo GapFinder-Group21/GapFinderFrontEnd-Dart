@@ -334,7 +334,7 @@ class FriendsViewModel extends ChangeNotifier {
       return true;
     }).catchError((Object e) async {
       if (isNetworkError(e)) return queue();
-      _errorMessage = e.toString().replaceAll('Exception: ', '');
+      _errorMessage = userMessage(e, network: 'No pudimos enviar la solicitud de amistad. Intenta de nuevo');
       return false;
     });
   }
@@ -356,7 +356,7 @@ class FriendsViewModel extends ChangeNotifier {
       return true;
     } catch (e) {
       if (isNetworkError(e)) return _queue(OutboxTypes.friendRequestAccept, 'PATCH', endpoint, key);
-      _errorMessage = 'Error accepting request: $e';
+      _errorMessage = userMessage(e, network: 'No pudimos aceptar la solicitud. Intenta de nuevo');
       return false;
     }
   }
@@ -378,7 +378,7 @@ class FriendsViewModel extends ChangeNotifier {
       return true;
     } catch (e) {
       if (isNetworkError(e)) return _queue(OutboxTypes.friendRequestReject, 'PATCH', endpoint, key);
-      _errorMessage = 'Error rejecting request: $e';
+      _errorMessage = userMessage(e, network: 'No pudimos rechazar la solicitud. Intenta de nuevo');
       return false;
     }
   }

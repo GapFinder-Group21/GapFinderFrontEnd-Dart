@@ -178,10 +178,23 @@ void main() {
       expect(vm.errorMessage, 'already friends');
 
       expect(await vm.acceptRequest(10), isFalse);
-      expect(vm.errorMessage, contains('Error accepting request'));
+      expect(vm.errorMessage, 'already friends');
 
       expect(await vm.rejectRequest(10), isFalse);
-      expect(vm.errorMessage, contains('Error rejecting request'));
+      expect(vm.errorMessage, 'already friends');
+    });
+
+    test('J-11: a technical error never reaches the message, the screen shows its own text', () async {
+      friendships.error = TypeError();
+
+      expect(await vm.sendFriendRequest(5), isFalse);
+      expect(vm.errorMessage, 'No pudimos enviar la solicitud de amistad. Intenta de nuevo');
+
+      expect(await vm.acceptRequest(10), isFalse);
+      expect(vm.errorMessage, 'No pudimos aceptar la solicitud. Intenta de nuevo');
+
+      expect(await vm.rejectRequest(10), isFalse);
+      expect(vm.errorMessage, 'No pudimos rechazar la solicitud. Intenta de nuevo');
     });
 
     test('actions return null when there is no session', () async {

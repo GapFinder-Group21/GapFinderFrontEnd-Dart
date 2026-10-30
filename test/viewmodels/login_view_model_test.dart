@@ -62,6 +62,14 @@ void main() {
       expect(vm.isLoading, isFalse);
     });
 
+    test('J-11: a technical error shows the generic message, never the exception text', () async {
+      auth.error = const FormatException('Unexpected character at position 0');
+
+      expect(await vm.login('ana@test.com', 'secret'), isFalse);
+
+      expect(vm.errorMessage, 'No pudimos iniciar sesión. Intenta de nuevo');
+    });
+
     test('validate() checks empty fields and email format', () {
       expect(vm.validate('', 'secret'), 'Please fill in all fields');
       expect(vm.validate('ana@test.com', ''), 'Please fill in all fields');

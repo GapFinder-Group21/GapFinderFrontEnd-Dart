@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:gapfinderfrontend_dart/core/network/network_errors.dart';
 import 'package:gapfinderfrontend_dart/core/network/connectivity_service.dart';
 import 'package:gapfinderfrontend_dart/data/local/joel/joel_local_cache.dart';
 import 'package:gapfinderfrontend_dart/models/user.dart';
@@ -79,7 +80,7 @@ class LoginViewModel extends ChangeNotifier {
       _errorMessage = 'La conexión tardó demasiado. Intenta de nuevo';
       return false;
     } catch (e) {
-      _errorMessage = e.toString().replaceAll('Exception: ', '');
+      _errorMessage = userMessage(e, network: 'No pudimos iniciar sesión. Intenta de nuevo');
       return false;
     } finally {
       _isLoading = false;

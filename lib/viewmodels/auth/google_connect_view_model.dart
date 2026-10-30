@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:gapfinderfrontend_dart/core/network/network_errors.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:gapfinderfrontend_dart/core/network/connectivity_service.dart';
 import 'package:gapfinderfrontend_dart/services/google_service.dart';
@@ -58,7 +59,7 @@ class GoogleConnectViewModel extends ChangeNotifier {
       _opened = true;
       _loading = false;
     } catch (e) {
-      _error = e.toString();
+      _error = userMessage(e, network: 'No pudimos abrir la conexión con Google. Intenta de nuevo');
       _loading = false;
     }
     _notify();
