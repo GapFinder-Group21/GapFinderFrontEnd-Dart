@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
 import 'package:gapfinderfrontend_dart/data/local/joel/friend_dao.dart';
@@ -121,10 +120,6 @@ class JoelLocalCache {
 
   void saveMainTab(int tabIndex) {
     _run('main tab', () => mainTab.save(tabIndex));
-  }
-
-  void savePendingPhoto(File photo) {
-    _run('pending photo', () => pendingPhoto.save(photo));
   }
 
   void clearPendingPhoto() {

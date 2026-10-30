@@ -10,6 +10,16 @@ import 'package:gapfinderfrontend_dart/core/storage/local_file_store.dart';
 class PendingPhotoStore {
   static const _pathKey = 'joel_pending_photo_path';
 
+  // A photo of a wizard left more than this long ago is not offered to a new table
+  static const maxAge = Duration(hours: 24);
+
+  // True when the photo saved at this path (pending_photos/<millis>.jpg) is older than maxAge
+  static bool isExpired(String path, DateTime now) {
+    final millis = int.tryParse(p.basenameWithoutExtension(path));
+    if (millis == null) return false;
+    return now.difference(DateTime.fromMillisecondsSinceEpoch(millis)) > maxAge;
+  }
+
   // Save and clear run one after the other, so a fast publish never leaves a file behind
   Future<void> _queue = Future.value();
 
@@ -37,10 +47,15 @@ class PendingPhotoStore {
     return prefs.getString(_pathKey);
   }
 
-  // The pending photo as a File, or null if there is none or the file is gone
+  // The pending photo as a File, or null if there is none, the file is gone or it is too old
+  // (an old one is removed, so days later a new table does not start with it)
   Future<File?> currentFile() async {
     final path = await currentPath();
     if (path == null) return null;
+    if (isExpired(path, DateTime.now())) {
+      await clear();
+      return null;
+    }
     final root = await getApplicationDocumentsDirectory();
     final file = File(p.join(root.path, path));
     return await file.exists() ? file : null;
