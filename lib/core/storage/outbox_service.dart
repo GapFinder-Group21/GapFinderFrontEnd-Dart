@@ -226,6 +226,14 @@ class OutboxService {
     return rows.isNotEmpty;
   }
 
+  // True if the row still has the body it had when it was read (false if it was replaced or cancelled).
+  // A handler asks it before it writes anything that depends on what it sent.
+  Future<bool> hasSameBody(Map<String, dynamic> row) async {
+    final db = await _database();
+    final rows = await db.query('outbox', columns: ['body'], where: 'id = ?', whereArgs: [row['id']], limit: 1);
+    return rows.isNotEmpty && rows.first['body'] == row['body'];
+  }
+
   // Removes a pending action (for example "join" when the user taps "leave" before it was sent)
   Future<void> cancelPending(String dedupeKey) async {
     final db = await _database();
@@ -362,7 +370,9 @@ class OutboxService {
         }
       }
 
-      await db.delete('outbox', where: 'id = ?', whereArgs: [id]);
+      // Only if the body is still the one that was sent: if the user replaced it while it was being sent
+      // (replaceIfPending), the row stays with the newer body and the next flush sends it
+      await db.delete('outbox', where: 'id = ? AND body IS ?', whereArgs: [id, row['body']]);
       return true;
     } catch (e) {
       if (isNetworkError(e)) return false;

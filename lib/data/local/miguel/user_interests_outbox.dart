@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:http/http.dart' as http;
 import 'package:gapfinderfrontend_dart/core/network/api_client.dart';
 import 'package:gapfinderfrontend_dart/core/storage/outbox_service.dart';
 import 'package:gapfinderfrontend_dart/data/local/miguel/user_interests_dao.dart';
@@ -12,8 +13,14 @@ class UserInterestsOutbox {
   static String key(int userId) => 'user_interests_save:$userId';
 
   // Connects the handler to the outbox (called from registerOutboxHandlers)
-  static void register({OutboxService? outbox, UserInterestsDao? dao}) {
-    (outbox ?? OutboxService.instance).registerHandler(type, (row) => _send(row, dao ?? UserInterestsDao()));
+  // post is only replaced in tests
+  static void register({
+    OutboxService? outbox,
+    UserInterestsDao? dao,
+    Future<http.Response> Function(String path)? post,
+  }) {
+    final service = outbox ?? OutboxService.instance;
+    service.registerHandler(type, (row) => _send(row, service, dao ?? UserInterestsDao(), post ?? ApiClient.post));
   }
 
   // Queues the selection; a pending one of the same user is replaced
@@ -29,18 +36,25 @@ class UserInterestsOutbox {
   }
 
   // Returns true when the back has all the interests (the outbox then deletes the row)
-  static Future<bool> _send(Map<String, dynamic> row, UserInterestsDao dao) async {
+  static Future<bool> _send(
+    Map<String, dynamic> row,
+    OutboxService outbox,
+    UserInterestsDao dao,
+    Future<http.Response> Function(String path) post,
+  ) async {
     final body = jsonDecode(row['body'] as String) as Map<String, dynamic>;
     final userId = body['userId'] as int;
     final ids = (body['interestIds'] as List).cast<int>().toSet();
 
     for (final id in ids) {
       // POST /users/{userId}/interests/{interestId}; 409 means the back already had it
-      final res = await ApiClient.post('/users/$userId/interests/$id');
+      final res = await post('/users/$userId/interests/$id');
       if (res.statusCode != 200 && res.statusCode != 409) throw Exception('HTTP ${res.statusCode}');
     }
 
-    await dao.replaceAllForUser(userId, ids, ids);
+    // If the user saved another selection while this one was being sent, SQLite already has the newer
+    // one: writing the old one over it would lose it
+    if (await outbox.hasSameBody(row)) await dao.replaceAllForUser(userId, ids, ids);
     return true;
   }
 }
