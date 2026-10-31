@@ -235,6 +235,7 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
           const SnackBar(content: Text('Publicar necesita conexión; no perderás lo que llenaste')),
         );
       case PublishResult.noSession:
+      case PublishResult.alreadyPublishing:
         break;
     }
   }

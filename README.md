@@ -27,3 +27,7 @@ flutter run --dart-define=API_BASE_URL=https://<domain>
 # Release APK
 flutter build apk --release --dart-define=API_BASE_URL=https://<domain>
 ```
+
+## Time zone
+
+The free gap reminders are scheduled in Bogotá time (`America/Bogota`, see `lib/services/gap_reminder_service.dart`). The phone must use Bogotá time (UTC-5) for the reminders to ring at the right hour.

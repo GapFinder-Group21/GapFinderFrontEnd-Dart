@@ -86,7 +86,7 @@ class MyOpenTablesViewModel extends ChangeNotifier with OfflineAwareMixin {
     _joinedTables = joined;
 
     // Save my tables (created + joined) and whose they are; it is not awaited and never breaks the screen
-    SofiaLocalCache.instance.saveOpenTables(OpenTableListType.mine, [...created, ...joined]);
+    SofiaLocalCache.instance.saveOpenTables(OpenTableListType.mine, [...created, ...joined], userId: userId);
     SofiaLocalCache.instance.saveMyTablesOwner(userId);
   }
 
@@ -98,11 +98,13 @@ class MyOpenTablesViewModel extends ChangeNotifier with OfflineAwareMixin {
       final owner = await cache.myTablesOwner();
       if (owner != null && owner != userId) return false;
       final saved = await cache.openTables.getAll(OpenTableListType.mine);
-      if (saved.isEmpty) return false;
+      // A user with no tables saved an empty list: that is an answer, not "never saved"
+      final savedAt = await cache.savedAt(OpenTableListType.mine, userId) ?? await cache.openTables.lastSavedAt(OpenTableListType.mine);
+      if (saved.isEmpty && savedAt == null) return false;
 
       _createdTables = saved.where((t) => t.creator?.id == userId).toList();
       _joinedTables = saved.where((t) => t.creator?.id != userId).toList();
-      markFromCache(await cache.openTables.lastSavedAt(OpenTableListType.mine));
+      markFromCache(savedAt);
       return true;
     } catch (e) {
       debugPrint('No se pudieron leer mis mesas guardadas: $e');

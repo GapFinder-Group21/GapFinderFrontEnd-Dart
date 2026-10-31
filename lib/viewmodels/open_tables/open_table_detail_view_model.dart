@@ -192,12 +192,15 @@ class OpenTableDetailViewModel extends ChangeNotifier with OfflineAwareMixin {
   // Without connection (or if the call fails or is too slow) the SQLite detail stays.
   // force skips the LRU: used after join / leave and when the connection comes back.
   Future<void> refresh({bool force = false}) async {
+    // The last load to START wins: a result that arrives after a newer load began is ignored
+    final seq = ++_loadSeq;
     _isLoading = _table == null;
     _loadError = null;
     _notify();
 
     try {
       _currentUserId = await TokenStorage.getUserId();
+      if (seq != _loadSeq) return;
 
       if (!force) {
         final cached = _cache.get(openTableId);
@@ -216,38 +219,52 @@ class OpenTableDetailViewModel extends ChangeNotifier with OfflineAwareMixin {
         }
         _logCache('FALLO');
         if (_table == null && hasConnection) await _loadSaved();
+        if (seq != _loadSeq) return;
         _isLoading = _table == null;
         _notify();
       }
 
       if (hasConnection) {
+        // A timeout does not cancel the request: once we gave up on it, its late answer is ignored
+        var abandoned = false;
+        bool stillCurrent() => !abandoned && seq == _loadSeq;
         try {
-          await _loadFromNetwork().timeout(OfflineAwareMixin.loadTimeout);
+          await _loadFromNetwork(stillCurrent).timeout(OfflineAwareMixin.loadTimeout);
+          if (!stillCurrent()) return;
           markFresh();
           return;
         } catch (e) {
+          abandoned = true;
+          if (seq != _loadSeq) return;
           debugPrint('Sin red para el detalle, se usa lo guardado: $e');
           if (!await _loadSaved()) rethrow;
           return;
         }
       }
 
-      if (!await _loadSaved()) {
+      if (!await _loadSaved() && seq == _loadSeq) {
         _loadError = 'Sin conexión y aún no tenemos esta mesa guardada';
       }
     } catch (e) {
-      _loadError = userMessage(e, network: 'No pudimos conectar con el servidor para cargar esta mesa');
+      if (seq == _loadSeq) {
+        _loadError = userMessage(e, network: 'No pudimos conectar con el servidor para cargar esta mesa');
+      }
     } finally {
-      _isLoading = false;
-      _notify();
+      if (seq == _loadSeq) {
+        _isLoading = false;
+        _notify();
+      }
     }
   }
 
-  Future<void> _loadFromNetwork() async {
+  int _loadSeq = 0;
+
+  Future<void> _loadFromNetwork(bool Function() stillCurrent) async {
     final results = await Future.wait([
       _openTableService.getOpenTable(openTableId),
       _participantService.getByOpenTable(openTableId),
     ]);
+    if (!stillCurrent()) return;
 
     _table = results[0] as OpenTable;
     _participants = results[1] as List<OpenTableParticipant>;
@@ -257,6 +274,10 @@ class OpenTableDetailViewModel extends ChangeNotifier with OfflineAwareMixin {
 
     // Save the detail the network answered; it is not awaited and never breaks the screen
     SofiaLocalCache.instance.saveOpenTableDetail(_table!, _participants);
+    // A table the user is not in any more must not stay in the saved "My open tables"
+    if (!_isMember) {
+      SofiaLocalCache.instance.removeFromMyTables(openTableId);
+    }
   }
 
   // Shows the detail saved in SQLite; returns false if this table was never saved

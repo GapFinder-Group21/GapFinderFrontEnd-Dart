@@ -38,6 +38,51 @@ class ScheduleView extends StatelessWidget {
     Navigator.of(context).pushNamedAndRemoveUntil(AppRoutes.welcome, (route) => false);
   }
 
+  // The error (with a Retry button), the empty schedule or today's classes and gaps
+  Widget _buildContent(BuildContext context, ScheduleViewModel vm) {
+    const physics = AlwaysScrollableScrollPhysics();
+
+    if (vm.loadError != null) {
+      return ListView(
+        physics: physics,
+        padding: const EdgeInsets.all(24),
+        children: [
+          const SizedBox(height: 80),
+          Text(
+            vm.isOffline ? 'Sin conexión y aún no tienes un horario guardado.' : vm.loadError!,
+            textAlign: TextAlign.center,
+            style: AppFonts.body().copyWith(color: context.palette.contrast.withValues(alpha: 0.6)),
+          ),
+          const SizedBox(height: 16),
+          Center(
+            child: TextButton(onPressed: vm.refresh, child: const Text('Reintentar')),
+          ),
+        ],
+      );
+    }
+
+    if (vm.isEmpty) {
+      return ListView(
+        physics: physics,
+        padding: const EdgeInsets.all(24),
+        children: [
+          const SizedBox(height: 80),
+          Text(
+            'Aún no tienes clases importadas.',
+            textAlign: TextAlign.center,
+            style: AppFonts.body().copyWith(color: context.palette.contrast.withValues(alpha: 0.5)),
+          ),
+        ],
+      );
+    }
+
+    return SingleChildScrollView(
+      physics: physics,
+      padding: const EdgeInsets.all(16),
+      child: _buildTodayView(context, vm.todayItems),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<ScheduleViewModel>();
@@ -64,13 +109,20 @@ class ScheduleView extends StatelessWidget {
                       ),
                     ),
                   ),
-                  IconButton(
-                    tooltip: 'Cerrar sesión',
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                    icon: const Icon(Icons.logout_rounded, color: Colors.white, size: 22),
-                    onPressed: () => _confirmLogout(context),
-                  ),
+                  if (vm.isLoggingOut)
+                    const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  else
+                    IconButton(
+                      tooltip: 'Cerrar sesión',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      icon: const Icon(Icons.logout_rounded, color: Colors.white, size: 22),
+                      onPressed: () => _confirmLogout(context),
+                    ),
                 ],
               ),
             ),
@@ -115,37 +167,10 @@ class ScheduleView extends StatelessWidget {
                     return const Center(child: CircularProgressIndicator());
                   }
 
-                  if (vm.loadError != null) {
-                    return Center(
-                      child: Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Text(
-                          vm.isOffline
-                              ? 'Sin conexión y aún no tienes un horario guardado.'
-                              : vm.loadError!,
-                          textAlign: TextAlign.center,
-                          style: AppFonts.body().copyWith(
-                            color: context.palette.contrast.withValues(alpha: 0.6),
-                          ),
-                        ),
-                      ),
-                    );
-                  }
-
-                  if (vm.isEmpty) {
-                    return Center(
-                      child: Text(
-                        'Aún no tienes clases importadas.',
-                        style: AppFonts.body().copyWith(
-                          color: context.palette.contrast.withValues(alpha: 0.5),
-                        ),
-                      ),
-                    );
-                  }
-
-                  return SingleChildScrollView(
-                    padding: const EdgeInsets.all(16),
-                    child: _buildTodayView(context, vm.todayItems),
+                  // Pull to refresh works in every state, so each one is a scrollable list
+                  return RefreshIndicator(
+                    onRefresh: vm.refresh,
+                    child: _buildContent(context, vm),
                   );
                 },
               ),
