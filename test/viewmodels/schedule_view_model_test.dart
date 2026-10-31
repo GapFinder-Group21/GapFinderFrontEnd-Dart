@@ -152,11 +152,26 @@ void main() {
       expect(auth.loggedOut, isTrue);
     });
 
-    test('logout() removes the data even if the back cannot be reached', () async {
+    test('logout() removes the data and does not throw even if the back cannot be reached', () async {
       auth.fails = true;
 
-      await expectLater(vm.logout(), throwsException);
+      await vm.logout();
 
+      expect(cleanedFor, [1]);
+      expect(vm.isLoggingOut, isFalse);
+    });
+
+    test('S-10: logout() shows the loading state while it runs and ignores a second tap', () async {
+      final states = <bool>[];
+      vm.addListener(() => states.add(vm.isLoggingOut));
+
+      final first = vm.logout();
+      expect(vm.isLoggingOut, isTrue);
+      await vm.logout();
+      await first;
+
+      expect(states.first, isTrue);
+      expect(states.last, isFalse);
       expect(cleanedFor, [1]);
     });
 

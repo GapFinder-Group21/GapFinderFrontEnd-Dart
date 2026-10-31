@@ -21,7 +21,7 @@ import 'package:gapfinderfrontend_dart/services/preferred_activity_service.dart'
 import 'package:gapfinderfrontend_dart/viewmodels/offline_aware_mixin.dart';
 
 // What happened when the user tapped "Publish"
-enum PublishResult { published, missingFields, missingPhoto, noSession, offline, failed }
+enum PublishResult { published, missingFields, missingPhoto, noSession, offline, failed, alreadyPublishing }
 
 // What happened when the user tried to take the table photo
 enum PhotoResult { taken, cancelled, denied, permanentlyDenied, failed }
@@ -96,6 +96,11 @@ class CreateOpenTableViewModel extends ChangeNotifier with OfflineAwareMixin {
   Building? get selectedBuilding => _selectedBuilding;
   int get maxParticipants => _maxParticipants;
   File? get photo => _photo;
+
+  // The camera cannot run in a test: this puts a photo in the form
+  @visibleForTesting
+  void setPhotoForTest(File photo) => _photo = photo;
+
   bool get isLoading => _isLoading;
   bool get isPublishing => _isPublishing;
   // Error while loading the catalogs
@@ -107,7 +112,9 @@ class CreateOpenTableViewModel extends ChangeNotifier with OfflineAwareMixin {
   bool get canIncrementParticipants => _maxParticipants < 20;
 
   // Publishing sends the table and the photo, so it needs the network; the form can still be filled
-  bool get canPublish => !isOffline;
+  // It asks the connection, not "the catalogs came from the saved files": old catalogs and a slow refresh
+  // also mark the screen as offline while the phone is connected
+  bool get canPublish => hasConnection;
 
   // Load the activities and buildings when the screen opens; if the catalogs are missing or old,
   // they are asked again by themselves when the connection comes back.
@@ -389,6 +396,9 @@ class CreateOpenTableViewModel extends ChangeNotifier with OfflineAwareMixin {
   // Creates the open table - POST /open-tables
   // The creator is not a participant: the back rejects the creator joining their own table
   Future<PublishResult> publish(String description) async {
+    // A second tap while the first is running: the flag is set before the first await
+    if (_isPublishing) return PublishResult.alreadyPublishing;
+
     if (_selectedActivity == null || _selectedBuilding == null) {
       return PublishResult.missingFields;
     }
@@ -398,13 +408,14 @@ class CreateOpenTableViewModel extends ChangeNotifier with OfflineAwareMixin {
     // The table and the photo need the network; what the user filled stays in the form
     if (!canPublish) return PublishResult.offline;
 
-    final userId = await TokenStorage.getUserId();
-    if (userId == null) return PublishResult.noSession;
-
     _isPublishing = true;
+    _publishError = null;
     _notify();
 
     try {
+      final userId = await TokenStorage.getUserId();
+      if (userId == null) return PublishResult.noSession;
+
       final now = DateTime.now();
       final newTable = OpenTable(
         id: 0,

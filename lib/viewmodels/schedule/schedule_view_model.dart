@@ -58,9 +58,11 @@ class ScheduleViewModel extends ChangeNotifier with OfflineAwareMixin {
   bool _remindersEnabled = false;
   Future<void>? _reminderSetting;
   bool _disposed = false;
+  bool _isLoggingOut = false;
 
   ScheduleData? get data => _data;
   bool get isLoading => _isLoading;
+  bool get isLoggingOut => _isLoggingOut;
   String? get loadError => _loadError;
   bool get remindersEnabled => _remindersEnabled;
 
@@ -123,9 +125,11 @@ class ScheduleViewModel extends ChangeNotifier with OfflineAwareMixin {
       final cache = SofiaLocalCache.instance;
       final savedBlocks = await cache.classBlocks.getAllForUser(userId);
       final savedGaps = await cache.gaps.getAllForUser(userId);
-      if (savedBlocks.isEmpty && savedGaps.isEmpty) return null;
+      // A user with no classes saved an empty schedule: that is an answer, not "never saved"
+      final savedAt = await cache.savedAt(SofiaLocalCache.scheduleList, userId) ?? await cache.classBlocks.lastSavedAt(userId);
+      if (savedBlocks.isEmpty && savedGaps.isEmpty && savedAt == null) return null;
 
-      markFromCache(await cache.classBlocks.lastSavedAt(userId));
+      markFromCache(savedAt);
       return ScheduleData(savedBlocks, savedGaps);
     } catch (e) {
       debugPrint('No se pudo leer el horario guardado: $e');
@@ -134,22 +138,43 @@ class ScheduleViewModel extends ChangeNotifier with OfflineAwareMixin {
   }
 
   // Reads the saved switch; the first time it asks the notification permission and turns on if granted
+  // If it fails, the failed future is dropped so the next call tries again (it is not kept forever).
+  // If the user flips the switch while the first-time permission dialog is open, the user's choice wins.
   Future<void> _loadReminderSetting() {
     return _reminderSetting ??= () async {
-      final saved = await _reminderService.loadEnabled();
-      if (saved != null) {
-        _remindersEnabled = saved;
-      } else {
-        _remindersEnabled = await _reminderService.requestPermission();
-        await _reminderService.saveEnabled(_remindersEnabled);
+      try {
+        final saved = await _reminderService.loadEnabled();
+        if (_userToggled) return;
+        if (saved != null) {
+          _remindersEnabled = saved;
+        } else {
+          final granted = await _reminderService.requestPermission();
+          if (_userToggled) return;
+          _remindersEnabled = granted;
+          await _reminderService.saveEnabled(_remindersEnabled);
+        }
+        _notify();
+      } catch (e) {
+        _reminderSetting = null;
+        rethrow;
       }
-      _notify();
     }();
   }
 
+  // The scheduling calls run one after another: the refresh and the app resume can ask at the same time and
+  // two runs at once would create the same reminders twice
+  Future<void> _lastScheduling = Future.value();
+  bool _userToggled = false;
+
   // Schedules a reminder for each gap of today, at the time the BQ says the student usually opens the app.
   // Also called when the app comes back to the foreground. If anything fails it only prints.
-  Future<void> scheduleReminders() async {
+  Future<void> scheduleReminders() {
+    final run = _lastScheduling.then((_) => _scheduleRemindersNow());
+    _lastScheduling = run;
+    return run;
+  }
+
+  Future<void> _scheduleRemindersNow() async {
     try {
       await _loadReminderSetting();
       final data = _data;
@@ -173,6 +198,7 @@ class ScheduleViewModel extends ChangeNotifier with OfflineAwareMixin {
         enabled = false; // the permission was denied
       }
 
+      _userToggled = true;
       _remindersEnabled = enabled;
       _reminderSetting = Future.value();
       _notify();
@@ -214,15 +240,32 @@ class ScheduleViewModel extends ChangeNotifier with OfflineAwareMixin {
     return ScheduleData(blocks, gaps);
   }
 
-  // Logs out in the backend and clears the session - POST /auth/logout
+  // Logs out: first what is saved on this phone is removed (it does not need the network), then the back is
+  // told - POST /auth/logout, with a short limit in AuthService. It never throws and the screen can show
+  // a spinner with isLoggingOut, so a bad network does not look like a frozen button.
   Future<void> logout() async {
-    // The user id is read first because logging out removes it
-    final userId = await TokenStorage.getUserId();
+    if (_isLoggingOut) return;
+    _isLoggingOut = true;
+    _notify();
+
     try {
-      await _authService.logout();
+      // The user id is read first because logging out removes it
+      final userId = await TokenStorage.getUserId();
+      try {
+        await _sessionCleanup(userId);
+      } catch (e) {
+        debugPrint('Could not clean the session: $e');
+      }
+
+      try {
+        await _authService.logout();
+      } catch (e) {
+        // The back could not be reached: the refresh token stays alive there until it expires
+        debugPrint('Could not tell the back about the logout: $e');
+      }
     } finally {
-      // Even if the back could not be reached, what the user did on this phone is removed
-      await _sessionCleanup(userId);
+      _isLoggingOut = false;
+      _notify();
     }
   }
 

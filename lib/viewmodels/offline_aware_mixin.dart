@@ -9,12 +9,21 @@ mixin OfflineAwareMixin on ChangeNotifier {
   // A network call that takes longer than this falls back to what is saved
   static const loadTimeout = Duration(seconds: 8);
 
+  // Asks the service to check the connection for real (replaced in tests)
+  @visibleForTesting
+  static Future<bool> Function() recheckConnection = () => ConnectivityService.instance.checkNow();
+
   StreamSubscription<bool>? _connectivitySub;
   bool _isOffline = !ConnectivityService.instance.isOnline;
+  bool _showingSavedData = false;
   DateTime? _lastUpdated;
 
   // True when there is no connection, or when the network failed and saved data is on screen
   bool get isOffline => _isOffline;
+
+  // True when the data on screen is a saved copy. It is not the same as having no connection:
+  // the phone can be online and the server answer with an error.
+  bool get showingSavedData => _showingSavedData;
 
   // When the data on screen was last saved or loaded from the network
   DateTime? get lastUpdated => _lastUpdated;
@@ -38,13 +47,18 @@ mixin OfflineAwareMixin on ChangeNotifier {
   // The network answered: the screen shows fresh data
   void markFresh() {
     _isOffline = false;
+    _showingSavedData = false;
     _lastUpdated = DateTime.now();
   }
 
   // Saved data is on screen (no connection, or the network failed)
   void markFromCache(DateTime? savedAt) {
     _isOffline = true;
+    _showingSavedData = true;
     _lastUpdated = savedAt;
+    // The failure may be a server that is down while the wifi stays on: ask for real, so the service
+    // says offline (and onRestored fires when it comes back) or confirms we are online
+    if (hasConnection) recheckConnection();
   }
 
   // Only the time changes (for example a saved file that is still fresh)

@@ -35,16 +35,44 @@ class SofiaLocalCache {
     return _safe('schedule (SQLite)', () async {
       await classBlocks.replaceAllForUser(userId, blocks);
       await gaps.replaceAllForUser(userId, userGaps);
+      await markSaved(scheduleList, userId);
       debugPrint('[Cache] SQLite: saved ${blocks.length} class_blocks and ${userGaps.length} gaps');
     });
   }
 
   // SQLite: open_tables_cache ('ALL' or 'MINE', see OpenTableListType)
-  Future<void> saveOpenTables(String listType, List<OpenTable> tables) {
+  Future<void> saveOpenTables(String listType, List<OpenTable> tables, {int? userId}) {
     return _safe('open tables $listType (SQLite)', () async {
       await openTables.replaceAll(listType, tables);
+      if (userId != null) await markSaved(listType, userId);
       debugPrint('[Cache] SQLite: saved ${tables.length} open_tables_cache rows ($listType)');
     });
+  }
+
+  // A list that is saved empty has no rows, so the rows cannot tell "saved with nothing" from "never saved".
+  // This marker (a time per list and user in SharedPreferences) can.
+  static const scheduleList = 'SCHEDULE';
+  static const _savedAtPrefix = 'list_saved_at:';
+
+  Future<void> markSaved(String list, int userId) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('$_savedAtPrefix$list:$userId', DateTime.now().toIso8601String());
+  }
+
+  // When this list was last saved for the user, or null if it never was
+  Future<DateTime?> savedAt(String list, int userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final value = prefs.getString('$_savedAtPrefix$list:$userId');
+      return value == null ? null : DateTime.tryParse(value);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // The user left this table: it goes out of the saved 'MINE' list too
+  Future<void> removeFromMyTables(int tableId) {
+    return _safe('remove from my open tables (SQLite)', () => openTables.deleteById(OpenTableListType.mine, tableId));
   }
 
   // SQLite: open_table_details
@@ -120,6 +148,12 @@ class SofiaLocalCache {
     await _safe('owner of my open tables on logout', () async {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_myTablesOwnerKey);
+    });
+    await _safe('saved markers on logout', () async {
+      final prefs = await SharedPreferences.getInstance();
+      for (final key in prefs.getKeys().where((k) => k.startsWith(_savedAtPrefix)).toList()) {
+        await prefs.remove(key);
+      }
     });
     debugPrint('[Cache] Removed the saved data of user $userId');
   }

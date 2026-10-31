@@ -10,12 +10,19 @@ class ThemeController extends ChangeNotifier {
   static const double darkBelowLux = 10;
   static const double lightAboveLux = 30;
 
+  // Smoothing: the reading must stay on the same side for this long before the mode changes, so covering
+  // the sensor with a hand or a shadow for a moment does not flip the whole app
+  static const Duration settleTime = Duration(seconds: 3);
+
+  final Duration _settle;
+  Timer? _pendingTimer;
+  ThemeMode? _pendingMode;
   StreamSubscription<int>? _subscription;
   ThemeMode _themeMode = ThemeMode.system;
   bool _disposed = false;
 
   // lightStream is only for tests; the real one reads the sensor (Android only)
-  ThemeController({Stream<int>? lightStream}) {
+  ThemeController({Stream<int>? lightStream, Duration settle = settleTime}) : _settle = settle {
     _listen(lightStream);
   }
 
@@ -40,15 +47,41 @@ class ThemeController extends ChangeNotifier {
     if (lux < 0) return; // the plugin sends -1 when it cannot read the value
 
     if (lux < darkBelowLux) {
-      _setMode(ThemeMode.dark);
+      _settleOn(ThemeMode.dark);
     } else if (lux > lightAboveLux) {
-      _setMode(ThemeMode.light);
+      _settleOn(ThemeMode.light);
+    } else {
+      _cancelPending(); // in between: the reading is not clear, keep the current mode
     }
+  }
+
+  // The mode changes only if the readings keep asking for it during settleTime
+  void _settleOn(ThemeMode mode) {
+    if (mode == _themeMode) {
+      _cancelPending();
+      return;
+    }
+    if (_pendingMode == mode) return; // already waiting for this one
+
+    _cancelPending();
+    _pendingMode = mode;
+    _pendingTimer = Timer(_settle, () {
+      _pendingMode = null;
+      _pendingTimer = null;
+      _setMode(mode);
+    });
+  }
+
+  void _cancelPending() {
+    _pendingTimer?.cancel();
+    _pendingTimer = null;
+    _pendingMode = null;
   }
 
   // If the sensor fails, go back to the system theme and keep the app working
   void _onSensorError(Object error) {
     debugPrint('Light sensor error: $error');
+    _cancelPending();
     _setMode(ThemeMode.system);
   }
 
@@ -61,6 +94,7 @@ class ThemeController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _cancelPending();
     _subscription?.cancel();
     super.dispose();
   }

@@ -51,6 +51,12 @@ class OpenTableCacheDao {
     await db.delete(table);
   }
 
+  // Removes one table from one saved list (for example a table the user left, from 'MINE')
+  Future<void> deleteById(String listType, int id) async {
+    final db = await _database();
+    await db.delete(table, where: 'list_type = ? AND id = ?', whereArgs: [listType, id]);
+  }
+
   Future<List<OpenTable>> getAll(String listType) async {
     final db = await _database();
     final rows = await db.query(table, where: 'list_type = ?', whereArgs: [listType], orderBy: 'id');

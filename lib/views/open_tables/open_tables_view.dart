@@ -204,6 +204,8 @@ class _OpenTablesViewState extends State<OpenTablesView> {
     final bool alreadyIn = isCreator || isMember;
     // Joining needs the network: without it the button is off and the list is read only
     final bool needsConnection = !alreadyIn && _vm.isOffline;
+    // The check of this table failed: Join is not offered until a refresh can tell if the user is already in
+    final bool unknown = !alreadyIn && _vm.isMembershipUnknown(table);
     
     return GestureDetector(
       // The whole card opens the detail (saved in SQLite), so navigating works without internet
@@ -357,7 +359,7 @@ class _OpenTablesViewState extends State<OpenTablesView> {
                 const Spacer(),
                 Flexible(
                   child: ElevatedButton(
-                  onPressed: needsConnection
+                  onPressed: needsConnection || unknown
                       ? null
                       : () => Navigator.pushNamed(context, AppRoutes.openTableDetail, arguments: table.id).then((_) => _vm.refresh()),
                   style: ElevatedButton.styleFrom(
@@ -374,7 +376,9 @@ class _OpenTablesViewState extends State<OpenTablesView> {
                       ? 'Joined'
                       : needsConnection
                           ? 'Necesitas conexión para unirte'
-                          : 'Join', textAlign: TextAlign.center),
+                          : unknown
+                              ? 'Actualiza para unirte'
+                              : 'Join', textAlign: TextAlign.center),
                   ),
                 ),
               ],

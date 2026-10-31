@@ -215,7 +215,10 @@ void main() {
       );
 
       await eager.enqueue(type: 'join', method: 'POST', endpoint: '/x', dedupeKey: 'k');
-      await Future<void>.delayed(const Duration(milliseconds: 100));
+      // Not a fixed sleep: wait until the send happened (up to 5 s) so a slow machine does not fail the test
+      for (var i = 0; i < 100 && (sent.isEmpty || await rowCount() != 0); i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
 
       expect(sent, ['POST /x']);
       expect(await rowCount(), 0);

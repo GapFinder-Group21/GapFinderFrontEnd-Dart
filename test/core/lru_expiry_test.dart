@@ -2,7 +2,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:gapfinderfrontend_dart/core/cache/expiry_policy.dart';
 import 'package:gapfinderfrontend_dart/core/cache/lru_cache.dart';
 
-const _short = Duration(milliseconds: 60);
+// Long enough that a slow machine does not make the waits below fall on the wrong side of the limit:
+// "inside" waits are at most 300 ms (60 % of the time) and "after" waits are 600 ms (120 %)
+const _short = Duration(milliseconds: 500);
+const _long = Duration(milliseconds: 2000);
 
 Future<void> _wait(int milliseconds) => Future<void>.delayed(Duration(milliseconds: milliseconds));
 
@@ -17,7 +20,7 @@ void main() {
       expect(withTtl.get('a'), 1);
       expect(withPolicy.get('a'), 1);
 
-      await _wait(100);
+      await _wait(600);
 
       expect(withTtl.get('a'), isNull);
       expect(withPolicy.get('a'), isNull);
@@ -27,7 +30,7 @@ void main() {
       final cache = LruCache<String, int>(maxEntries: 5);
       cache.put('a', 1);
 
-      await _wait(100);
+      await _wait(600);
 
       expect(cache.get('a'), 1);
     });
@@ -45,9 +48,9 @@ void main() {
       final cache = LruCache<String, int>(maxEntries: 5, expiryPolicy: FixedExpiry<String, int>(_short));
 
       cache.put('a', 1);
-      await _wait(35);
+      await _wait(300);
       expect(cache.get('a'), 1); // still valid, but this read must not renew it
-      await _wait(35);
+      await _wait(300);
 
       expect(cache.get('a'), isNull);
     });
@@ -56,7 +59,7 @@ void main() {
       final cache = LruCache<String, int>(maxEntries: 5, expiryPolicy: FixedExpiry<String, int>(_short));
 
       cache.put('a', 1);
-      await _wait(100);
+      await _wait(600);
 
       expect(cache.get('a'), isNull);
       expect(cache.length, 0);
@@ -71,11 +74,11 @@ void main() {
       final cache = LruCache<String, int>(maxEntries: 5, expiryPolicy: SlidingExpiry<String, int>(_short));
 
       cache.put('a', 1);
-      await _wait(40);
+      await _wait(300);
       expect(cache.get('a'), 1); // renewed
-      await _wait(40);
+      await _wait(300);
       expect(cache.get('a'), 1); // 80 ms after saving, but only 40 after the last read
-      await _wait(100);
+      await _wait(600);
 
       expect(cache.get('a'), isNull); // idle for too long
     });
@@ -86,13 +89,13 @@ void main() {
       final cache = LruCache<String, int>(
         maxEntries: 5,
         expiryPolicy: ValueBasedExpiry<String, int>(
-          (key, value) => value > 10 ? const Duration(milliseconds: 300) : _short,
+          (key, value) => value > 10 ? _long : _short,
         ),
       );
 
       cache.put('short', 1);
       cache.put('long', 99);
-      await _wait(120);
+      await _wait(600);
 
       expect(cache.get('short'), isNull);
       expect(cache.get('long'), 99);
@@ -105,7 +108,7 @@ void main() {
       );
 
       cache.put('a', 1);
-      await _wait(100);
+      await _wait(600);
 
       expect(cache.get('a'), 1);
     });
@@ -114,13 +117,13 @@ void main() {
       final cache = LruCache<String, int>(
         maxEntries: 5,
         expiryPolicy: ValueBasedExpiry<String, int>(
-          (key, value) => value == 1 ? _short : const Duration(milliseconds: 300),
+          (key, value) => value == 1 ? _short : _long,
         ),
       );
 
       cache.put('a', 1);
       cache.put('a', 2); // now it lives longer
-      await _wait(120);
+      await _wait(600);
 
       expect(cache.get('a'), 2);
     });
@@ -167,7 +170,7 @@ void main() {
       cache.put('c', 3); // a is evicted by capacity
       cache.remove('b');
       cache.remove('missing'); // not there: it is not counted
-      await _wait(100);
+      await _wait(600);
       cache.get('c'); // expired
 
       final stats = cache.stats;

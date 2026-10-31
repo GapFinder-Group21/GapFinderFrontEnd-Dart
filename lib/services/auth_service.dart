@@ -97,9 +97,12 @@ class AuthService {
 
   // Cierra sesión en el back y borra los tokens locales - POST /auth/logout
   // Aunque el back no responda, la sesión local se borra igual
+  // Con red mala no se espera más de 4 segundos: el botón no puede verse congelado
+  static const logoutTimeout = Duration(seconds: 4);
+
   Future<void> logout() async {
     try {
-      await ApiClient.post('/auth/logout');
+      await ApiClient.post('/auth/logout').timeout(logoutTimeout);
     } catch (_) {
       // Sin conexión: el refresh token queda vivo en el back hasta que venza
     } finally {
