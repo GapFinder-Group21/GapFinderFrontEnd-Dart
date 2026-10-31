@@ -109,16 +109,35 @@ class MatchFoundView extends StatelessWidget {
                   ? const CircularProgressIndicator()
                   : Column(
                       children: [
+                        // The back refused the queued request (or it did not arrive): the user is told why
+                        if (vm.outcomeMessage != null) ...[
+                          Text(
+                            vm.outcomeMessage!,
+                            textAlign: TextAlign.center,
+                            style: AppFonts.body(weight: FontWeight.w600).copyWith(
+                              fontSize: 13,
+                              color: AppColors.accent1,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
                         // Pending: the request is queued, so the button is off
-                        CustomButton(
-                          label: vm.wasSent
-                              ? 'Solicitud enviada'
-                              : vm.isConnectPending
-                                  ? 'Pendiente de enviar'
-                                  : 'Connect Now',
-                          color: AppColors.accent2,
-                          onClick: vm.isConnectPending || vm.wasSent ? null : () => _connectNow(context),
-                        ),
+                        if (vm.refusalMessage != null)
+                          CustomButton(
+                            label: 'Elegir otro candidato',
+                            color: AppColors.accent2,
+                            onClick: () => Navigator.pop(context),
+                          )
+                        else
+                          CustomButton(
+                            label: vm.wasSent
+                                ? 'Solicitud enviada'
+                                : vm.isConnectPending
+                                    ? 'Pendiente de enviar'
+                                    : 'Connect Now',
+                            color: AppColors.accent2,
+                            onClick: vm.isConnectPending || vm.wasSent ? null : () => _connectNow(context),
+                          ),
                         const SizedBox(height: 12),
                         SizedBox(
                           width: double.infinity,

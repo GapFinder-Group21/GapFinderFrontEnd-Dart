@@ -4,6 +4,7 @@ import 'package:gapfinderfrontend_dart/core/network/network_errors.dart';
 import 'package:gapfinderfrontend_dart/core/storage/outbox_service.dart';
 import 'package:gapfinderfrontend_dart/data/local/miguel/miguel_local_cache.dart';
 import 'package:gapfinderfrontend_dart/models/enums/match_mode_enum.dart';
+import 'package:gapfinderfrontend_dart/models/enums/match_status_enum.dart';
 import 'package:gapfinderfrontend_dart/models/match.dart';
 import 'package:gapfinderfrontend_dart/models/responses/match_candidate.dart';
 import 'package:gapfinderfrontend_dart/services/match_service.dart';
@@ -15,6 +16,8 @@ import 'package:gapfinderfrontend_dart/viewmodels/offline_aware_mixin.dart';
 class MatchFoundViewModel extends ChangeNotifier with OfflineAwareMixin {
   static const offlineNotice = 'Se enviará cuando vuelva la conexión';
   static const offlineBanner = 'Sin conexión · tu solicitud se enviará cuando vuelva';
+  static const refusedNotice = 'No se pudo enviar la solicitud. Elige otro candidato';
+  static const unconfirmedNotice = 'No pudimos confirmar que tu solicitud llegó. Intenta de nuevo';
 
   final int userId;
   final int currentGapId;
@@ -39,6 +42,8 @@ class MatchFoundViewModel extends ChangeNotifier with OfflineAwareMixin {
   String? _errorMessage;
   String? _notice;
   bool _wasSent = false;
+  String? _refusalMessage;
+  String? _outcomeMessage;
   bool _disposed = false;
   Set<String> _pendingKeys = {};
   StreamSubscription<Set<String>>? _pendingSub;
@@ -51,8 +56,14 @@ class MatchFoundViewModel extends ChangeNotifier with OfflineAwareMixin {
   String get connectKey => 'match_connect:$currentGapId-${candidate.acceptorGap.id}';
   bool get isConnectPending => _pendingKeys.contains(connectKey);
 
-  // The queued request reached the back
+  // The queued request reached the back (confirmed with the matches of the user)
   bool get wasSent => _wasSent;
+
+  // The back refused the queued request: the screen offers to choose another candidate
+  String? get refusalMessage => _refusalMessage;
+
+  // What the screen shows about the queued request when it did not work
+  String? get outcomeMessage => _outcomeMessage;
 
   // Message for the View after connect() when nothing failed but nothing was sent yet. It is read once.
   String? takeNotice() {
@@ -66,9 +77,10 @@ class MatchFoundViewModel extends ChangeNotifier with OfflineAwareMixin {
     listenToConnectivity(onRestored: () async {});
     try {
       _pendingSub = (_outbox ?? OutboxService.instance).pendingKeys.listen((keys) {
-        final sent = _pendingKeys.contains(connectKey) && !keys.contains(connectKey);
+        // The key left the outbox: it can be because the back accepted it, refused it or it was dropped
+        final left = _pendingKeys.contains(connectKey) && !keys.contains(connectKey);
         _pendingKeys = keys;
-        if (sent) _wasSent = true;
+        if (left) _resolveQueuedConnect();
         _notify();
       }, onError: (e) => debugPrint('Error watching the outbox: $e'));
     } catch (e) {
@@ -86,6 +98,7 @@ class MatchFoundViewModel extends ChangeNotifier with OfflineAwareMixin {
 
     _isLoading = true;
     _errorMessage = null;
+    _outcomeMessage = null;
     _notify();
 
     try {
@@ -118,14 +131,64 @@ class MatchFoundViewModel extends ChangeNotifier with OfflineAwareMixin {
   // With nothing pending it changes nothing.
   Future<void> cancelRequest() async {
     if (!isConnectPending) return;
+    // The key is forgotten first: when the outbox reports that it left, it must not look like a sent request
+    final before = _pendingKeys;
+    _pendingKeys = {...before}..remove(connectKey);
+    _notify();
     try {
       await (_outbox ?? OutboxService.instance).cancelPending(connectKey);
     } catch (e) {
       debugPrint('Could not cancel the pending request: $e');
+      _pendingKeys = before;
+      _notify();
+    }
+  }
+
+  // The queued request left the outbox. Leaving does not mean the back accepted it (it also deletes the
+  // row when it refuses it), so "sent" is only set after the back says the request exists.
+  Future<void> _resolveQueuedConnect() async {
+    final refusal = await _lastRefusal();
+    if (_disposed) return;
+    if (refusal != null) {
+      _refusalMessage = refusal.message;
+      _outcomeMessage = refusal.message;
+      _notify();
       return;
     }
-    _pendingKeys = {..._pendingKeys}..remove(connectKey);
+
+    final exists = await _requestExists();
+    if (_disposed) return;
+    if (exists == true) {
+      _wasSent = true;
+    } else if (exists == false) {
+      _refusalMessage = refusedNotice;
+      _outcomeMessage = refusedNotice;
+    } else {
+      _outcomeMessage = unconfirmedNotice;
+    }
     _notify();
+  }
+
+  Future<OutboxRefusal?> _lastRefusal() async {
+    try {
+      return await (_outbox ?? OutboxService.instance).lastRefusalFor(connectKey);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // GET /matches/user/{userId}: true if the user has that request, false if not, null if it could not be asked
+  Future<bool?> _requestExists() async {
+    try {
+      final matches = await _matchService.getUserMatches(userId);
+      return matches.any((m) =>
+          m.proposerGapId == currentGapId &&
+          m.acceptorGapId == candidate.acceptorGap.id &&
+          m.status != MatchStatusEnum.REJECTED);
+    } catch (e) {
+      debugPrint('Could not confirm the match request: $e');
+      return null;
+    }
   }
 
   // The dedupeKey lets only one request wait in the outbox, so many taps send it once
