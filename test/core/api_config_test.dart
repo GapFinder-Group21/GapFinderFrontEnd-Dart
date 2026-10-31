@@ -13,7 +13,7 @@ void main() {
       expect(base, isNot(contains('10.0.2.2')));
     });
 
-    test('without --dart-define the app uses the placeholder', () {
+    test('without --dart-define the app uses the public server', () {
       expect(ApiConfig.baseUrl, ApiConfig.defaultBaseUrl);
     });
 

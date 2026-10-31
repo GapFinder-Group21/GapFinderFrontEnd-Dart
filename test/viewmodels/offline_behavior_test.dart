@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hive/hive.dart';
 import 'package:sqflite/sqflite.dart' show Sqflite;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:gapfinderfrontend_dart/core/network/connectivity_service.dart';
@@ -73,6 +75,18 @@ void main() {
   late Database db;
   late OutboxService outbox;
   late FakeConnectivity connectivity;
+  late Directory hiveDir;
+
+  // Login clears the register draft, which lives in a Hive box
+  setUpAll(() async {
+    hiveDir = await Directory.systemTemp.createTemp('offline_behavior_test');
+    Hive.init(hiveDir.path);
+  });
+
+  tearDownAll(() async {
+    await Hive.close();
+    await hiveDir.delete(recursive: true);
+  });
 
   Future<int> rowCount() async => Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM outbox')) ?? 0;
 

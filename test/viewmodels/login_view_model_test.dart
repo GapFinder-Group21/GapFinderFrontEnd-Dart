@@ -1,5 +1,8 @@
+import 'dart:io';
+
 import 'noop_local_cache.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hive/hive.dart';
 import 'package:gapfinderfrontend_dart/models/responses/auth_response.dart';
 import 'package:gapfinderfrontend_dart/services/auth_service.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/auth/login_view_model.dart';
@@ -25,6 +28,18 @@ class FakeAuthService extends AuthService {
 void main() {
   late FakeAuthService auth;
   late LoginViewModel vm;
+  late Directory hiveDir;
+
+  // Login clears the register draft, which lives in a Hive box
+  setUpAll(() async {
+    hiveDir = await Directory.systemTemp.createTemp('login_view_model_test');
+    Hive.init(hiveDir.path);
+  });
+
+  tearDownAll(() async {
+    await Hive.close();
+    await hiveDir.delete(recursive: true);
+  });
 
   setUp(() {
     auth = FakeAuthService();

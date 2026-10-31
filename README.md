@@ -18,14 +18,17 @@ samples, guidance on mobile development, and a full API reference.
 
 ## Server address
 
-The app reads the address of the server from `API_BASE_URL` (see `lib/core/network/api_config.dart`). It is the only place where the address is written. Without it the app uses a placeholder that never answers, so always pass the real address:
+The app reads the address of the server from `API_BASE_URL` (see `lib/core/network/api_config.dart`). It is the only place where the address is written. Without it the app uses our public server (`https://54-226-15-64.sslip.io`), so a normal build already works. Use `--dart-define` only to point to another backend:
 
 ```bash
-# Debug build for the demo by USB
-flutter run --dart-define=API_BASE_URL=https://<domain>
+# Debug build for the demo by USB (public server)
+flutter run
 
-# Release APK
-flutter build apk --release --dart-define=API_BASE_URL=https://<domain>
+# Release APK (public server)
+flutter build apk --release
+
+# Another backend, for example a local backend from the Android emulator
+flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8080
 ```
 
 ## Time zone

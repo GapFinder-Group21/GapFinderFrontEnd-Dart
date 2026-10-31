@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -69,7 +70,8 @@ void main() {
     backBody = '';
     outbox = OutboxService.forTesting(
       database: () async => db,
-      send: (method, endpoint, body) async => http.Response(backBody, backStatus),
+      // The back answers in UTF-8 (http.Response(String) would encode the accents as latin1)
+      send: (method, endpoint, body) async => http.Response.bytes(utf8.encode(backBody), backStatus),
     );
     service = _FakeMatchService();
     vm = MatchFoundViewModel(
