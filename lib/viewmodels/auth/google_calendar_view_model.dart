@@ -14,6 +14,7 @@ enum GoogleImportPhase { connecting, success, error, offline }
 class GoogleCalendarViewModel extends ChangeNotifier with OfflineAwareMixin {
   static const offlineTitle = 'Importar tu horario necesita conexión';
   static const offlineBanner = 'Sin conexión · no se puede importar tu horario';
+  static const failedMessage = 'No pudimos importar tu horario. Inténtalo de nuevo';
   static const slowMessage = 'Está tardando más de lo normal. Inténtalo de nuevo en un momento';
 
   // The import is long, but the spinner never lasts longer than this
@@ -98,9 +99,11 @@ class GoogleCalendarViewModel extends ChangeNotifier with OfflineAwareMixin {
         return;
       }
 
-      _localCache.saveGoogleImport(success: false, message: e.toString());
+      // Only the message in Spanish is shown and saved in the file, never the exception
+      final message = userMessage(e, network: failedMessage);
+      _localCache.saveGoogleImport(success: false, message: message);
       _phase = GoogleImportPhase.error;
-      _errorMessage = e.toString();
+      _errorMessage = message;
       _notify();
     }
   }

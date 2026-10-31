@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:gapfinderfrontend_dart/core/network/network_errors.dart';
 import 'package:gapfinderfrontend_dart/core/network/connectivity_service.dart';
 import 'package:gapfinderfrontend_dart/data/local/joel/joel_local_cache.dart';
+import 'package:gapfinderfrontend_dart/data/local/miguel/miguel_local_cache.dart';
 import 'package:gapfinderfrontend_dart/models/user.dart';
 import 'package:gapfinderfrontend_dart/services/auth_service.dart';
 import 'package:gapfinderfrontend_dart/services/user_service.dart';
@@ -15,16 +16,19 @@ class LoginViewModel extends ChangeNotifier {
   final AuthService _authService;
   final UserService _userService;
   final JoelLocalCache _localCache;
+  final MiguelLocalCache _draftCache;
   final ConnectivityService _connectivity;
 
   LoginViewModel({
     AuthService? authService,
     UserService? userService,
     JoelLocalCache? localCache,
+    MiguelLocalCache? draftCache,
     ConnectivityService? connectivity,
   })  : _authService = authService ?? AuthService(),
         _userService = userService ?? UserService(),
         _localCache = localCache ?? JoelLocalCache.instance,
+        _draftCache = draftCache ?? MiguelLocalCache.instance,
         _connectivity = connectivity ?? ConnectivityService.instance {
     _isOffline = !_connectivity.isOnline;
     _connectivitySub = _connectivity.onStatusChange.listen(_onConnectivityChanged);
@@ -70,6 +74,8 @@ class LoginViewModel extends ChangeNotifier {
 
     try {
       final auth = await _authService.login(email, password).timeout(loginTimeout);
+      // Someone who logs in is not the one who was signing up: the next person never sees that name and email
+      _draftCache.clearRegisterDraft();
       // Cache the profile in Hive (full user if GET /users/{id} works, else the login data)
       _localCache.saveProfile(
         () => _userService.getUser(auth.id),

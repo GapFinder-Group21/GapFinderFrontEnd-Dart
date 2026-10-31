@@ -58,10 +58,17 @@ class InterestsView extends StatelessWidget {
                   child: Center(
                     child: Padding(
                       padding: const EdgeInsets.all(32),
-                      child: Text(
-                        vm.loadError!,
-                        textAlign: TextAlign.center,
-                        style: AppFonts.body().copyWith(color: context.palette.contrast.withOpacity(0.6)),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            vm.loadError!,
+                            textAlign: TextAlign.center,
+                            style: AppFonts.body().copyWith(color: context.palette.contrast.withOpacity(0.6)),
+                          ),
+                          const SizedBox(height: 20),
+                          CustomButton(label: 'Reintentar', outline: true, small: true, onClick: vm.retryLoad),
+                        ],
                       ),
                     ),
                   ),

@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
 import 'package:gapfinderfrontend_dart/data/local/miguel/google_import_store.dart';
 import 'package:gapfinderfrontend_dart/data/local/miguel/interests_catalog_dao.dart';
 import 'package:gapfinderfrontend_dart/data/local/miguel/onboarding_prefs.dart';
@@ -36,18 +37,31 @@ class MiguelLocalCache {
         onboarding = onboarding ?? OnboardingPrefs();
 
   // SQLite: the catalog the back answered
+  // An empty list is never saved: it would wipe the catalog that is saved
   void saveInterestsCatalog(List<Interest> interests) {
+    if (interests.isEmpty) return;
     _run('interests catalog', () => interestsCatalog.replaceAll(interests));
   }
 
-  // SQLite: the interests the user chose; syncedIds are the ones the back already received
-  void saveUserInterests(int userId, Set<int> interestIds, Set<int> syncedIds) {
-    _run('user interests', () => userInterests.replaceAllForUser(userId, interestIds, syncedIds));
+  // SQLite: the interests the user chose; syncedIds are the ones the back already received.
+  // It never throws; the caller can wait for it (the interests are written before they are queued).
+  Future<void> saveUserInterests(int userId, Set<int> interestIds, Set<int> syncedIds) {
+    return _run('user interests', () => userInterests.replaceAllForUser(userId, interestIds, syncedIds));
   }
 
   // SQLite: the candidate that was shown for a match
   void saveSeenCandidate(int matchId, MatchCandidate candidate) {
     _run('seen candidate', () => seenCandidates.save(matchId, candidate));
+  }
+
+  // SQLite: the candidate of a request that waits in the outbox (it has no match id yet)
+  void saveQueuedCandidate(int proposerGapId, MatchCandidate candidate) {
+    _run('queued candidate', () => seenCandidates.saveQueued(proposerGapId, candidate.acceptorGap.id, candidate));
+  }
+
+  // SQLite: forgets the candidate of a queued request that was confirmed or cancelled
+  void forgetQueuedCandidate(int proposerGapId, MatchCandidate candidate) {
+    _run('queued candidate cleanup', () => seenCandidates.deleteQueued(proposerGapId, candidate.acceptorGap.id));
   }
 
   // Hive: what the user has typed so far in the sign up form
@@ -64,13 +78,25 @@ class MiguelLocalCache {
     _run('google import', () => googleImport.save(GoogleImportState(date: DateTime.now(), success: success, message: message)));
   }
 
-  // SharedPreferences: the step of the onboarding where the user is
+  // SharedPreferences: the step of the onboarding where the user of the session is.
+  // Without a session there is no user to save it for, so nothing is saved.
   void advanceOnboarding(OnboardingStep step) {
-    _run('onboarding step', () => onboarding.advanceTo(step));
+    _run('onboarding step', () async {
+      final userId = await TokenStorage.getUserId();
+      if (userId != null) await onboarding.advanceTo(userId, step);
+    });
   }
 
-  void _run(String what, Future<void> Function() action) {
-    Future.sync(action).catchError((Object e) {
+  // A new account was created: its onboarding starts again at the interests
+  void startOnboarding() {
+    _run('onboarding start', () async {
+      final userId = await TokenStorage.getUserId();
+      if (userId != null) await onboarding.start(userId);
+    });
+  }
+
+  Future<void> _run(String what, Future<void> Function() action) {
+    return Future.sync(action).catchError((Object e) {
       debugPrint('Could not save $what locally: $e');
     });
   }

@@ -165,7 +165,7 @@ class RegisterViewModel extends ChangeNotifier with OfflineAwareMixin {
           .timeout(requestTimeout);
       // The account exists: the draft is not needed anymore and the next step is the interests
       _localCache.clearRegisterDraft();
-      _localCache.advanceOnboarding(OnboardingStep.interests);
+      _localCache.startOnboarding();
       return true;
     } catch (e) {
       _errorMessage = isNetworkError(e) ? offlineMessage : e.toString().replaceAll('Exception: ', '');

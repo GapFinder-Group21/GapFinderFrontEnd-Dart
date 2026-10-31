@@ -5,6 +5,8 @@ import 'package:sqflite/sqflite.dart' show Sqflite;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:gapfinderfrontend_dart/core/storage/app_database.dart';
 import 'package:gapfinderfrontend_dart/core/storage/outbox_service.dart';
+import 'package:gapfinderfrontend_dart/data/local/miguel/miguel_local_cache.dart';
+import 'package:gapfinderfrontend_dart/data/local/miguel/seen_candidates_dao.dart';
 import 'package:gapfinderfrontend_dart/models/enums/match_mode_enum.dart';
 import 'package:gapfinderfrontend_dart/models/gap.dart';
 import 'package:gapfinderfrontend_dart/models/match.dart';
@@ -60,6 +62,7 @@ void main() {
         candidate: MatchCandidate(proposerGap: _gap(1, 1), acceptorGap: _gap(2, 2), score: 0.5),
         selectedMode: MatchModeEnum.career,
         matchService: _OfflineMatchService(),
+        localCache: MiguelLocalCache(seenCandidates: SeenCandidatesDao(database: () async => db)),
         outbox: outbox,
       );
 

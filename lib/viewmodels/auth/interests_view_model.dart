@@ -37,11 +37,21 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
   static Duration? catalogExpiry(String key, List<Interest> interests) =>
       interests.isEmpty ? const Duration(seconds: 30) : const Duration(hours: 1);
 
+  // The ids that were dropped as duplicates of another interest with the same name, and the id that was kept.
+  // Static like the catalog: it is only valid for the catalog in _cache.
+  static final Map<int, int> _keptIdOf = {};
+
   // Empties the memory cache (for tests)
   @visibleForTesting
-  static void clearCache() => _cache.clear();
+  static void clearCache() {
+    _cache.clear();
+    _keptIdOf.clear();
+  }
 
   static const offlineNotice = 'Tus intereses se guardarán cuando vuelva la conexión';
+  static const loadNetworkMessage = 'No pudimos cargar los intereses; se cargarán cuando vuelva la conexión';
+  static const emptyCatalogMessage = 'No encontramos intereses por ahora. Inténtalo de nuevo';
+  static const saveNetworkMessage = 'No pudimos guardar tus intereses. Inténtalo de nuevo';
 
   final InterestService _interestService;
   final UserService _userService;
@@ -70,6 +80,8 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
   String? _notice;
   bool _disposed = false;
   int? _userId;
+  DateTime? _savedCatalogAt;
+  Future<void>? _refreshing;
   Set<int>? _queuedSelection;
   Set<String> _pendingKeys = {};
   StreamSubscription<Set<String>>? _pendingSub;
@@ -104,20 +116,25 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
   }
 
   // Loads the catalog when the screen opens. It loads again by itself when the connection comes
-  // back (only if there was no catalog) and when the outbox sends the pending selection.
+  // back (if there was no catalog, or the saved one is older than an hour) and when the outbox sends
+  // the pending selection.
   // Estrategia: Future con handler + async/await. The await waits for the catalog; the handlers
   // (.then / .catchError) say what happens when it ends well or when it fails, without a try/catch.
   Future<void> init() async {
     _localCache.advanceOnboarding(OnboardingStep.interests);
     listenToConnectivity(onRestored: () async {
-      if (_interests.isEmpty) await _loadCatalog();
+      if (_interests.isEmpty) {
+        await _loadCatalog();
+      } else if (_savedCatalogIsOld) {
+        _startRefresh();
+      }
     });
     _watchOutbox();
 
     await _loadCatalog().then((_) {
       debugPrint('[Intereses] catálogo listo: ${_interests.length}');
     }).catchError((Object e) {
-      _loadError = '$e';
+      _loadError = userMessage(e, network: loadNetworkMessage);
       _isLoading = false;
       _notify();
     });
@@ -177,6 +194,8 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
       if (cached != null) {
         _logCache('HIT');
         _interests = cached;
+        // A memory entry is less than an hour old, so the catalog is not old (no SQLite read on a hit)
+        _savedCatalogAt ??= DateTime.now();
         await _loadSelection();
         return;
       }
@@ -184,29 +203,84 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
 
       final saved = await _localCache.interestsCatalog.getAll();
       if (saved.isNotEmpty) {
+        // The saved copy is shown at once; if it is old and there is connection, the network refreshes it
+        // in the background (the back may have new interests)
         _interests = await _process(saved);
         _cache.put(_catalogKey, _interests);
-        markUpdatedAt(await _localCache.interestsCatalog.lastSavedAt());
+        _savedCatalogAt = await _localCache.interestsCatalog.lastSavedAt();
+        if (!hasConnection) {
+          markFromCache(_savedCatalogAt);
+        } else {
+          markUpdatedAt(_savedCatalogAt);
+          if (_savedCatalogIsOld) _startRefresh();
+        }
       } else if (hasConnection) {
         final loaded = await _interestService.getInterests().timeout(OfflineAwareMixin.loadTimeout);
-        _interests = await _process(loaded);
-        _cache.put(_catalogKey, _interests);
-        _localCache.saveInterestsCatalog(_interests);
-        markFresh();
+        if (loaded.isEmpty) {
+          // An empty answer is probably incomplete: it is not saved (it would wipe a saved catalog) nor kept in
+          // memory, and the screen offers to try again
+          _loadError = emptyCatalogMessage;
+        } else {
+          _interests = await _process(loaded);
+          _cache.put(_catalogKey, _interests);
+          _localCache.saveInterestsCatalog(_interests);
+          _savedCatalogAt = DateTime.now();
+          markFresh();
+        }
       } else {
         _loadError = 'Sin conexión y aún no tenemos el catálogo de intereses; se cargará cuando vuelva la conexión';
       }
 
       await _loadSelection();
     } catch (e) {
-      _loadError = isNetworkError(e)
-          ? 'No pudimos cargar los intereses; se cargarán cuando vuelva la conexión'
-          : '$e';
+      _loadError = userMessage(e, network: loadNetworkMessage);
     } finally {
       _isLoading = false;
       _notify();
     }
   }
+
+  // The "Reintentar" button of the load error
+  Future<void> retryLoad() => _loadCatalog();
+
+  // The saved catalog is as old as the memory one may be before it expires (the 1 hour of the LRU)
+  bool get _savedCatalogIsOld {
+    final savedAt = _savedCatalogAt;
+    return savedAt == null || DateTime.now().difference(savedAt) >= const Duration(hours: 1);
+  }
+
+  // Refreshes the catalog in the background: the screen already shows the saved copy. Two refreshes
+  // never run at the same time.
+  void _startRefresh() {
+    if (_refreshing != null || !hasConnection) return;
+    _refreshing = _refreshCatalog().whenComplete(() => _refreshing = null);
+  }
+
+  Future<void> _refreshCatalog() async {
+    try {
+      final loaded = await _interestService.getInterests().timeout(OfflineAwareMixin.loadTimeout);
+      // An empty answer is probably incomplete: the saved catalog is kept
+      if (loaded.isEmpty) return;
+
+      final processed = await _process(loaded);
+      if (_disposed) return;
+      _interests = processed;
+      _cache.put(_catalogKey, processed);
+      _localCache.saveInterestsCatalog(processed);
+      _savedCatalogAt = DateTime.now();
+      markFresh();
+      debugPrint('[Intereses] catálogo actualizado: ${processed.length}');
+    } catch (e) {
+      // The saved copy stays on screen and says so
+      debugPrint('Could not refresh the interests catalog: $e');
+      markFromCache(_savedCatalogAt);
+    }
+    _notify();
+  }
+
+  // The refresh that is running, if any (the tests wait for it)
+  @visibleForTesting
+  Future<void>? get refreshing => _refreshing;
 
   // Estrategia: Isolate. Normalizing the names, removing the duplicates and sorting runs in another
   // isolate so a long catalog never blocks the screen. processInterests is a top-level function and
@@ -217,8 +291,12 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
     final processed = await Isolate.run(() => processInterests(raw));
 
     _searchNames.clear();
+    _keptIdOf.clear();
     for (final item in processed) {
       _searchNames[item['id'] as int] = item['searchName'] as String;
+      for (final dropped in (item['duplicateIds'] as List).cast<int>()) {
+        _keptIdOf[dropped] = item['id'] as int;
+      }
     }
     return processed.map((item) => Interest(id: item['id'] as int, name: item['name'] as String)).toList();
   }
@@ -230,7 +308,9 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
 
     try {
       final rows = await _localCache.userInterests.getAllForUser(userId);
-      _selectedInterestIds.addAll(rows.map((r) => r.interestId));
+      // A saved id that was dropped as a duplicate is the same interest as the kept one: it is shown (and saved
+      // again) as the kept one, not hidden
+      _selectedInterestIds.addAll(rows.map((r) => _keptIdOf[r.interestId] ?? r.interestId));
     } catch (e) {
       debugPrint('Could not read the saved interests: $e');
     }
@@ -255,7 +335,7 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
     _saveFailure = null;
 
     if (_selectedInterestIds.isEmpty) {
-      _errorMessage = 'Please select at least one interest';
+      _errorMessage = 'Selecciona al menos un interés';
       return false;
     }
 
@@ -266,10 +346,11 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
     final sent = <int>{};
     final chosen = Set<int>.of(_selectedInterestIds);
     int? savedUserId;
+    var queued = false;
 
     try {
       final userId = await TokenStorage.getUserId();
-      if (userId == null) throw Exception('User session not found');
+      if (userId == null) throw UserMessageException('Tu sesión expiró. Inicia sesión de nuevo');
       savedUserId = userId;
       _userId = userId;
 
@@ -277,7 +358,10 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
       final diff = await _selectionDiff(userId, chosen);
       sent.addAll(diff.alreadySynced);
 
-      if (!hasConnection) return await _queue(userId, chosen, diff);
+      if (!hasConnection) {
+        queued = true;
+        return await _queue(userId, chosen, sent, diff);
+      }
 
       try {
         // POST /users/{userId}/interests/{interestId}, DELETE /users/{userId}/interests/{interestId}
@@ -290,7 +374,8 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
         }
       } catch (e) {
         if (!isNetworkError(e)) rethrow;
-        return await _queue(userId, chosen, diff);
+        queued = true;
+        return await _queue(userId, chosen, sent, diff);
       }
 
       // It worked: a selection that was still pending is not needed anymore
@@ -299,12 +384,14 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
       _localCache.advanceOnboarding(OnboardingStep.scheduleSetup);
       return true;
     } catch (e) {
-      _errorMessage = 'Error saving interests: $e';
+      _errorMessage = userMessage(e, network: saveNetworkMessage);
       return false;
     } finally {
-      // The chosen interests are kept in SQLite, with synced = 1 only for the ones that were sent
-      if (savedUserId != null) {
-        _localCache.saveUserInterests(savedUserId, chosen, sent);
+      // The chosen interests are kept in SQLite, with synced = 1 only for the ones that were sent.
+      // A queued selection was already written before it was queued: writing again here could run after the
+      // outbox handler marked it synced and put synced = 0 back.
+      if (savedUserId != null && !queued) {
+        await _localCache.saveUserInterests(savedUserId, chosen, sent);
       }
       _isSaving = false;
       _notify();
@@ -332,7 +419,10 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
   }
 
   // The dedupeKey lets only one selection wait in the outbox, so many taps send it once
-  Future<bool> _queue(int userId, Set<int> chosen, _SelectionDiff diff) async {
+  Future<bool> _queue(int userId, Set<int> chosen, Set<int> sent, _SelectionDiff diff) async {
+    // The rows are written first and waited for: the outbox may send the selection (and mark it synced) as
+    // soon as it is queued
+    await _localCache.saveUserInterests(userId, chosen, sent);
     await UserInterestsOutbox.enqueue(userId, chosen, addIds: diff.add, removeIds: diff.remove, outbox: _outbox);
     _queuedSelection = chosen;
     _pendingKeys = {..._pendingKeys, UserInterestsOutbox.key(userId)};
