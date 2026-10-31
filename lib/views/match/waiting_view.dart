@@ -16,13 +16,14 @@ class WaitingView extends StatefulWidget {
   State<WaitingView> createState() => _WaitingViewState();
 }
 
-class _WaitingViewState extends State<WaitingView> {
+class _WaitingViewState extends State<WaitingView> with WidgetsBindingObserver {
   StreamSubscription<WaitingEvent>? _eventsSub;
 
   @override
   // Listen to the polling result
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     final vm = context.read<WaitingViewModel>();
     _eventsSub = vm.events.listen((event) {
       if (!mounted) return;
@@ -44,8 +45,20 @@ class _WaitingViewState extends State<WaitingView> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _eventsSub?.cancel();
     super.dispose();
+  }
+
+  @override
+  // The polling stops while the app is in the background and resumes when the user comes back
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final vm = context.read<WaitingViewModel>();
+    if (state == AppLifecycleState.paused) {
+      vm.pausePolling();
+    } else if (state == AppLifecycleState.resumed) {
+      vm.resumePolling();
+    }
   }
 
   // Dialog shown when the other person declines
@@ -69,10 +82,15 @@ class _WaitingViewState extends State<WaitingView> {
     );
   }
 
-  // Stops waiting and goes back
-  void _cancel() {
-    context.read<WaitingViewModel>().cancel();
-    Navigator.pop(context);
+  // Cancels the request in the back and goes back; if it could not be cancelled, says why and keeps waiting
+  Future<void> _cancel() async {
+    final message = await context.read<WaitingViewModel>().cancelRequest();
+    if (!mounted) return;
+    if (message == null) {
+      Navigator.pop(context);
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   // Message of the last status we know, shown while there is no connection
@@ -156,7 +174,7 @@ class _WaitingViewState extends State<WaitingView> {
               SizedBox(
                 width: double.infinity,
                 child: TextButton(
-                  onPressed: _cancel,
+                  onPressed: vm.isCancelling ? null : _cancel,
                   child: Text(
                     'Cancel Request',
                     style: AppFonts.body(weight: FontWeight.w700).copyWith(

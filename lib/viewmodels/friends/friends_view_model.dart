@@ -82,6 +82,9 @@ class FriendsViewModel extends ChangeNotifier {
   @visibleForTesting
   static void clearSearchCache() => _searchCache.clear();
 
+  // Typing waits this long before searching, so "a", "an", "ana" become one request
+  final Duration searchDebounce;
+
   // Same text with other capitals or extra spaces is the same search
   static String _searchKey(String query) => query.trim().toLowerCase().replaceAll(RegExp(r'\s+'), ' ');
 
@@ -92,6 +95,7 @@ class FriendsViewModel extends ChangeNotifier {
     JoelLocalCache? localCache,
     ConnectivityService? connectivity,
     OutboxService? outbox,
+    this.searchDebounce = const Duration(milliseconds: 300),
   })  : _friendshipService = friendshipService ?? FriendshipService(),
         _gapService = gapService ?? GapService(),
         _userService = userService ?? UserService(),
@@ -104,6 +108,8 @@ class FriendsViewModel extends ChangeNotifier {
   bool _hasError = false;
   List<User> _searchResults = [];
   bool _isSearching = false;
+  bool _searchLoading = false;
+  String? _searchError;
   String? _errorMessage;
   bool _disposed = false;
 
@@ -114,6 +120,10 @@ class FriendsViewModel extends ChangeNotifier {
   Set<String> _pendingKeys = {};
   bool _lastActionQueued = false;
   int _loadId = 0;
+  Timer? _searchTimer;
+  Completer<void>? _waitingSearch;
+  // Number of the newest search: an older answer that arrives later is dropped
+  int _searchSeq = 0;
 
   // Last loaded data (kept while reloading, like the old FutureBuilder)
   FriendsData? get data => _data;
@@ -121,6 +131,10 @@ class FriendsViewModel extends ChangeNotifier {
   bool get hasError => _hasError;
   List<User> get searchResults => _searchResults;
   bool get isSearching => _isSearching;
+  // A search request is running: the screen shows a spinner instead of "No users found"
+  bool get searchLoading => _searchLoading;
+  // The last search failed: the screen shows this message
+  String? get searchError => _searchError;
   String? get errorMessage => _errorMessage;
   bool get isOffline => _isOffline;
   // When the friends on screen were last updated (the network answer or the saved copy)
@@ -243,17 +257,44 @@ class FriendsViewModel extends ChangeNotifier {
   }
 
   // Searches users by name - GET /users/search?name=
-  Future<void> search(String query) async {
+  // Called on every key: it waits searchDebounce after the last key and only the newest answer is shown
+  Future<void> search(String query) {
     // Searching needs the back: the field is disabled without connection (clearing still works)
-    if (_isOffline && query.trim().isNotEmpty) return;
+    if (_isOffline && query.trim().isNotEmpty) return Future.value();
+    _cancelWaitingSearch();
     if (query.trim().isEmpty) {
+      _searchSeq++;
       _searchResults = [];
       _isSearching = false;
+      _searchLoading = false;
+      _searchError = null;
       _notify();
-      return;
+      return Future.value();
     }
     _isSearching = true;
+    _searchLoading = true;
+    _searchError = null;
     _notify();
+
+    final waiting = Completer<void>();
+    _waitingSearch = waiting;
+    _searchTimer = Timer(searchDebounce, () {
+      _waitingSearch = null;
+      _runSearch(query).whenComplete(waiting.complete);
+    });
+    return waiting.future;
+  }
+
+  // A newer key arrived before the wait ended: that search never starts
+  void _cancelWaitingSearch() {
+    _searchTimer?.cancel();
+    _searchTimer = null;
+    _waitingSearch?.complete();
+    _waitingSearch = null;
+  }
+
+  Future<void> _runSearch(String query) async {
+    final seq = ++_searchSeq;
     try {
       final key = _searchKey(query);
       var results = _searchCache.get(key);
@@ -261,14 +302,23 @@ class FriendsViewModel extends ChangeNotifier {
         debugPrint('HIT "$key" ${_searchCache.describe()}');
       } else {
         debugPrint('MISS "$key" ${_searchCache.describe()}');
-        results = await _userService.searchByName(query.trim());
+        // The back gets the same text as the cache key, so what is cached is what was asked
+        results = await _userService.searchByName(key);
         _searchCache.put(key, results);
       }
       final currentUserId = await TokenStorage.getUserId();
+      // A newer search started while this one waited: its answer is old
+      if (seq != _searchSeq || _disposed) return;
       _searchResults = results.where((u) => u.id != currentUserId).toList();
+      _searchLoading = false;
       _notify();
     } catch (e) {
       debugPrint('Error searching users: $e');
+      if (seq != _searchSeq || _disposed) return;
+      _searchResults = [];
+      _searchLoading = false;
+      _searchError = userMessage(e, network: 'No pudimos buscar usuarios. Intenta de nuevo');
+      _notify();
     }
   }
 
@@ -294,6 +344,8 @@ class FriendsViewModel extends ChangeNotifier {
     // Estrategia: Future con handler. The answer is handled with .then (it worked) and
     // .catchError (it failed) instead of await + try/catch.
     return _friendshipService.sendRequest(userId, targetUserId).then<bool?>((_) {
+      // The saved searches still show this user with "Add"
+      _searchCache.clear();
       _searchResults = [];
       _isSearching = false;
       _notify();
@@ -301,7 +353,7 @@ class FriendsViewModel extends ChangeNotifier {
       return true;
     }).catchError((Object e) async {
       if (isNetworkError(e)) return queue();
-      _errorMessage = e.toString().replaceAll('Exception: ', '');
+      _errorMessage = userMessage(e, network: 'No pudimos enviar la solicitud de amistad. Intenta de nuevo');
       return false;
     });
   }
@@ -319,11 +371,13 @@ class FriendsViewModel extends ChangeNotifier {
 
     try {
       await _friendshipService.acceptRequest(friendshipId, userId);
+      // The saved searches still show the new friend with "Add"
+      _searchCache.clear();
       refresh();
       return true;
     } catch (e) {
       if (isNetworkError(e)) return _queue(OutboxTypes.friendRequestAccept, 'PATCH', endpoint, key);
-      _errorMessage = 'Error accepting request: $e';
+      _errorMessage = userMessage(e, network: 'No pudimos aceptar la solicitud. Intenta de nuevo');
       return false;
     }
   }
@@ -345,7 +399,7 @@ class FriendsViewModel extends ChangeNotifier {
       return true;
     } catch (e) {
       if (isNetworkError(e)) return _queue(OutboxTypes.friendRequestReject, 'PATCH', endpoint, key);
-      _errorMessage = 'Error rejecting request: $e';
+      _errorMessage = userMessage(e, network: 'No pudimos rechazar la solicitud. Intenta de nuevo');
       return false;
     }
   }
@@ -443,6 +497,7 @@ class FriendsViewModel extends ChangeNotifier {
     _disposed = true;
     _connectivitySub?.cancel();
     _pendingSub?.cancel();
+    _cancelWaitingSearch();
     super.dispose();
   }
 }

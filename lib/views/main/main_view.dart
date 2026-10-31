@@ -58,8 +58,9 @@ class _MainTabsState extends State<_MainTabs> with WidgetsBindingObserver {
     vm.registerAppOpen(); // first open
     _eventsSub = vm.events.listen((event) async {
       if (!mounted) return;
-      await Navigator.pushNamed(context, AppRoutes.matchInvitation, arguments: event.matchId);
-      vm.onInvitationClosed(event.notificationId);
+      // The route returns true only when the invitation was answered
+      final answered = await Navigator.pushNamed<Object?>(context, AppRoutes.matchInvitation, arguments: event.matchId);
+      vm.onInvitationClosed(event, answered: answered == true);
     });
   }
 
@@ -71,13 +72,16 @@ class _MainTabsState extends State<_MainTabs> with WidgetsBindingObserver {
   }
 
   @override
-  // Every time the user comes back to the app: register the open and re-schedule today's reminders.
+  // In the background the invitation poller stops. Every time the user comes back to the app: resume it,
+  // register the open and re-schedule today's reminders.
   // Only after the app was really in the background (not after a permission dialog).
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
       _wasInBackground = true;
+      context.read<MainViewModel>().pausePolling();
     } else if (state == AppLifecycleState.resumed && _wasInBackground) {
       _wasInBackground = false;
+      context.read<MainViewModel>().resumePolling();
       context.read<MainViewModel>().registerAppOpen();
       context.read<ScheduleViewModel>().scheduleReminders();
     }

@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:gapfinderfrontend_dart/data/local/joel/joel_local_cache.dart';
 import 'package:gapfinderfrontend_dart/models/app_notification.dart';
 import 'package:gapfinderfrontend_dart/models/friendship.dart';
@@ -34,9 +33,6 @@ class NoopLocalCache extends JoelLocalCache {
 
   @override
   void saveMainTab(int tabIndex) {}
-
-  @override
-  void savePendingPhoto(File photo) {}
 
   @override
   void clearPendingPhoto() {}

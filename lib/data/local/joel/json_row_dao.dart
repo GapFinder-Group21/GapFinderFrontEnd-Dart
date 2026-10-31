@@ -69,6 +69,14 @@ abstract class JsonRowDao<T> {
     return last == null ? null : DateTime.parse(last);
   }
 
+  // When this one row was saved, or null if it is not saved
+  Future<DateTime?> savedAtById(int id) async {
+    final db = await _database();
+    final rows = await db.query(table, columns: ['saved_at'], where: 'id = ?', whereArgs: [id], limit: 1);
+    final savedAt = rows.isEmpty ? null : rows.first['saved_at'] as String?;
+    return savedAt == null ? null : DateTime.parse(savedAt);
+  }
+
   T _decode(Map<String, Object?> row) =>
       fromJson(jsonDecode(row['json'] as String) as Map<String, dynamic>);
 }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'noop_local_cache.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gapfinderfrontend_dart/models/enums/friendship_status_enum.dart';
@@ -69,10 +70,19 @@ class FakeGapService extends GapService {
 class FakeUserService extends UserService {
   int searchCalls = 0;
   bool noResults = false;
+  final List<String> searchedNames = [];
+  // Searches that answer only when the test completes them
+  final Map<String, Completer<List<User>>> slow = {};
+
+  Object? error;
 
   @override
   Future<List<User>> searchByName(String name) async {
     searchCalls++;
+    searchedNames.add(name);
+    if (error != null) throw error!;
+    final waiting = slow[name];
+    if (waiting != null) return waiting.future;
     if (noResults) return [];
     return [_user(1, 'me'), _user(2, 'ana')];
   }
@@ -98,6 +108,7 @@ void main() {
       gapService: gaps,
       userService: users,
       localCache: NoopLocalCache(),
+      searchDebounce: Duration.zero,
     );
   });
 
@@ -170,10 +181,23 @@ void main() {
       expect(vm.errorMessage, 'already friends');
 
       expect(await vm.acceptRequest(10), isFalse);
-      expect(vm.errorMessage, contains('Error accepting request'));
+      expect(vm.errorMessage, 'already friends');
 
       expect(await vm.rejectRequest(10), isFalse);
-      expect(vm.errorMessage, contains('Error rejecting request'));
+      expect(vm.errorMessage, 'already friends');
+    });
+
+    test('J-11: a technical error never reaches the message, the screen shows its own text', () async {
+      friendships.error = TypeError();
+
+      expect(await vm.sendFriendRequest(5), isFalse);
+      expect(vm.errorMessage, 'No pudimos enviar la solicitud de amistad. Intenta de nuevo');
+
+      expect(await vm.acceptRequest(10), isFalse);
+      expect(vm.errorMessage, 'No pudimos aceptar la solicitud. Intenta de nuevo');
+
+      expect(await vm.rejectRequest(10), isFalse);
+      expect(vm.errorMessage, 'No pudimos rechazar la solicitud. Intenta de nuevo');
     });
 
     test('actions return null when there is no session', () async {
@@ -211,6 +235,90 @@ void main() {
     test('searchExpiry keeps a search with results 3 minutes and one with no results 30 seconds', () {
       expect(FriendsViewModel.searchExpiry('ana', [_user(2, 'ana')]), const Duration(minutes: 3));
       expect(FriendsViewModel.searchExpiry('nobody', []), const Duration(seconds: 30));
+    });
+  });
+
+  group('J-9: friend search while typing', () {
+    test('typing "a", "an", "ana" quickly sends one request, for the last text', () async {
+      vm.dispose();
+      vm = FriendsViewModel(
+        friendshipService: friendships,
+        gapService: gaps,
+        userService: users,
+        localCache: NoopLocalCache(),
+      );
+
+      vm.search('a');
+      vm.search('an');
+      await vm.search('ana');
+
+      expect(users.searchCalls, 1);
+      expect(users.searchedNames, ['ana']);
+    });
+
+    test('an old answer that arrives last does not replace the newer list', () async {
+      users.slow['an'] = Completer<List<User>>();
+
+      final old = vm.search('an');
+      await Future<void>.delayed(Duration.zero);
+      await vm.search('ana');
+      expect(vm.searchResults.map((u) => u.name), ['ana']);
+
+      users.slow['an']!.complete([_user(7, 'andres')]);
+      await old;
+
+      expect(vm.searchResults.map((u) => u.name), ['ana']);
+    });
+  });
+
+  test('J-13: the back gets the same text as the cache key (no double spaces, lower case)', () async {
+    await vm.search('  Ana   Maria ');
+
+    expect(users.searchedNames, ['ana maria']);
+  });
+
+  group('J-14: search states', () {
+    test('a sent friend request clears the saved searches, so the next search asks the back again', () async {
+      await vm.search('ana');
+      expect(await vm.sendFriendRequest(2), isTrue);
+
+      await vm.search('ana');
+
+      expect(users.searchCalls, 2);
+    });
+
+    test('an accepted friend request clears the saved searches too', () async {
+      await vm.search('ana');
+      expect(await vm.acceptRequest(10), isTrue);
+
+      await vm.search('ana');
+
+      expect(users.searchCalls, 2);
+    });
+
+    test('while the request runs the search is loading, so "No users found" is not shown', () async {
+      users.slow['ana'] = Completer<List<User>>();
+
+      final running = vm.search('ana');
+      await Future<void>.delayed(Duration.zero);
+      expect(vm.searchLoading, isTrue);
+
+      users.slow['ana']!.complete([_user(2, 'ana')]);
+      await running;
+      expect(vm.searchLoading, isFalse);
+    });
+
+    test('a failed search stops loading and shows a Spanish message', () async {
+      users.error = Exception('La búsqueda no está disponible');
+
+      await vm.search('ana');
+
+      expect(vm.searchLoading, isFalse);
+      expect(vm.searchError, 'La búsqueda no está disponible');
+
+      users.error = TypeError();
+      await vm.search('leo');
+      expect(vm.searchError, 'No pudimos buscar usuarios. Intenta de nuevo');
     });
   });
 }

@@ -6,6 +6,7 @@ import 'package:gapfinderfrontend_dart/data/local/joel/joel_local_cache.dart';
 import 'package:gapfinderfrontend_dart/models/app_notification.dart';
 import 'package:gapfinderfrontend_dart/models/enums/match_status_enum.dart';
 import 'package:gapfinderfrontend_dart/models/enums/notification_type_enum.dart';
+import 'package:gapfinderfrontend_dart/models/match.dart';
 import 'package:gapfinderfrontend_dart/services/app_session_service.dart';
 import 'package:gapfinderfrontend_dart/services/gap_reminder_service.dart';
 import 'package:gapfinderfrontend_dart/services/match_service.dart';
@@ -28,6 +29,8 @@ class MainViewModel extends ChangeNotifier {
   final GapReminderService _reminderService;
   final JoelLocalCache _localCache;
   final ConnectivityService _connectivity;
+  // Each request of the poller waits at most this long, so a hung request never freezes it
+  final Duration requestTimeout;
 
   MainViewModel({
     NotificationService? notificationService,
@@ -36,6 +39,7 @@ class MainViewModel extends ChangeNotifier {
     GapReminderService? reminderService,
     JoelLocalCache? localCache,
     ConnectivityService? connectivity,
+    this.requestTimeout = const Duration(seconds: 10),
   })  : _notificationService = notificationService ?? NotificationService(),
         _matchService = matchService ?? MatchService(),
         _appSessionService = appSessionService ?? AppSessionService(),
@@ -79,6 +83,8 @@ class MainViewModel extends ChangeNotifier {
   final Set<int> _handledMatchRequests = {};
   bool _checking = false;
   bool _invitationOpen = false;
+  // The app is in the background: the poller does not run
+  bool _paused = false;
   int? _userId;
   bool _disposed = false;
 
@@ -143,12 +149,31 @@ class MainViewModel extends ChangeNotifier {
     _notificationTimer = null;
   }
 
+  // The app went to the background: the poller stops, so it uses no data or battery and never opens
+  // an invitation while the user is in another app
+  void pausePolling() {
+    _paused = true;
+    _stopPolling();
+  }
+
+  // The app is back: check at once and poll again (only with connection)
+  void resumePolling() {
+    if (!_paused) return;
+    _paused = false;
+    if (_isOffline || _disposed) return;
+    _checkNotifications();
+    _startPolling();
+  }
+
   // Pauses the poller without connection and resumes it (checking at once) when it is back
   void _onConnectivityChanged(bool online) {
     _isOffline = !online;
     if (online) {
-      _checkNotifications();
-      _startPolling();
+      // In the background it stays stopped: resumePolling starts it again
+      if (!_paused) {
+        _checkNotifications();
+        _startPolling();
+      }
     } else {
       _stopPolling();
       _loadSavedNotifications();
@@ -200,7 +225,7 @@ class MainViewModel extends ChangeNotifier {
 
   // Sends one event per new match request - GET /api/notifications/user/{userId}/unread
   Future<void> _checkNotifications() async {
-    if (_checking || _invitationOpen || _isOffline) return;
+    if (_checking || _invitationOpen || _isOffline || _paused) return;
     _checking = true;
 
     try {
@@ -208,7 +233,7 @@ class MainViewModel extends ChangeNotifier {
       if (userId == null) return;
       _userId = userId;
 
-      final unread = await _notificationService.getUnreadByUser(userId);
+      final unread = await _notificationService.getUnreadByUser(userId).timeout(requestTimeout);
       // Cached on network response (never blocks the poller)
       _localCache.saveNotifications(userId, unread);
       _notifications = unread;
@@ -224,10 +249,20 @@ class MainViewModel extends ChangeNotifier {
 
       for (final AppNotification n in proposals) {
         final matchId = n.relatedEntityId!;
+
+        final Match match;
+        try {
+          match = await _matchService.getById(matchId).timeout(requestTimeout);
+        } on MatchNotFoundException {
+          // The match does not exist anymore: mark it as read so it is not checked again
+          _handledMatchRequests.add(matchId);
+          _markAsRead(n.id, userId);
+          continue;
+        }
+        // Only now it counts as handled: if getById failed, the next check tries again
         _handledMatchRequests.add(matchId);
 
         // If the match is no longer pending (expired or cancelled), just mark it as read
-        final match = await _matchService.getById(matchId);
         _localCache.saveInvitationMatch(match); // so the invitation can open without connection
         if (match.status != MatchStatusEnum.PENDING) {
           _markAsRead(n.id, userId);
@@ -248,11 +283,20 @@ class MainViewModel extends ChangeNotifier {
     }
   }
 
-  // Called by the View when the invitation screen is closed
-  void onInvitationClosed(int notificationId) {
+  // Runs one check of the notifications now (for tests)
+  @visibleForTesting
+  Future<void> checkNotificationsNow() => _checkNotifications();
+
+  // Called by the View when the invitation screen is closed. Only an answered invitation is marked as
+  // read; one closed with the back button is offered again in a next check.
+  void onInvitationClosed(MatchInvitationEvent event, {required bool answered}) {
     _invitationOpen = false;
+    if (!answered) {
+      _handledMatchRequests.remove(event.matchId);
+      return;
+    }
     final userId = _userId;
-    if (userId != null) _markAsRead(notificationId, userId);
+    if (userId != null) _markAsRead(event.notificationId, userId);
   }
 
   // Marks a notification as read - PUT /api/notifications/{notificationId}/read

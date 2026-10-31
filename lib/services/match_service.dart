@@ -3,6 +3,15 @@ import 'package:gapfinderfrontend_dart/core/network/api_client.dart';
 import 'package:gapfinderfrontend_dart/models/match.dart';
 import 'package:gapfinderfrontend_dart/models/responses/match_candidate.dart';
 
+// The match does not exist anymore (the back answered 404)
+class MatchNotFoundException implements Exception {
+  final int matchId;
+  MatchNotFoundException(this.matchId);
+
+  @override
+  String toString() => 'Match $matchId not found';
+}
+
 class MatchService {
   // Candidates for a gap - GET /matches/gap/{gapId}/candidates
   Future<List<MatchCandidate>> getCandidates(
@@ -45,9 +54,10 @@ class MatchService {
     return Match.fromJson(jsonDecode(utf8.decode(res.bodyBytes)));
   }
 
-  // Get all matches - GET /matches
-  Future<List<Match>> getAll() async {
-    final res = await ApiClient.get('/matches');
+  // The matches of one user, as proposer or as acceptor - GET /matches/user/{userId}
+  // (only the user's own matches, never the email and phone of everybody else)
+  Future<List<Match>> getByUser(int userId) async {
+    final res = await ApiClient.get('/matches/user/$userId');
 
     if (res.statusCode != 200) {
       throw Exception(_errorMessage(res, 'Error getting matches'));
@@ -61,6 +71,7 @@ class MatchService {
   Future<Match> getById(int id) async {
     final res = await ApiClient.get('/matches/$id');
 
+    if (res.statusCode == 404) throw MatchNotFoundException(id);
     if (res.statusCode != 200) {
       throw Exception(_errorMessage(res, 'Error getting match'));
     }
@@ -109,6 +120,18 @@ class MatchService {
 
     if (res.statusCode != 200) {
       throw Exception(_errorMessage(res, 'Error rejecting match'));
+    }
+
+    return Match.fromJson(jsonDecode(utf8.decode(res.bodyBytes)));
+  }
+
+  // Cancel a request the user sent while it is still pending - POST /matches/{id}/cancel
+  // If it was already answered the back refuses it (422) with a Spanish message
+  Future<Match> cancel(int matchId) async {
+    final res = await ApiClient.post('/matches/$matchId/cancel');
+
+    if (res.statusCode != 200) {
+      throw Exception(_errorMessage(res, 'Error cancelling match'));
     }
 
     return Match.fromJson(jsonDecode(utf8.decode(res.bodyBytes)));

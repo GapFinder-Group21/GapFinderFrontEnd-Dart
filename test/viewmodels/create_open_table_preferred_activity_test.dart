@@ -133,6 +133,17 @@ void main() {
       expect(vm.isPreferredActivitySelected, isTrue);
     });
 
+    test('J-21: an unknown user (404) keeps the saved favorite instead of forgetting it', () async {
+      SharedPreferences.setMockInitialValues({'preferred_activity_1': 3});
+      preferred.error = PreferredActivityUnknownUserException(1);
+
+      await vm.init();
+      await settle();
+
+      expect(vm.selectedActivity?.id, 3);
+      expect((await SharedPreferences.getInstance()).getInt('preferred_activity_1'), 3);
+    });
+
     test('when the back says the user has none, the saved one is forgotten', () async {
       SharedPreferences.setMockInitialValues({'preferred_activity_1': 3});
       preferred.answer = null;

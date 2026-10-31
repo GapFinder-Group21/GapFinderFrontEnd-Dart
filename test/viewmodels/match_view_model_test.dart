@@ -23,9 +23,13 @@ class FakeGapService extends GapService {
 
 class FakeMatchService extends MatchService {
   List<Match> matches = [];
+  final List<int> requestedUsers = [];
 
   @override
-  Future<List<Match>> getAll() async => matches;
+  Future<List<Match>> getByUser(int userId) async {
+    requestedUsers.add(userId);
+    return matches;
+  }
 }
 
 void main() {
@@ -94,6 +98,14 @@ void main() {
       expect(vm.gapMatch?.id, 1);
       expect(vm.canMatch, isFalse);
       expect(vm.isOngoing, isTrue);
+    });
+
+    test('J-8: the match of the gap is looked up only among the matches of the user', () async {
+      gapService.gaps = [currentGap];
+
+      await vm.init();
+
+      expect(matchService.requestedUsers, [1]);
     });
 
     test('no current gap when the service throws, and selectMode works',

@@ -270,7 +270,8 @@ class CreateOpenTableViewModel extends ChangeNotifier with OfflineAwareMixin {
       try {
         final response = await _preferredActivityService.getPreferredActivity(userId).timeout(preferredTimeout);
         _preferredFromNetwork = true;
-        // Saved for the next time (or forgotten if the back says the user has none); never breaks the screen
+        // Saved for the next time, or forgotten only when the back answers that the user has none (a 200
+        // without a favorite); an error or an unknown user (404) keeps the saved one. Never breaks the screen
         JoelLocalCache.instance.savePreferredActivity(userId, response.activityId);
         return response.activityId;
       } catch (e) {
@@ -338,10 +339,9 @@ class CreateOpenTableViewModel extends ChangeNotifier with OfflineAwareMixin {
       );
       if (image == null) return PhotoResult.cancelled;
 
-      _photo = File(image.path);
-      await _compressPhoto(_photo!);
-      // Keep a copy in pending_photos/ so it is not lost if the app closes before publishing
-      JoelLocalCache.instance.savePendingPhoto(_photo!);
+      final taken = File(image.path);
+      await _compressPhoto(taken);
+      _photo = await _keepCopy(taken);
       _notify();
       return PhotoResult.taken;
     } catch (e) {
@@ -352,6 +352,21 @@ class CreateOpenTableViewModel extends ChangeNotifier with OfflineAwareMixin {
   }
 
   // Makes the photo lighter before it is saved in pending_photos/ and uploaded.
+  // Keeps a copy in pending_photos/ so it is not lost if the app closes before publishing, and deletes the
+  // temp file of the camera. If the copy fails, the temp file is used.
+  Future<File> _keepCopy(File taken) async {
+    try {
+      await JoelLocalCache.instance.pendingPhoto.save(taken);
+      final copy = await JoelLocalCache.instance.pendingPhoto.currentFile();
+      if (copy == null) return taken;
+      await taken.delete();
+      return copy;
+    } catch (e) {
+      debugPrint('Could not keep a copy of the photo: $e');
+      return taken;
+    }
+  }
+
   // Estrategia: Isolate. Compressing decodes and encodes the whole image, which is heavy,
   // so it runs in another isolate (its own thread and memory) and the screen does not freeze.
   // If it fails the original photo is kept.
@@ -364,8 +379,8 @@ class CreateOpenTableViewModel extends ChangeNotifier with OfflineAwareMixin {
       final compressed = await Isolate.run(() => compressPhoto(original));
       debugPrint('Photo after compressing: ${(compressed.length / 1024).toStringAsFixed(1)} KB');
 
-      // Only replace the file if it really got lighter
-      if (compressed.length < original.length) await photo.writeAsBytes(compressed);
+      // Always the processed bytes, even if they are not lighter: they have no EXIF (GPS) data
+      await photo.writeAsBytes(compressed);
     } catch (e) {
       debugPrint('Could not compress the photo, using the original: $e');
     }

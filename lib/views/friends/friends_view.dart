@@ -218,6 +218,24 @@ class _FriendsViewState extends State<FriendsView> {
 
   // Results of the search, each one with an "Add" button
   Widget _buildSearchResults() {
+    // While the request runs, a spinner (not "No users found")
+    if (_vm.searchLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_vm.searchError != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            _vm.searchError!,
+            textAlign: TextAlign.center,
+            style: AppFonts.body().copyWith(color: context.palette.contrast.withValues(alpha: 0.6)),
+          ),
+        ),
+      );
+    }
+
     if (_vm.searchResults.isEmpty) {
       return Center(
         child: Text(

@@ -17,7 +17,8 @@ import 'package:gapfinderfrontend_dart/views/widgets/common/offline_banner.dart'
 /// It shows the match saved on the device (read only); updating it needs connection.
 class ItsAMatchView extends StatelessWidget {
   final int matchId;
-  final User candidateUser;
+  // Null when the match came without the other user (for example from an old saved copy)
+  final User? candidateUser;
   final Activity? suggestedActivity;
   final Activity? chosenActivity;
 
@@ -67,15 +68,15 @@ class ItsAMatchView extends StatelessWidget {
               const SizedBox(height: 40),
               Center(
                 child: AvatarWidget(
-                  url: candidateUser.avatarUrl,
-                  name: candidateUser.name,
+                  url: candidateUser?.avatarUrl,
+                  name: candidateUser?.name,
                   size: 120,
                   border: Border.all(color: Colors.white, width: 4),
                 ),
               ),
               const SizedBox(height: 24),
               Text(
-                'You and ${candidateUser.name} are free at the same time.',
+                'You and ${candidateUser?.name ?? 'your match'} are free at the same time.',
                 textAlign: TextAlign.center,
                 style: AppFonts.body().copyWith(
                   fontSize: 16,
@@ -98,8 +99,8 @@ class ItsAMatchView extends StatelessWidget {
                     const Icon(Icons.phone, color: AppColors.accent2, size: 20),
                     const SizedBox(width: 8),
                     Text(
-                      candidateUser.phoneNumber?.isNotEmpty == true
-                          ? candidateUser.phoneNumber!
+                      candidateUser?.phoneNumber?.isNotEmpty == true
+                          ? candidateUser!.phoneNumber!
                           : 'No phone number available',
                       style: AppFonts.display(weight: FontWeight.w700).copyWith(
                         fontSize: 16,
