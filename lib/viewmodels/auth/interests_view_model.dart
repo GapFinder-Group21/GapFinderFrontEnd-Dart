@@ -8,6 +8,7 @@ import 'package:gapfinderfrontend_dart/core/storage/outbox_service.dart';
 import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
 import 'package:gapfinderfrontend_dart/data/local/miguel/miguel_local_cache.dart';
 import 'package:gapfinderfrontend_dart/data/local/miguel/onboarding_prefs.dart';
+import 'package:gapfinderfrontend_dart/data/local/miguel/user_interests_dao.dart';
 import 'package:gapfinderfrontend_dart/data/local/miguel/user_interests_outbox.dart';
 import 'package:gapfinderfrontend_dart/models/interest.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/auth/interests_processing.dart';
@@ -252,17 +253,24 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
       savedUserId = userId;
       _userId = userId;
 
-      if (!hasConnection) return await _queue(userId, chosen);
+      // Only the difference is sent: the new interests with POST and the unticked ones with DELETE
+      final diff = await _selectionDiff(userId, chosen);
+      sent.addAll(diff.alreadySynced);
+
+      if (!hasConnection) return await _queue(userId, chosen, diff);
 
       try {
-        // Save each selected interest one by one - POST /users/{userId}/interests/{interestId}
-        for (final interestId in chosen) {
+        // POST /users/{userId}/interests/{interestId}, DELETE /users/{userId}/interests/{interestId}
+        for (final interestId in diff.add) {
           await _userService.addInterest(userId, interestId).timeout(OfflineAwareMixin.loadTimeout);
           sent.add(interestId);
         }
+        for (final interestId in diff.remove) {
+          await _userService.removeInterest(userId, interestId).timeout(OfflineAwareMixin.loadTimeout);
+        }
       } catch (e) {
         if (!isNetworkError(e)) rethrow;
-        return await _queue(userId, chosen);
+        return await _queue(userId, chosen, diff);
       }
 
       // It worked: a selection that was still pending is not needed anymore
@@ -283,9 +291,29 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
     }
   }
 
+  // Compares the new selection with what SQLite had before this save:
+  // add = chosen and not yet received by the back; remove = had before and now unticked, plus the
+  // unticked ones that a pending selection still had to delete (its row is replaced, not sent)
+  Future<_SelectionDiff> _selectionDiff(int userId, Set<int> chosen) async {
+    var before = <UserInterestRow>[];
+    try {
+      before = await _localCache.userInterests.getAllForUser(userId);
+    } catch (e) {
+      debugPrint('Could not read the saved interests: $e');
+    }
+    final pendingRemove = await UserInterestsOutbox.pendingRemoveIds(userId, outbox: _outboxService);
+
+    final synced = before.where((r) => r.synced).map((r) => r.interestId).toSet();
+    return _SelectionDiff(
+      add: chosen.difference(synced),
+      remove: before.map((r) => r.interestId).toSet().union(pendingRemove).difference(chosen),
+      alreadySynced: chosen.intersection(synced),
+    );
+  }
+
   // The dedupeKey lets only one selection wait in the outbox, so many taps send it once
-  Future<bool> _queue(int userId, Set<int> chosen) async {
-    await UserInterestsOutbox.enqueue(userId, chosen, outbox: _outbox);
+  Future<bool> _queue(int userId, Set<int> chosen, _SelectionDiff diff) async {
+    await UserInterestsOutbox.enqueue(userId, chosen, addIds: diff.add, removeIds: diff.remove, outbox: _outbox);
     _queuedSelection = chosen;
     _pendingKeys = {..._pendingKeys, UserInterestsOutbox.key(userId)};
     _notice = offlineNotice;
@@ -303,4 +331,13 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
     _pendingSub?.cancel();
     super.dispose();
   }
+}
+
+// What a save has to send to the back
+class _SelectionDiff {
+  final Set<int> add;
+  final Set<int> remove;
+  final Set<int> alreadySynced;
+
+  const _SelectionDiff({required this.add, required this.remove, required this.alreadySynced});
 }

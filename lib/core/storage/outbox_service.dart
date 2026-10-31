@@ -226,6 +226,13 @@ class OutboxService {
     return rows.isNotEmpty;
   }
 
+  // The body of the action waiting with this key (null if there is none or it has no body)
+  Future<String?> pendingBody(String dedupeKey) async {
+    final db = await _database();
+    final rows = await db.query('outbox', columns: ['body'], where: 'dedupe_key = ?', whereArgs: [dedupeKey], limit: 1);
+    return rows.isEmpty ? null : rows.first['body'] as String?;
+  }
+
   // True if the row still has the body it had when it was read (false if it was replaced or cancelled).
   // A handler asks it before it writes anything that depends on what it sent.
   Future<bool> hasSameBody(Map<String, dynamic> row) async {
