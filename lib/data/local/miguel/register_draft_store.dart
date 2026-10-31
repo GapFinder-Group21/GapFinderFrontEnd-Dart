@@ -11,9 +11,13 @@ class RegisterDraft {
   const RegisterDraft({required this.name, required this.email, required this.career, required this.semester});
 }
 
-// Draft of the sign up form in Hive (box miguel_register_draft). It is deleted when the sign up works.
+// Draft of the sign up form in Hive (box miguel_register_draft). It is deleted when the sign up works,
+// when someone logs in, and when it is older than maxAge (the phone may be shared).
 class RegisterDraftStore {
   static const boxName = 'miguel_register_draft';
+
+  // A draft older than this is not given back: it is deleted
+  static const maxAge = Duration(hours: 24);
 
   Future<void> save(RegisterDraft draft) async {
     final box = await HiveStore.box(boxName);
@@ -26,10 +30,18 @@ class RegisterDraftStore {
     });
   }
 
-  // The saved draft, or null if there is none
-  Future<RegisterDraft?> get() async {
+  // The saved draft, or null if there is none or it expired (saved_at older than maxAge, or missing).
+  // now is only replaced in tests.
+  Future<RegisterDraft?> get({DateTime? now}) async {
     final box = await HiveStore.box(boxName);
     if (!box.containsKey('name')) return null;
+
+    final savedAt = DateTime.tryParse(box.get('saved_at') as String? ?? '');
+    if (savedAt == null || (now ?? DateTime.now()).difference(savedAt) > maxAge) {
+      await box.clear();
+      return null;
+    }
+
     return RegisterDraft(
       name: box.get('name') as String? ?? '',
       email: box.get('email') as String? ?? '',
