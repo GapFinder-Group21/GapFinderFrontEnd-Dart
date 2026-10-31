@@ -66,6 +66,16 @@ class UserService {
     }
   }
 
+  // Remove an interest from a user - DELETE /users/{userId}/interests/{interestId}
+  // The back answers 204 even when the user did not have it
+  Future<void> removeInterest(int userId, int interestId) async {
+    final res = await ApiClient.delete('/users/$userId/interests/$interestId');
+
+    if (res.statusCode != 204 && res.statusCode != 200) {
+      throw Exception(_errorMessage(res, 'Error removing interest'));
+    }
+  }
+
   // Update the GPS location - PATCH /users/{userId}/location/gps
   Future<void> updateLocationByGps(int userId, double latitude, double longitude) async {
     final res = await ApiClient.patch(

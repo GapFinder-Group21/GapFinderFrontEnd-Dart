@@ -37,6 +37,13 @@ class MatchFoundView extends StatelessWidget {
     }
   }
 
+  // With a request waiting in the outbox it is cancelled first, so it is not sent later
+  Future<void> _decline(BuildContext context) async {
+    await context.read<MatchFoundViewModel>().cancelRequest();
+    if (!context.mounted) return;
+    Navigator.pop(context);
+  }
+
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<MatchFoundViewModel>();
@@ -102,23 +109,42 @@ class MatchFoundView extends StatelessWidget {
                   ? const CircularProgressIndicator()
                   : Column(
                       children: [
+                        // The back refused the queued request (or it did not arrive): the user is told why
+                        if (vm.outcomeMessage != null) ...[
+                          Text(
+                            vm.outcomeMessage!,
+                            textAlign: TextAlign.center,
+                            style: AppFonts.body(weight: FontWeight.w600).copyWith(
+                              fontSize: 13,
+                              color: AppColors.accent1,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
                         // Pending: the request is queued, so the button is off
-                        CustomButton(
-                          label: vm.wasSent
-                              ? 'Solicitud enviada'
-                              : vm.isConnectPending
-                                  ? 'Pendiente de enviar'
-                                  : 'Connect Now',
-                          color: AppColors.accent2,
-                          onClick: vm.isConnectPending || vm.wasSent ? null : () => _connectNow(context),
-                        ),
+                        if (vm.refusalMessage != null)
+                          CustomButton(
+                            label: 'Elegir otro candidato',
+                            color: AppColors.accent2,
+                            onClick: () => Navigator.pop(context),
+                          )
+                        else
+                          CustomButton(
+                            label: vm.wasSent
+                                ? 'Solicitud enviada'
+                                : vm.isConnectPending
+                                    ? 'Pendiente de enviar'
+                                    : 'Connect Now',
+                            color: AppColors.accent2,
+                            onClick: vm.isConnectPending || vm.wasSent ? null : () => _connectNow(context),
+                          ),
                         const SizedBox(height: 12),
                         SizedBox(
                           width: double.infinity,
                           child: TextButton(
-                            onPressed: () => Navigator.pop(context),
+                            onPressed: () => _decline(context),
                             child: Text(
-                              'Decline',
+                              vm.isConnectPending ? 'Cancelar solicitud' : 'Decline',
                               style: AppFonts.body(weight: FontWeight.w700).copyWith(
                                 fontSize: 14,
                                 color: context.palette.contrast.withValues(alpha: 0.4),

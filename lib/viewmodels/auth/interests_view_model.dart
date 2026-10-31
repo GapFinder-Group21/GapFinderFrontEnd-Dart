@@ -8,6 +8,7 @@ import 'package:gapfinderfrontend_dart/core/storage/outbox_service.dart';
 import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
 import 'package:gapfinderfrontend_dart/data/local/miguel/miguel_local_cache.dart';
 import 'package:gapfinderfrontend_dart/data/local/miguel/onboarding_prefs.dart';
+import 'package:gapfinderfrontend_dart/data/local/miguel/user_interests_dao.dart';
 import 'package:gapfinderfrontend_dart/data/local/miguel/user_interests_outbox.dart';
 import 'package:gapfinderfrontend_dart/models/interest.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/auth/interests_processing.dart';
@@ -65,6 +66,7 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
   String? _loadError;
   bool _isSaving = false;
   String? _errorMessage;
+  String? _saveFailure;
   String? _notice;
   bool _disposed = false;
   int? _userId;
@@ -80,6 +82,9 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
   String? get loadError => _loadError;
   bool get isSaving => _isSaving;
   String? get errorMessage => _errorMessage;
+
+  // The queued selection could not be saved for good: the screen shows it and the user can try again
+  String? get saveFailure => _saveFailure;
 
   bool isSelected(int id) => _selectedInterestIds.contains(id);
 
@@ -128,16 +133,31 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
         final sent = key != null && _pendingKeys.contains(key) && !keys.contains(key);
         _pendingKeys = keys;
         _notify();
-        if (sent) _onSent();
+        if (sent) _onLeftOutbox();
       }, onError: (e) => debugPrint('Error watching the outbox: $e'));
     } catch (e) {
       debugPrint('Could not watch the outbox: $e');
     }
   }
 
-  // The pending selection reached the back: the button goes back to normal
-  void _onSent() {
+  // The pending selection left the outbox. That is not always a success: the handler drops it when the back
+  // refuses it for good, and a row that used all its attempts is not counted as pending anymore.
+  // In both cases SQLite still has synced = 0, so the user is told and can save again.
+  Future<void> _onLeftOutbox() async {
+    final userId = _userId;
+    var failed = false;
+    if (userId != null) {
+      final key = UserInterestsOutbox.key(userId);
+      try {
+        failed = await _outboxService.lastRefusalFor(key) != null || await _outboxService.isExhausted(key);
+      } catch (e) {
+        debugPrint('Could not read the result of the pending selection: $e');
+      }
+    }
+    if (_disposed) return;
+
     _queuedSelection = null;
+    if (failed) _saveFailure = UserInterestsOutbox.saveFailedMessage;
     _notify();
   }
 
@@ -232,6 +252,7 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
   // and queued with the key user_interests_save:<userId>; the last selection replaces the pending one.
   Future<bool> save() async {
     _errorMessage = null;
+    _saveFailure = null;
 
     if (_selectedInterestIds.isEmpty) {
       _errorMessage = 'Please select at least one interest';
@@ -252,17 +273,24 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
       savedUserId = userId;
       _userId = userId;
 
-      if (!hasConnection) return await _queue(userId, chosen);
+      // Only the difference is sent: the new interests with POST and the unticked ones with DELETE
+      final diff = await _selectionDiff(userId, chosen);
+      sent.addAll(diff.alreadySynced);
+
+      if (!hasConnection) return await _queue(userId, chosen, diff);
 
       try {
-        // Save each selected interest one by one - POST /users/{userId}/interests/{interestId}
-        for (final interestId in chosen) {
+        // POST /users/{userId}/interests/{interestId}, DELETE /users/{userId}/interests/{interestId}
+        for (final interestId in diff.add) {
           await _userService.addInterest(userId, interestId).timeout(OfflineAwareMixin.loadTimeout);
           sent.add(interestId);
         }
+        for (final interestId in diff.remove) {
+          await _userService.removeInterest(userId, interestId).timeout(OfflineAwareMixin.loadTimeout);
+        }
       } catch (e) {
         if (!isNetworkError(e)) rethrow;
-        return await _queue(userId, chosen);
+        return await _queue(userId, chosen, diff);
       }
 
       // It worked: a selection that was still pending is not needed anymore
@@ -283,9 +311,29 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
     }
   }
 
+  // Compares the new selection with what SQLite had before this save:
+  // add = chosen and not yet received by the back; remove = had before and now unticked, plus the
+  // unticked ones that a pending selection still had to delete (its row is replaced, not sent)
+  Future<_SelectionDiff> _selectionDiff(int userId, Set<int> chosen) async {
+    var before = <UserInterestRow>[];
+    try {
+      before = await _localCache.userInterests.getAllForUser(userId);
+    } catch (e) {
+      debugPrint('Could not read the saved interests: $e');
+    }
+    final pendingRemove = await UserInterestsOutbox.pendingRemoveIds(userId, outbox: _outboxService);
+
+    final synced = before.where((r) => r.synced).map((r) => r.interestId).toSet();
+    return _SelectionDiff(
+      add: chosen.difference(synced),
+      remove: before.map((r) => r.interestId).toSet().union(pendingRemove).difference(chosen),
+      alreadySynced: chosen.intersection(synced),
+    );
+  }
+
   // The dedupeKey lets only one selection wait in the outbox, so many taps send it once
-  Future<bool> _queue(int userId, Set<int> chosen) async {
-    await UserInterestsOutbox.enqueue(userId, chosen, outbox: _outbox);
+  Future<bool> _queue(int userId, Set<int> chosen, _SelectionDiff diff) async {
+    await UserInterestsOutbox.enqueue(userId, chosen, addIds: diff.add, removeIds: diff.remove, outbox: _outbox);
     _queuedSelection = chosen;
     _pendingKeys = {..._pendingKeys, UserInterestsOutbox.key(userId)};
     _notice = offlineNotice;
@@ -303,4 +351,13 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
     _pendingSub?.cancel();
     super.dispose();
   }
+}
+
+// What a save has to send to the back
+class _SelectionDiff {
+  final Set<int> add;
+  final Set<int> remove;
+  final Set<int> alreadySynced;
+
+  const _SelectionDiff({required this.add, required this.remove, required this.alreadySynced});
 }

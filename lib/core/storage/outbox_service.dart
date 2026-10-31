@@ -226,6 +226,21 @@ class OutboxService {
     return rows.isNotEmpty;
   }
 
+  // The body of the action waiting with this key (null if there is none or it has no body)
+  Future<String?> pendingBody(String dedupeKey) async {
+    final db = await _database();
+    final rows = await db.query('outbox', columns: ['body'], where: 'dedupe_key = ?', whereArgs: [dedupeKey], limit: 1);
+    return rows.isEmpty ? null : rows.first['body'] as String?;
+  }
+
+  // True if the row still has the body it had when it was read (false if it was replaced or cancelled).
+  // A handler asks it before it writes anything that depends on what it sent.
+  Future<bool> hasSameBody(Map<String, dynamic> row) async {
+    final db = await _database();
+    final rows = await db.query('outbox', columns: ['body'], where: 'id = ?', whereArgs: [row['id']], limit: 1);
+    return rows.isNotEmpty && rows.first['body'] == row['body'];
+  }
+
   // Removes a pending action (for example "join" when the user taps "leave" before it was sent)
   Future<void> cancelPending(String dedupeKey) async {
     final db = await _database();
@@ -348,9 +363,7 @@ class OutboxService {
         // 409: the back says the action was already done, so it is not an error
         final done = (res.statusCode >= 200 && res.statusCode < 300) || res.statusCode == 409;
         if (!done) {
-          final refusedForGood =
-              res.statusCode >= 400 && res.statusCode < 500 && !_retryableClientErrors.contains(res.statusCode);
-          if (refusedForGood) {
+          if (isFinalRefusal(res.statusCode)) {
             // The row is removed and the refusal is saved: whoever was waiting for the key to leave
             // can tell the user why the action did not happen
             debugPrint('Outbox: the back refused ${row['type']} (HTTP ${res.statusCode}), it is dropped');
@@ -362,7 +375,9 @@ class OutboxService {
         }
       }
 
-      await db.delete('outbox', where: 'id = ?', whereArgs: [id]);
+      // Only if the body is still the one that was sent: if the user replaced it while it was being sent
+      // (replaceIfPending), the row stays with the newer body and the next flush sends it
+      await db.delete('outbox', where: 'id = ? AND body IS ?', whereArgs: [id, row['body']]);
       return true;
     } catch (e) {
       if (isNetworkError(e)) return false;
@@ -374,12 +389,39 @@ class OutboxService {
     }
   }
 
+  // True when a 4xx answer means the back refused the action for good (retrying is useless)
+  static bool isFinalRefusal(int statusCode) =>
+      statusCode >= 400 && statusCode < 500 && !_retryableClientErrors.contains(statusCode);
+
+  // For a handler that found out by itself that the back refused its action for good: it saves the
+  // refusal (so the screen can tell the user) and then returns true so the row is dropped
+  Future<void> recordRefusal(Map<String, dynamic> row, String message) async {
+    await _storeRefusal(await _database(), row, message);
+  }
+
+  // True when the action with this key used all its attempts: it stays in the table but is not retried
+  Future<bool> isExhausted(String dedupeKey) async {
+    final db = await _database();
+    final rows = await db.query(
+      'outbox',
+      columns: ['id'],
+      where: 'dedupe_key = ? AND attempts >= ?',
+      whereArgs: [dedupeKey, maxAttempts],
+      limit: 1,
+    );
+    return rows.isNotEmpty;
+  }
+
+  Future<void> _saveRefusal(Database db, Map<String, dynamic> row, http.Response res) {
+    return _storeRefusal(db, row, _refusalMessage(res));
+  }
+
   // Saves the refusal of the back and tells whoever is listening
-  Future<void> _saveRefusal(Database db, Map<String, dynamic> row, http.Response res) async {
+  Future<void> _storeRefusal(Database db, Map<String, dynamic> row, String message) async {
     final refusal = OutboxRefusal(
       key: (row['dedupe_key'] as String?) ?? '',
       type: row['type'] as String,
-      message: _refusalMessage(res),
+      message: message,
       createdAt: DateTime.now(),
     );
 

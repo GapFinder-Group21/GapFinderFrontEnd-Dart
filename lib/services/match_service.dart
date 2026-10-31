@@ -68,6 +68,18 @@ class MatchService {
     return Match.fromJson(jsonDecode(utf8.decode(res.bodyBytes)));
   }
 
+  // Every match of the user, sent or received - GET /matches/user/{userId}
+  Future<List<Match>> getUserMatches(int userId) async {
+    final res = await ApiClient.get('/matches/user/$userId');
+
+    if (res.statusCode != 200) {
+      throw Exception(_errorMessage(res, 'Error getting matches'));
+    }
+
+    final List data = jsonDecode(utf8.decode(res.bodyBytes));
+    return data.map((json) => Match.fromJson(json)).toList();
+  }
+
   // Pending requests received by the user - GET /matches/user/{userId}/pending
   Future<List<Match>> getPendingReceived(int userId) async {
     final res = await ApiClient.get('/matches/user/$userId/pending');
