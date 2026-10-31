@@ -66,6 +66,7 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
   String? _loadError;
   bool _isSaving = false;
   String? _errorMessage;
+  String? _saveFailure;
   String? _notice;
   bool _disposed = false;
   int? _userId;
@@ -81,6 +82,9 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
   String? get loadError => _loadError;
   bool get isSaving => _isSaving;
   String? get errorMessage => _errorMessage;
+
+  // The queued selection could not be saved for good: the screen shows it and the user can try again
+  String? get saveFailure => _saveFailure;
 
   bool isSelected(int id) => _selectedInterestIds.contains(id);
 
@@ -129,16 +133,31 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
         final sent = key != null && _pendingKeys.contains(key) && !keys.contains(key);
         _pendingKeys = keys;
         _notify();
-        if (sent) _onSent();
+        if (sent) _onLeftOutbox();
       }, onError: (e) => debugPrint('Error watching the outbox: $e'));
     } catch (e) {
       debugPrint('Could not watch the outbox: $e');
     }
   }
 
-  // The pending selection reached the back: the button goes back to normal
-  void _onSent() {
+  // The pending selection left the outbox. That is not always a success: the handler drops it when the back
+  // refuses it for good, and a row that used all its attempts is not counted as pending anymore.
+  // In both cases SQLite still has synced = 0, so the user is told and can save again.
+  Future<void> _onLeftOutbox() async {
+    final userId = _userId;
+    var failed = false;
+    if (userId != null) {
+      final key = UserInterestsOutbox.key(userId);
+      try {
+        failed = await _outboxService.lastRefusalFor(key) != null || await _outboxService.isExhausted(key);
+      } catch (e) {
+        debugPrint('Could not read the result of the pending selection: $e');
+      }
+    }
+    if (_disposed) return;
+
     _queuedSelection = null;
+    if (failed) _saveFailure = UserInterestsOutbox.saveFailedMessage;
     _notify();
   }
 
@@ -233,6 +252,7 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
   // and queued with the key user_interests_save:<userId>; the last selection replaces the pending one.
   Future<bool> save() async {
     _errorMessage = null;
+    _saveFailure = null;
 
     if (_selectedInterestIds.isEmpty) {
       _errorMessage = 'Please select at least one interest';

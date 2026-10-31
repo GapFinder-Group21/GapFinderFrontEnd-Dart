@@ -145,9 +145,22 @@ class InterestsView extends StatelessWidget {
                     ? const CircularProgressIndicator()
                     : Column(
                         children: [
+                          // The queued selection was refused or failed for good: the user can try again
+                          if (vm.saveFailure != null) ...[
+                            Text(
+                              vm.saveFailure!,
+                              textAlign: TextAlign.center,
+                              style: AppFonts.body(weight: FontWeight.w600).copyWith(fontSize: 13, color: AppColors.accent1),
+                            ),
+                            const SizedBox(height: 12),
+                          ],
                           // Pending: the button is off until the selection changes or it is sent
                           CustomButton(
-                            label: vm.isSavePending ? 'Pendiente de enviar' : 'Continue',
+                            label: vm.isSavePending
+                                ? 'Pendiente de enviar'
+                                : vm.saveFailure != null
+                                    ? 'Reintentar'
+                                    : 'Continue',
                             onClick: vm.isSavePending ? null : () => _handleContinue(context),
                           ),
                           // The user can go on without internet: the selection is already queued
