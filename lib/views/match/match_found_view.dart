@@ -37,6 +37,13 @@ class MatchFoundView extends StatelessWidget {
     }
   }
 
+  // With a request waiting in the outbox it is cancelled first, so it is not sent later
+  Future<void> _decline(BuildContext context) async {
+    await context.read<MatchFoundViewModel>().cancelRequest();
+    if (!context.mounted) return;
+    Navigator.pop(context);
+  }
+
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<MatchFoundViewModel>();
@@ -116,9 +123,9 @@ class MatchFoundView extends StatelessWidget {
                         SizedBox(
                           width: double.infinity,
                           child: TextButton(
-                            onPressed: () => Navigator.pop(context),
+                            onPressed: () => _decline(context),
                             child: Text(
-                              'Decline',
+                              vm.isConnectPending ? 'Cancelar solicitud' : 'Decline',
                               style: AppFonts.body(weight: FontWeight.w700).copyWith(
                                 fontSize: 14,
                                 color: context.palette.contrast.withValues(alpha: 0.4),

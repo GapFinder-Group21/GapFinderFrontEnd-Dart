@@ -114,6 +114,20 @@ class MatchFoundViewModel extends ChangeNotifier with OfflineAwareMixin {
     }
   }
 
+  // Takes the queued request out of the outbox so it is never sent when the network returns.
+  // With nothing pending it changes nothing.
+  Future<void> cancelRequest() async {
+    if (!isConnectPending) return;
+    try {
+      await (_outbox ?? OutboxService.instance).cancelPending(connectKey);
+    } catch (e) {
+      debugPrint('Could not cancel the pending request: $e');
+      return;
+    }
+    _pendingKeys = {..._pendingKeys}..remove(connectKey);
+    _notify();
+  }
+
   // The dedupeKey lets only one request wait in the outbox, so many taps send it once
   Future<Match?> _queue() async {
     await (_outbox ?? OutboxService.instance).enqueue(
