@@ -42,6 +42,8 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
   static void clearCache() => _cache.clear();
 
   static const offlineNotice = 'Tus intereses se guardarán cuando vuelva la conexión';
+  static const loadNetworkMessage = 'No pudimos cargar los intereses; se cargarán cuando vuelva la conexión';
+  static const saveNetworkMessage = 'No pudimos guardar tus intereses. Inténtalo de nuevo';
 
   final InterestService _interestService;
   final UserService _userService;
@@ -124,7 +126,7 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
     await _loadCatalog().then((_) {
       debugPrint('[Intereses] catálogo listo: ${_interests.length}');
     }).catchError((Object e) {
-      _loadError = '$e';
+      _loadError = userMessage(e, network: loadNetworkMessage);
       _isLoading = false;
       _notify();
     });
@@ -217,9 +219,7 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
 
       await _loadSelection();
     } catch (e) {
-      _loadError = isNetworkError(e)
-          ? 'No pudimos cargar los intereses; se cargarán cuando vuelva la conexión'
-          : '$e';
+      _loadError = userMessage(e, network: loadNetworkMessage);
     } finally {
       _isLoading = false;
       _notify();
@@ -312,7 +312,7 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
     _saveFailure = null;
 
     if (_selectedInterestIds.isEmpty) {
-      _errorMessage = 'Please select at least one interest';
+      _errorMessage = 'Selecciona al menos un interés';
       return false;
     }
 
@@ -326,7 +326,7 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
 
     try {
       final userId = await TokenStorage.getUserId();
-      if (userId == null) throw Exception('User session not found');
+      if (userId == null) throw UserMessageException('Tu sesión expiró. Inicia sesión de nuevo');
       savedUserId = userId;
       _userId = userId;
 
@@ -356,7 +356,7 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
       _localCache.advanceOnboarding(OnboardingStep.scheduleSetup);
       return true;
     } catch (e) {
-      _errorMessage = 'Error saving interests: $e';
+      _errorMessage = userMessage(e, network: saveNetworkMessage);
       return false;
     } finally {
       // The chosen interests are kept in SQLite, with synced = 1 only for the ones that were sent
