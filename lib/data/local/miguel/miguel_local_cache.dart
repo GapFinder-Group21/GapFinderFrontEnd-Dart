@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
 import 'package:gapfinderfrontend_dart/data/local/miguel/google_import_store.dart';
 import 'package:gapfinderfrontend_dart/data/local/miguel/interests_catalog_dao.dart';
 import 'package:gapfinderfrontend_dart/data/local/miguel/onboarding_prefs.dart';
@@ -64,9 +65,21 @@ class MiguelLocalCache {
     _run('google import', () => googleImport.save(GoogleImportState(date: DateTime.now(), success: success, message: message)));
   }
 
-  // SharedPreferences: the step of the onboarding where the user is
+  // SharedPreferences: the step of the onboarding where the user of the session is.
+  // Without a session there is no user to save it for, so nothing is saved.
   void advanceOnboarding(OnboardingStep step) {
-    _run('onboarding step', () => onboarding.advanceTo(step));
+    _run('onboarding step', () async {
+      final userId = await TokenStorage.getUserId();
+      if (userId != null) await onboarding.advanceTo(userId, step);
+    });
+  }
+
+  // A new account was created: its onboarding starts again at the interests
+  void startOnboarding() {
+    _run('onboarding start', () async {
+      final userId = await TokenStorage.getUserId();
+      if (userId != null) await onboarding.start(userId);
+    });
   }
 
   void _run(String what, Future<void> Function() action) {

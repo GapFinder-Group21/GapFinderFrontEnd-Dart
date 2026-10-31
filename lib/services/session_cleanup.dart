@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:gapfinderfrontend_dart/core/storage/outbox_service.dart';
+import 'package:gapfinderfrontend_dart/data/local/miguel/onboarding_prefs.dart';
 import 'package:gapfinderfrontend_dart/data/local/sofia/sofia_local_cache.dart';
 import 'package:gapfinderfrontend_dart/services/gap_generation_guard.dart';
 import 'package:gapfinderfrontend_dart/services/gap_reminder_service.dart';
@@ -25,6 +26,9 @@ class SessionCleanup {
       SessionCleanupStep('open table detail cache', () async => OpenTableDetailViewModel.clearSharedCache()),
       SessionCleanupStep('week of gaps', () => GapGenerationGuard.invalidateAll()),
       SessionCleanupStep('saved data', () => SofiaLocalCache.instance.clearUserData(userId)),
+      SessionCleanupStep('onboarding step', () async {
+        if (userId != null) await OnboardingPrefs().clear(userId);
+      }),
     ];
   }
 

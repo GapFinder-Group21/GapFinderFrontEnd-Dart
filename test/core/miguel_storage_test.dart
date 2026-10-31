@@ -61,6 +61,9 @@ class RecordingCache extends MiguelLocalCache {
   void advanceOnboarding(OnboardingStep step) => calls.add('step:${step.value}');
 
   @override
+  void startOnboarding() => calls.add('step:${OnboardingStep.interests.value}');
+
+  @override
   void saveInterestsCatalog(List<Interest> interests) => calls.add('catalog:${interests.length}');
 
   @override
@@ -262,16 +265,16 @@ void main() {
   group('SharedPreferences onboarding_step', () {
     test('it only moves forward', () async {
       final prefs = OnboardingPrefs();
-      await prefs.advanceTo(OnboardingStep.interests);
-      await prefs.advanceTo(OnboardingStep.register); // an older screen opened again
-      expect((await SharedPreferences.getInstance()).getString('onboarding_step'), 'interests');
+      await prefs.advanceTo(1, OnboardingStep.interests);
+      await prefs.advanceTo(1, OnboardingStep.register); // an older screen opened again
+      expect((await SharedPreferences.getInstance()).getString('onboarding_step:1'), 'interests');
 
-      await prefs.advanceTo(OnboardingStep.scheduleSetup);
-      expect((await SharedPreferences.getInstance()).getString('onboarding_step'), 'schedule_setup');
-      expect(await prefs.get(), OnboardingStep.scheduleSetup);
+      await prefs.advanceTo(1, OnboardingStep.scheduleSetup);
+      expect((await SharedPreferences.getInstance()).getString('onboarding_step:1'), 'schedule_setup');
+      expect(await prefs.get(1), OnboardingStep.scheduleSetup);
 
-      await prefs.advanceTo(OnboardingStep.done);
-      expect(await prefs.get(), OnboardingStep.done);
+      await prefs.advanceTo(1, OnboardingStep.done);
+      expect(await prefs.get(1), OnboardingStep.done);
     });
   });
 
