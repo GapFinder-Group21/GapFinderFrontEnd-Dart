@@ -70,6 +70,8 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
   String? _notice;
   bool _disposed = false;
   int? _userId;
+  DateTime? _savedCatalogAt;
+  Future<void>? _refreshing;
   Set<int>? _queuedSelection;
   Set<String> _pendingKeys = {};
   StreamSubscription<Set<String>>? _pendingSub;
@@ -104,13 +106,18 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
   }
 
   // Loads the catalog when the screen opens. It loads again by itself when the connection comes
-  // back (only if there was no catalog) and when the outbox sends the pending selection.
+  // back (if there was no catalog, or the saved one is older than an hour) and when the outbox sends
+  // the pending selection.
   // Estrategia: Future con handler + async/await. The await waits for the catalog; the handlers
   // (.then / .catchError) say what happens when it ends well or when it fails, without a try/catch.
   Future<void> init() async {
     _localCache.advanceOnboarding(OnboardingStep.interests);
     listenToConnectivity(onRestored: () async {
-      if (_interests.isEmpty) await _loadCatalog();
+      if (_interests.isEmpty) {
+        await _loadCatalog();
+      } else if (_savedCatalogIsOld) {
+        _startRefresh();
+      }
     });
     _watchOutbox();
 
@@ -177,6 +184,8 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
       if (cached != null) {
         _logCache('HIT');
         _interests = cached;
+        // A memory entry is less than an hour old, so the catalog is not old (no SQLite read on a hit)
+        _savedCatalogAt ??= DateTime.now();
         await _loadSelection();
         return;
       }
@@ -184,14 +193,23 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
 
       final saved = await _localCache.interestsCatalog.getAll();
       if (saved.isNotEmpty) {
+        // The saved copy is shown at once; if it is old and there is connection, the network refreshes it
+        // in the background (the back may have new interests)
         _interests = await _process(saved);
         _cache.put(_catalogKey, _interests);
-        markUpdatedAt(await _localCache.interestsCatalog.lastSavedAt());
+        _savedCatalogAt = await _localCache.interestsCatalog.lastSavedAt();
+        if (!hasConnection) {
+          markFromCache(_savedCatalogAt);
+        } else {
+          markUpdatedAt(_savedCatalogAt);
+          if (_savedCatalogIsOld) _startRefresh();
+        }
       } else if (hasConnection) {
         final loaded = await _interestService.getInterests().timeout(OfflineAwareMixin.loadTimeout);
         _interests = await _process(loaded);
         _cache.put(_catalogKey, _interests);
         _localCache.saveInterestsCatalog(_interests);
+        _savedCatalogAt = DateTime.now();
         markFresh();
       } else {
         _loadError = 'Sin conexión y aún no tenemos el catálogo de intereses; se cargará cuando vuelva la conexión';
@@ -207,6 +225,45 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
       _notify();
     }
   }
+
+  // The saved catalog is as old as the memory one may be before it expires (the 1 hour of the LRU)
+  bool get _savedCatalogIsOld {
+    final savedAt = _savedCatalogAt;
+    return savedAt == null || DateTime.now().difference(savedAt) >= const Duration(hours: 1);
+  }
+
+  // Refreshes the catalog in the background: the screen already shows the saved copy. Two refreshes
+  // never run at the same time.
+  void _startRefresh() {
+    if (_refreshing != null || !hasConnection) return;
+    _refreshing = _refreshCatalog().whenComplete(() => _refreshing = null);
+  }
+
+  Future<void> _refreshCatalog() async {
+    try {
+      final loaded = await _interestService.getInterests().timeout(OfflineAwareMixin.loadTimeout);
+      // An empty answer is probably incomplete: the saved catalog is kept
+      if (loaded.isEmpty) return;
+
+      final processed = await _process(loaded);
+      if (_disposed) return;
+      _interests = processed;
+      _cache.put(_catalogKey, processed);
+      _localCache.saveInterestsCatalog(processed);
+      _savedCatalogAt = DateTime.now();
+      markFresh();
+      debugPrint('[Intereses] catálogo actualizado: ${processed.length}');
+    } catch (e) {
+      // The saved copy stays on screen and says so
+      debugPrint('Could not refresh the interests catalog: $e');
+      markFromCache(_savedCatalogAt);
+    }
+    _notify();
+  }
+
+  // The refresh that is running, if any (the tests wait for it)
+  @visibleForTesting
+  Future<void>? get refreshing => _refreshing;
 
   // Estrategia: Isolate. Normalizing the names, removing the duplicates and sorting runs in another
   // isolate so a long catalog never blocks the screen. processInterests is a top-level function and
