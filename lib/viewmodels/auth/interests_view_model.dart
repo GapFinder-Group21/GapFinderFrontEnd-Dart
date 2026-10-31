@@ -50,6 +50,7 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
 
   static const offlineNotice = 'Tus intereses se guardarán cuando vuelva la conexión';
   static const loadNetworkMessage = 'No pudimos cargar los intereses; se cargarán cuando vuelva la conexión';
+  static const emptyCatalogMessage = 'No encontramos intereses por ahora. Inténtalo de nuevo';
   static const saveNetworkMessage = 'No pudimos guardar tus intereses. Inténtalo de nuevo';
 
   final InterestService _interestService;
@@ -215,11 +216,17 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
         }
       } else if (hasConnection) {
         final loaded = await _interestService.getInterests().timeout(OfflineAwareMixin.loadTimeout);
-        _interests = await _process(loaded);
-        _cache.put(_catalogKey, _interests);
-        _localCache.saveInterestsCatalog(_interests);
-        _savedCatalogAt = DateTime.now();
-        markFresh();
+        if (loaded.isEmpty) {
+          // An empty answer is probably incomplete: it is not saved (it would wipe a saved catalog) nor kept in
+          // memory, and the screen offers to try again
+          _loadError = emptyCatalogMessage;
+        } else {
+          _interests = await _process(loaded);
+          _cache.put(_catalogKey, _interests);
+          _localCache.saveInterestsCatalog(_interests);
+          _savedCatalogAt = DateTime.now();
+          markFresh();
+        }
       } else {
         _loadError = 'Sin conexión y aún no tenemos el catálogo de intereses; se cargará cuando vuelva la conexión';
       }
@@ -232,6 +239,9 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
       _notify();
     }
   }
+
+  // The "Reintentar" button of the load error
+  Future<void> retryLoad() => _loadCatalog();
 
   // The saved catalog is as old as the memory one may be before it expires (the 1 hour of the LRU)
   bool get _savedCatalogIsOld {

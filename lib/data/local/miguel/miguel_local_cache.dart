@@ -37,7 +37,9 @@ class MiguelLocalCache {
         onboarding = onboarding ?? OnboardingPrefs();
 
   // SQLite: the catalog the back answered
+  // An empty list is never saved: it would wipe the catalog that is saved
   void saveInterestsCatalog(List<Interest> interests) {
+    if (interests.isEmpty) return;
     _run('interests catalog', () => interestsCatalog.replaceAll(interests));
   }
 
