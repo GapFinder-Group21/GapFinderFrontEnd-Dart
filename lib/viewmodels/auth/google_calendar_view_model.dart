@@ -14,6 +14,7 @@ enum GoogleImportPhase { connecting, success, error, offline }
 class GoogleCalendarViewModel extends ChangeNotifier with OfflineAwareMixin {
   static const offlineTitle = 'Importar tu horario necesita conexión';
   static const offlineBanner = 'Sin conexión · no se puede importar tu horario';
+  static const slowMessage = 'Está tardando más de lo normal. Inténtalo de nuevo en un momento';
 
   // The import is long, but the spinner never lasts longer than this
   static const importTimeout = Duration(seconds: 30);
@@ -78,6 +79,15 @@ class GoogleCalendarViewModel extends ChangeNotifier with OfflineAwareMixin {
         _localCache.saveGoogleImport(success: true, message: 'The classes were already imported');
         _localCache.advanceOnboarding(OnboardingStep.done);
         _phase = GoogleImportPhase.success;
+        _notify();
+        return;
+      }
+
+      // Too slow, with the connection up: the import may still finish in the back, so it is not saved as a
+      // failure and the screen does not say that it needs a connection
+      if (e is TimeoutException) {
+        _phase = GoogleImportPhase.error;
+        _errorMessage = slowMessage;
         _notify();
         return;
       }

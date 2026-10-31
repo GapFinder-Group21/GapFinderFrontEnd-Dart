@@ -16,6 +16,7 @@ import 'package:gapfinderfrontend_dart/viewmodels/offline_aware_mixin.dart';
 class MatchFoundViewModel extends ChangeNotifier with OfflineAwareMixin {
   static const offlineNotice = 'Se enviará cuando vuelva la conexión';
   static const offlineBanner = 'Sin conexión · tu solicitud se enviará cuando vuelva';
+  static const slowNotice = 'Está tardando más de lo normal; tu solicitud se enviará cuando se pueda';
   static const refusedNotice = 'No se pudo enviar la solicitud. Elige otro candidato';
   static const unconfirmedNotice = 'No pudimos confirmar que tu solicitud llegó. Intenta de nuevo';
 
@@ -115,6 +116,8 @@ class MatchFoundViewModel extends ChangeNotifier with OfflineAwareMixin {
         return match;
       }).catchError((Object e) {
         if (!isNetworkError(e)) throw e;
+        // A slow answer is not the same as no connection: the request may already exist in the back
+        if (e is TimeoutException) return _afterTimeout();
         return _queue();
       });
     } catch (e) {
@@ -125,6 +128,24 @@ class MatchFoundViewModel extends ChangeNotifier with OfflineAwareMixin {
       _isLoading = false;
       _notify();
     }
+  }
+
+  // The request took too long. The back may have created the match anyway, and queueing it would only
+  // end in a 409, so the matches of the user are asked first: if the request is there, it is the answer.
+  // If it is not there (or it cannot be asked) it is queued as before.
+  Future<Match?> _afterTimeout() async {
+    try {
+      final existing = await _existingRequest().timeout(OfflineAwareMixin.loadTimeout);
+      if (existing != null) {
+        _localCache.saveSeenCandidate(existing.id, candidate);
+        return existing;
+      }
+    } catch (e) {
+      debugPrint('Could not check the request after the timeout: $e');
+    }
+    final queued = await _queue();
+    _notice = slowNotice;
+    return queued;
   }
 
   // Takes the queued request out of the outbox so it is never sent when the network returns.
@@ -180,15 +201,24 @@ class MatchFoundViewModel extends ChangeNotifier with OfflineAwareMixin {
   // GET /matches/user/{userId}: true if the user has that request, false if not, null if it could not be asked
   Future<bool?> _requestExists() async {
     try {
-      final matches = await _matchService.getUserMatches(userId);
-      return matches.any((m) =>
-          m.proposerGapId == currentGapId &&
-          m.acceptorGapId == candidate.acceptorGap.id &&
-          m.status != MatchStatusEnum.REJECTED);
+      return await _existingRequest() != null;
     } catch (e) {
       debugPrint('Could not confirm the match request: $e');
       return null;
     }
+  }
+
+  // The request of this screen in the matches of the user (null if there is none); throws if they cannot be read
+  Future<Match?> _existingRequest() async {
+    final matches = await _matchService.getUserMatches(userId);
+    for (final m in matches) {
+      if (m.proposerGapId == currentGapId &&
+          m.acceptorGapId == candidate.acceptorGap.id &&
+          m.status != MatchStatusEnum.REJECTED) {
+        return m;
+      }
+    }
+    return null;
   }
 
   // The dedupeKey lets only one request wait in the outbox, so many taps send it once
