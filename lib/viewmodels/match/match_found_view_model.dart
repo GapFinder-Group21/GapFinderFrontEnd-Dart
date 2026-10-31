@@ -158,6 +158,7 @@ class MatchFoundViewModel extends ChangeNotifier with OfflineAwareMixin {
     _notify();
     try {
       await (_outbox ?? OutboxService.instance).cancelPending(connectKey);
+      _localCache.forgetQueuedCandidate(currentGapId, candidate);
     } catch (e) {
       debugPrint('Could not cancel the pending request: $e');
       _pendingKeys = before;
@@ -177,11 +178,24 @@ class MatchFoundViewModel extends ChangeNotifier with OfflineAwareMixin {
       return;
     }
 
-    final exists = await _requestExists();
+    // GET /matches/user/{userId}: the match if the user has that request, null if not; if it cannot be
+    // asked, nothing is known
+    Match? existing;
+    var known = true;
+    try {
+      existing = await _existingRequest();
+    } catch (e) {
+      known = false;
+      debugPrint('Could not confirm the match request: $e');
+    }
     if (_disposed) return;
-    if (exists == true) {
+
+    if (existing != null) {
       _wasSent = true;
-    } else if (exists == false) {
+      // Now the candidate has its match id: it replaces the one saved while the request was queued
+      _localCache.saveSeenCandidate(existing.id, candidate);
+      _localCache.forgetQueuedCandidate(currentGapId, candidate);
+    } else if (known) {
       _refusalMessage = refusedNotice;
       _outcomeMessage = refusedNotice;
     } else {
@@ -194,16 +208,6 @@ class MatchFoundViewModel extends ChangeNotifier with OfflineAwareMixin {
     try {
       return await (_outbox ?? OutboxService.instance).lastRefusalFor(connectKey);
     } catch (_) {
-      return null;
-    }
-  }
-
-  // GET /matches/user/{userId}: true if the user has that request, false if not, null if it could not be asked
-  Future<bool?> _requestExists() async {
-    try {
-      return await _existingRequest() != null;
-    } catch (e) {
-      debugPrint('Could not confirm the match request: $e');
       return null;
     }
   }
@@ -229,6 +233,8 @@ class MatchFoundViewModel extends ChangeNotifier with OfflineAwareMixin {
       endpoint: MatchService.requestEndpoint(currentGapId, candidate.acceptorGap.id, candidate.score),
       dedupeKey: connectKey,
     );
+    // The candidate is saved now too, not only when the request works online
+    _localCache.saveQueuedCandidate(currentGapId, candidate);
     _pendingKeys = {..._pendingKeys, connectKey};
     _notice = offlineNotice;
     return null;

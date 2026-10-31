@@ -52,6 +52,16 @@ class MiguelLocalCache {
     _run('seen candidate', () => seenCandidates.save(matchId, candidate));
   }
 
+  // SQLite: the candidate of a request that waits in the outbox (it has no match id yet)
+  void saveQueuedCandidate(int proposerGapId, MatchCandidate candidate) {
+    _run('queued candidate', () => seenCandidates.saveQueued(proposerGapId, candidate.acceptorGap.id, candidate));
+  }
+
+  // SQLite: forgets the candidate of a queued request that was confirmed or cancelled
+  void forgetQueuedCandidate(int proposerGapId, MatchCandidate candidate) {
+    _run('queued candidate cleanup', () => seenCandidates.deleteQueued(proposerGapId, candidate.acceptorGap.id));
+  }
+
   // Hive: what the user has typed so far in the sign up form
   void saveRegisterDraft(RegisterDraft draft) {
     _run('register draft', () => registerDraft.save(draft));
