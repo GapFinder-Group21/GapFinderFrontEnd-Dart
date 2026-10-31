@@ -37,9 +37,16 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
   static Duration? catalogExpiry(String key, List<Interest> interests) =>
       interests.isEmpty ? const Duration(seconds: 30) : const Duration(hours: 1);
 
+  // The ids that were dropped as duplicates of another interest with the same name, and the id that was kept.
+  // Static like the catalog: it is only valid for the catalog in _cache.
+  static final Map<int, int> _keptIdOf = {};
+
   // Empties the memory cache (for tests)
   @visibleForTesting
-  static void clearCache() => _cache.clear();
+  static void clearCache() {
+    _cache.clear();
+    _keptIdOf.clear();
+  }
 
   static const offlineNotice = 'Tus intereses se guardarán cuando vuelva la conexión';
   static const loadNetworkMessage = 'No pudimos cargar los intereses; se cargarán cuando vuelva la conexión';
@@ -274,8 +281,12 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
     final processed = await Isolate.run(() => processInterests(raw));
 
     _searchNames.clear();
+    _keptIdOf.clear();
     for (final item in processed) {
       _searchNames[item['id'] as int] = item['searchName'] as String;
+      for (final dropped in (item['duplicateIds'] as List).cast<int>()) {
+        _keptIdOf[dropped] = item['id'] as int;
+      }
     }
     return processed.map((item) => Interest(id: item['id'] as int, name: item['name'] as String)).toList();
   }
@@ -287,7 +298,9 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
 
     try {
       final rows = await _localCache.userInterests.getAllForUser(userId);
-      _selectedInterestIds.addAll(rows.map((r) => r.interestId));
+      // A saved id that was dropped as a duplicate is the same interest as the kept one: it is shown (and saved
+      // again) as the kept one, not hidden
+      _selectedInterestIds.addAll(rows.map((r) => _keptIdOf[r.interestId] ?? r.interestId));
     } catch (e) {
       debugPrint('Could not read the saved interests: $e');
     }
