@@ -19,9 +19,6 @@ class MatchCandidate {
     );
   }
 
-  Map<String, dynamic> toJson() => {
-    'proposerGap': proposerGap.toJson(),
-    'acceptorGap': acceptorGap.toJson(),
-    'score': score,
-  };
+  // There is no toJson on purpose: Gap.toJson is the request body and leaves out the nested user (name, avatar).
+  // To save a candidate on the device use SeenCandidatesDao, which writes both gaps with gapCacheJson.
 }
