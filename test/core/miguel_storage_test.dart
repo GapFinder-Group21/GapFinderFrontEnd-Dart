@@ -67,7 +67,7 @@ class RecordingCache extends MiguelLocalCache {
   void saveInterestsCatalog(List<Interest> interests) => calls.add('catalog:${interests.length}');
 
   @override
-  void saveUserInterests(int userId, Set<int> interestIds, Set<int> syncedIds) {
+  Future<void> saveUserInterests(int userId, Set<int> interestIds, Set<int> syncedIds) async {
     calls.add('userInterests');
     lastInterestIds = interestIds;
     lastSyncedIds = syncedIds;

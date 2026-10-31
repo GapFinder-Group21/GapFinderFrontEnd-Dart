@@ -323,6 +323,7 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
     final sent = <int>{};
     final chosen = Set<int>.of(_selectedInterestIds);
     int? savedUserId;
+    var queued = false;
 
     try {
       final userId = await TokenStorage.getUserId();
@@ -334,7 +335,10 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
       final diff = await _selectionDiff(userId, chosen);
       sent.addAll(diff.alreadySynced);
 
-      if (!hasConnection) return await _queue(userId, chosen, diff);
+      if (!hasConnection) {
+        queued = true;
+        return await _queue(userId, chosen, sent, diff);
+      }
 
       try {
         // POST /users/{userId}/interests/{interestId}, DELETE /users/{userId}/interests/{interestId}
@@ -347,7 +351,8 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
         }
       } catch (e) {
         if (!isNetworkError(e)) rethrow;
-        return await _queue(userId, chosen, diff);
+        queued = true;
+        return await _queue(userId, chosen, sent, diff);
       }
 
       // It worked: a selection that was still pending is not needed anymore
@@ -359,9 +364,11 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
       _errorMessage = userMessage(e, network: saveNetworkMessage);
       return false;
     } finally {
-      // The chosen interests are kept in SQLite, with synced = 1 only for the ones that were sent
-      if (savedUserId != null) {
-        _localCache.saveUserInterests(savedUserId, chosen, sent);
+      // The chosen interests are kept in SQLite, with synced = 1 only for the ones that were sent.
+      // A queued selection was already written before it was queued: writing again here could run after the
+      // outbox handler marked it synced and put synced = 0 back.
+      if (savedUserId != null && !queued) {
+        await _localCache.saveUserInterests(savedUserId, chosen, sent);
       }
       _isSaving = false;
       _notify();
@@ -389,7 +396,10 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
   }
 
   // The dedupeKey lets only one selection wait in the outbox, so many taps send it once
-  Future<bool> _queue(int userId, Set<int> chosen, _SelectionDiff diff) async {
+  Future<bool> _queue(int userId, Set<int> chosen, Set<int> sent, _SelectionDiff diff) async {
+    // The rows are written first and waited for: the outbox may send the selection (and mark it synced) as
+    // soon as it is queued
+    await _localCache.saveUserInterests(userId, chosen, sent);
     await UserInterestsOutbox.enqueue(userId, chosen, addIds: diff.add, removeIds: diff.remove, outbox: _outbox);
     _queuedSelection = chosen;
     _pendingKeys = {..._pendingKeys, UserInterestsOutbox.key(userId)};

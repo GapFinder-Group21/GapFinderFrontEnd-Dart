@@ -41,9 +41,10 @@ class MiguelLocalCache {
     _run('interests catalog', () => interestsCatalog.replaceAll(interests));
   }
 
-  // SQLite: the interests the user chose; syncedIds are the ones the back already received
-  void saveUserInterests(int userId, Set<int> interestIds, Set<int> syncedIds) {
-    _run('user interests', () => userInterests.replaceAllForUser(userId, interestIds, syncedIds));
+  // SQLite: the interests the user chose; syncedIds are the ones the back already received.
+  // It never throws; the caller can wait for it (the interests are written before they are queued).
+  Future<void> saveUserInterests(int userId, Set<int> interestIds, Set<int> syncedIds) {
+    return _run('user interests', () => userInterests.replaceAllForUser(userId, interestIds, syncedIds));
   }
 
   // SQLite: the candidate that was shown for a match
@@ -82,8 +83,8 @@ class MiguelLocalCache {
     });
   }
 
-  void _run(String what, Future<void> Function() action) {
-    Future.sync(action).catchError((Object e) {
+  Future<void> _run(String what, Future<void> Function() action) {
+    return Future.sync(action).catchError((Object e) {
       debugPrint('Could not save $what locally: $e');
     });
   }
