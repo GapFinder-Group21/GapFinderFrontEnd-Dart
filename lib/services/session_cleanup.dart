@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:gapfinderfrontend_dart/core/network/connectivity_service.dart';
 import 'package:gapfinderfrontend_dart/core/storage/local_file_store.dart';
 import 'package:gapfinderfrontend_dart/core/storage/outbox_service.dart';
+import 'package:gapfinderfrontend_dart/data/local/joel/chat_message_dao.dart';
 import 'package:gapfinderfrontend_dart/data/local/joel/joel_local_cache.dart';
 import 'package:gapfinderfrontend_dart/data/local/miguel/onboarding_prefs.dart';
 import 'package:gapfinderfrontend_dart/data/local/sofia/open_table_outbox.dart';
@@ -9,6 +10,7 @@ import 'package:gapfinderfrontend_dart/data/local/sofia/sofia_local_cache.dart';
 import 'package:gapfinderfrontend_dart/services/gap_generation_guard.dart';
 import 'package:gapfinderfrontend_dart/services/gap_reminder_service.dart';
 import 'package:gapfinderfrontend_dart/services/outbox_messages.dart';
+import 'package:gapfinderfrontend_dart/viewmodels/friends/chat_view_model.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/open_tables/open_table_detail_view_model.dart';
 
 // One step of the cleanup when the session ends
@@ -45,6 +47,10 @@ class SessionCleanup {
       SessionCleanupStep('queued table photos', () => LocalFileStore.instance.deleteFolder(OpenTableOutbox.photosFolder)),
       SessionCleanupStep('unpublished table photo', () => JoelLocalCache.instance.pendingPhoto.clear()),
       SessionCleanupStep('open table detail cache', () async => OpenTableDetailViewModel.clearSharedCache()),
+      SessionCleanupStep('chat messages', () async {
+        if (userId != null) await ChatMessageDao().deleteForUser(userId);
+      }),
+      SessionCleanupStep('chat cache', () async => ChatViewModel.clearChatCache()),
       SessionCleanupStep('week of gaps', () => GapGenerationGuard.invalidateAll()),
       SessionCleanupStep('saved data', () => SofiaLocalCache.instance.clearUserData(userId)),
       SessionCleanupStep('onboarding step', () async {
@@ -83,6 +89,7 @@ class SessionCleanup {
         'Las mesas abiertas y los detalles que viste',
         'Tu recomendación guardada',
         'Los recordatorios de tus huecos',
+        'Tus mensajes de chat guardados',
         if (photo) 'La foto de la mesa que empezaste y no publicaste',
       ],
       isOffline: isOffline ?? !ConnectivityService.instance.isOnline,

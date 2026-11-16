@@ -7,6 +7,8 @@ class CustomTopBar extends StatelessWidget implements PreferredSizeWidget {
   final String? subtitle;
   final bool showBack;
   final VoidCallback? onBack;
+  // Optional widget before the title (for example the friend's avatar in the chat)
+  final Widget? leading;
 
   const CustomTopBar({
     super.key,
@@ -14,6 +16,7 @@ class CustomTopBar extends StatelessWidget implements PreferredSizeWidget {
     this.subtitle,
     this.showBack = true,
     this.onBack,
+    this.leading,
   });
 
   @override
@@ -38,29 +41,36 @@ class CustomTopBar extends StatelessWidget implements PreferredSizeWidget {
               ),
               const SizedBox(width: 12),
             ],
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  title,
-                  style: AppFonts.display(weight: FontWeight.w800).copyWith(
-                    fontSize: 16,
-                    color: AppColors.background,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                if (subtitle != null) ...[
-                  const SizedBox(height: 1),
+            if (leading != null) ...[
+              leading!,
+              const SizedBox(width: 10),
+            ],
+            // Flexible: a long title wraps instead of overflowing
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
                   Text(
-                    subtitle!,
-                    style: AppFonts.subtitle().copyWith(
-                      fontSize: 12,
-                      color: AppColors.background.withOpacity(0.65),
+                    title,
+                    style: AppFonts.display(weight: FontWeight.w800).copyWith(
+                      fontSize: 16,
+                      color: AppColors.background,
+                      letterSpacing: 0.5,
                     ),
                   ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 1),
+                    Text(
+                      subtitle!,
+                      style: AppFonts.subtitle().copyWith(
+                        fontSize: 12,
+                        color: AppColors.background.withOpacity(0.65),
+                      ),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ],
         ),
