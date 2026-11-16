@@ -10,6 +10,7 @@ import 'package:gapfinderfrontend_dart/models/responses/match_candidate.dart';
 import 'package:gapfinderfrontend_dart/services/match_service.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/offline_aware_mixin.dart';
 
+// EVENTUAL CONNECTIVITY MIGUEL: Works locally + queue (Match found)
 // Best candidate found and the action to send the match request.
 // The candidate is already on the device, so the screen works without internet; connecting
 // without internet is queued in the outbox.
@@ -105,6 +106,7 @@ class MatchFoundViewModel extends ChangeNotifier with OfflineAwareMixin {
     try {
       if (!hasConnection) return await _queue();
 
+      // MULTITHREADING MIGUEL: Future with handler (connect with the candidate)
       // Estrategia: Future con handler. .then runs when the request works (it saves the candidate
       // that was shown, with the id of its match); .catchError runs when it fails: a network error
       // queues the request and any other error goes to the catch below.

@@ -11,6 +11,7 @@ class RegisterDraft {
   const RegisterDraft({required this.name, required this.email, required this.career, required this.semester});
 }
 
+// STORAGE MIGUEL: Hive (sign up draft)
 // Draft of the sign up form in Hive (box miguel_register_draft). It is deleted when the sign up works,
 // when someone logs in, and when it is older than maxAge (the phone may be shared).
 class RegisterDraftStore {

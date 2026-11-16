@@ -5,6 +5,7 @@ import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_fonts.dart';
 import 'package:gapfinderfrontend_dart/navigation/app_routes.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/schedule/schedule_view_model.dart';
+import 'package:gapfinderfrontend_dart/views/widgets/common/logout_warning_dialog.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/offline_banner.dart';
 
 /// Schedule tab: today's classes and free gaps, in time order.
@@ -12,26 +13,13 @@ import 'package:gapfinderfrontend_dart/views/widgets/common/offline_banner.dart'
 class ScheduleView extends StatelessWidget {
   const ScheduleView({super.key});
 
-  // Asks for confirmation, logs out and goes back to the welcome screen
+  // Asks for confirmation (listing what is removed from the phone), logs out and goes to welcome
   Future<void> _confirmLogout(BuildContext context) async {
     final vm = context.read<ScheduleViewModel>();
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('¿Cerrar sesión?', style: AppFonts.display(weight: FontWeight.w800)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancelar'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Cerrar sesión', style: TextStyle(color: AppColors.accent1)),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
+    final warning = await vm.logoutWarning();
+    if (!context.mounted) return;
+    final confirmed = await showLogoutWarningDialog(context, warning);
+    if (!confirmed) return;
 
     await vm.logout();
     if (!context.mounted) return;

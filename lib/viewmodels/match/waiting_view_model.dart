@@ -20,6 +20,7 @@ class MatchAccepted extends WaitingEvent {
 // The other person declined
 class MatchRejected extends WaitingEvent {}
 
+// EVENTUAL CONNECTIVITY JOEL: Paused polling (Waiting)
 // Waits for the other person to answer the match request.
 // The polling needs the back: it pauses without connection (the screen shows the last saved
 // status) and resumes by itself when the connection comes back.
@@ -45,6 +46,7 @@ class WaitingViewModel extends ChangeNotifier {
         _localCache = localCache ?? JoelLocalCache.instance,
         _connectivity = connectivity ?? ConnectivityService.instance;
 
+  // MULTITHREADING JOEL: Stream (match accepted or rejected)
   // Estrategia: Stream. The polling sends MatchAccepted or MatchRejected here and the View listens
   final _events = StreamController<WaitingEvent>.broadcast();
   Timer? _pollTimer;

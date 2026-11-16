@@ -10,6 +10,7 @@ import 'package:gapfinderfrontend_dart/models/match.dart';
 import 'package:gapfinderfrontend_dart/services/gap_service.dart';
 import 'package:gapfinderfrontend_dart/services/match_service.dart';
 
+// EVENTUAL CONNECTIVITY JOEL: Network falling back to cache (Match)
 // State and logic of the match tab.
 // Network falling back to cache: the gap and the match come from the back and, without connection
 // (or if it fails), from what was saved. Looking for a match always needs the back.
@@ -78,6 +79,7 @@ class MatchViewModel extends ChangeNotifier {
   // Load the current gap and its match, and listen to the connection
   Future<void> init() {
     _isOffline = !_connectivity.isOnline;
+    // MULTITHREADING JOEL: Stream (connection changes)
     // Estrategia: Stream. The connectivity service emits true/false every time the network changes
     _connectivitySub ??= _connectivity.onStatusChange.listen(_onConnectivityChanged);
     return refresh();
@@ -97,6 +99,7 @@ class MatchViewModel extends ChangeNotifier {
     await refresh();
   }
 
+  // MULTITHREADING JOEL: Future with handler + async/await (load the match screen)
   // Loads the current gap and then the match of that gap
   Future<void> refresh() async {
     final loadId = ++_loadId;
@@ -129,6 +132,7 @@ class MatchViewModel extends ChangeNotifier {
     });
   }
 
+  // MULTITHREADING JOEL: Future (read the active gap)
   // Finds the gap the user is in right now - GET /gaps/user/{userId}
   Future<Gap?> _loadActiveGap() async {
     final userId = await TokenStorage.getUserId();

@@ -4,11 +4,14 @@ import 'package:provider/provider.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_fonts.dart';
 import 'package:gapfinderfrontend_dart/models/open_table.dart';
+import 'package:gapfinderfrontend_dart/services/gap_reminder_service.dart';
+import 'package:gapfinderfrontend_dart/services/outbox_messages.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/open_tables/open_table_detail_view_model.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/avatar_widget.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/custom_top_bar.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/custom_button.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/offline_banner.dart';
+import 'package:gapfinderfrontend_dart/views/widgets/common/queued_action_dialog.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/open_tables/open_table_photo.dart';
 
 /// Details of one open table: creator, activity, building, time left and participants.
@@ -31,7 +34,10 @@ class _OpenTableDetailViewState extends State<OpenTableDetailView> {
     final error = await _vm.join();
     if (!mounted) return;
     final notice = _vm.takeNotice();
-    if (error == null && notice != null) {
+    if (_vm.takeQueued()) {
+      // Saved offline: it is sent alone when the internet is back
+      await _showQueued(OutboxMessages.joinQueuedTitle, OutboxMessages.joinQueuedBody);
+    } else if (error == null && notice != null) {
       // Queued (or cancelled): nothing was sent yet
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(notice)));
     } else if (error == null) {
@@ -74,7 +80,9 @@ class _OpenTableDetailViewState extends State<OpenTableDetailView> {
     final error = await _vm.leave();
     if (!mounted) return;
     final notice = _vm.takeNotice();
-    if (error == null && notice != null) {
+    if (_vm.takeQueued()) {
+      await _showQueued(OutboxMessages.leaveQueuedTitle, OutboxMessages.leaveQueuedBody);
+    } else if (error == null && notice != null) {
       // Queued (or cancelled): nothing was sent yet
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(notice)));
     } else if (error == null) {
@@ -86,6 +94,15 @@ class _OpenTableDetailViewState extends State<OpenTableDetailView> {
         SnackBar(content: Text(error)),
       );
     }
+  }
+
+  // Shows the "Solicitud enviada" dialog, then asks the notification permission for the later notice
+  Future<void> _showQueued(String title, String message) async {
+    await showQueuedActionDialog(context, title: title, message: message);
+    GapReminderService().requestPermission().catchError((Object e) {
+      debugPrint('Could not ask the notification permission: $e');
+      return false;
+    });
   }
 
   @override
@@ -183,7 +200,7 @@ class _OpenTableDetailViewState extends State<OpenTableDetailView> {
                           _buildDetailItem(
                             icon: Icons.location_on_rounded,
                             label: 'Location',
-                            value: table.building?.name ?? 'Unknown',
+                            value: table.building?.displayName ?? 'Unknown',
                           ),
                           const SizedBox(width: 12),
                           _buildDetailItem(

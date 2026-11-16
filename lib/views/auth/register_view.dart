@@ -1,8 +1,10 @@
 import 'package:gapfinderfrontend_dart/core/theme/app_palette.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_fonts.dart';
 import 'package:gapfinderfrontend_dart/core/constants/careers.dart';
+import 'package:gapfinderfrontend_dart/core/validators/register_validators.dart';
 import 'package:gapfinderfrontend_dart/navigation/app_routes.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/auth/register_view_model.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/top_bar.dart';
@@ -69,11 +71,25 @@ class _RegisterViewState extends State<RegisterView> {
     super.dispose();
   }
 
+  // After the first try, validates on each key to clear fixed errors
+  void _revalidate() {
+    final vm = context.read<RegisterViewModel>();
+    if (!vm.triedSubmit) return;
+    vm.validateFields(
+      name: RegisterValidators.normalizeName(_nameController.text),
+      email: _emailController.text.trim().toLowerCase(),
+      password: _passwordController.text,
+      confirmPassword: _confirmPasswordController.text,
+      semesterText: _semesterController.text.trim(),
+      phone: _phoneController.text.trim(),
+    );
+  }
+
   // Sends the fields to the ViewModel and goes on when the account is created
   Future<void> _handleRegister() async {
     final vm = context.read<RegisterViewModel>();
     final ok = await vm.register(
-      name: _nameController.text.trim(),
+      name: RegisterValidators.normalizeName(_nameController.text),
       email: _emailController.text.trim().toLowerCase(),
       password: _passwordController.text,
       confirmPassword: _confirmPasswordController.text,
@@ -88,9 +104,10 @@ class _RegisterViewState extends State<RegisterView> {
         AppRoutes.locationPermission,
         arguments: {'fromOnboarding': true},
       );
-    } else {
+    } else if (vm.errorMessage != null) {
+      // Only server or connection errors
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(vm.errorMessage ?? '')),
+        SnackBar(content: Text(vm.errorMessage!)),
       );
     }
   }
@@ -134,6 +151,10 @@ class _RegisterViewState extends State<RegisterView> {
             CustomInput(
               placeholder: 'Full Name',
               controller: _nameController,
+              maxLength: RegisterValidators.nameMax,
+              inputFormatters: [FilteringTextInputFormatter.allow(RegisterValidators.nameAllowedChars)],
+              errorText: vm.fieldError('name'),
+              onChanged: (_) => _revalidate(),
             ),
             const SizedBox(height: 14),
 
@@ -142,6 +163,10 @@ class _RegisterViewState extends State<RegisterView> {
               placeholder: 'Email',
               keyboardType: TextInputType.emailAddress,
               controller: _emailController,
+              maxLength: RegisterValidators.emailMax,
+              inputFormatters: [FilteringTextInputFormatter.allow(RegisterValidators.emailAllowedChars)],
+              errorText: vm.fieldError('email'),
+              onChanged: (_) => _revalidate(),
             ),
             const SizedBox(height: 14),
 
@@ -166,6 +191,7 @@ class _RegisterViewState extends State<RegisterView> {
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
+                errorText: vm.fieldError('career'),
               ),
               items: careers.map((String career) {
                 return DropdownMenuItem<String>(
@@ -185,14 +211,22 @@ class _RegisterViewState extends State<RegisterView> {
               placeholder: 'Semester (1 - 12)',
               keyboardType: TextInputType.number,
               controller: _semesterController,
+              maxLength: RegisterValidators.semesterMaxDigits,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              errorText: vm.fieldError('semester'),
+              onChanged: (_) => _revalidate(),
             ),
             const SizedBox(height: 14),
 
             // Phone Number
             CustomInput(
-              placeholder: 'Phone Number',
+              placeholder: 'Phone Number (10 dígitos)',
               keyboardType: TextInputType.phone,
               controller: _phoneController,
+              maxLength: RegisterValidators.phoneLength,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              errorText: vm.fieldError('phone'),
+              onChanged: (_) => _revalidate(),
             ),
             const SizedBox(height: 14),
 
@@ -232,11 +266,15 @@ class _RegisterViewState extends State<RegisterView> {
             ),
             const SizedBox(height: 14),
 
-            // Password (min 8 chars)
+            // Password (8 to 64 chars)
             CustomInput(
-              placeholder: 'Password (min 8 characters)',
+              placeholder: 'Password (8 - 64 characters)',
               obscureText: true,
               controller: _passwordController,
+              maxLength: RegisterValidators.passwordMax,
+              inputFormatters: [FilteringTextInputFormatter.allow(RegisterValidators.passwordAllowedChars)],
+              errorText: vm.fieldError('password'),
+              onChanged: (_) => _revalidate(),
             ),
             const SizedBox(height: 14),
 
@@ -245,6 +283,10 @@ class _RegisterViewState extends State<RegisterView> {
               placeholder: 'Confirm Password',
               obscureText: true,
               controller: _confirmPasswordController,
+              maxLength: RegisterValidators.passwordMax,
+              inputFormatters: [FilteringTextInputFormatter.allow(RegisterValidators.passwordAllowedChars)],
+              errorText: vm.fieldError('confirmPassword'),
+              onChanged: (_) => _revalidate(),
             ),
 
             const SizedBox(height: 28),

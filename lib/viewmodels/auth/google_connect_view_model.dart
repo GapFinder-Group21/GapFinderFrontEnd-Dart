@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:gapfinderfrontend_dart/core/network/connectivity_service.dart';
 import 'package:gapfinderfrontend_dart/services/google_service.dart';
 
+// EVENTUAL CONNECTIVITY JOEL: Network only (Connect Google)
 // State and logic of the "connect Google" screen (network only: Google sign-in needs the back)
 class GoogleConnectViewModel extends ChangeNotifier {
   // The spinner never lasts longer than this

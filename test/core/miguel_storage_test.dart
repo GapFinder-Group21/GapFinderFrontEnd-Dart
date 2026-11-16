@@ -370,7 +370,7 @@ void main() {
 
     Future<bool> register(RegisterViewModel vm) => vm.register(
           name: 'Ana',
-          email: 'ana@test.com',
+          email: 'ana@gmail.com',
           password: 'secret123',
           confirmPassword: 'secret123',
           semesterText: '5',

@@ -1,5 +1,6 @@
 import 'package:gapfinderfrontend_dart/core/storage/database_module.dart';
 
+// STORAGE MIGUEL: SQLite (interests catalog, user interests and seen candidates)
 // Tables of the onboarding (interests) and of the match candidates that were shown.
 // The catalog and the candidates keep the whole object as JSON; user_interests is a plain relation
 // between a user and an interest, with synced = 1 when the back already received it.

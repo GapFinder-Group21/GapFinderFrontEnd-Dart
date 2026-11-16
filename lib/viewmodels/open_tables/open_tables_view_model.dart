@@ -2,7 +2,9 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:gapfinderfrontend_dart/core/network/network_errors.dart';
+import 'package:gapfinderfrontend_dart/core/storage/outbox_service.dart';
 import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
+import 'package:gapfinderfrontend_dart/data/local/sofia/open_table_outbox.dart';
 import 'package:gapfinderfrontend_dart/data/local/sofia/open_table_cache_dao.dart';
 import 'package:gapfinderfrontend_dart/data/local/sofia/sofia_local_cache.dart';
 import 'package:gapfinderfrontend_dart/models/enums/open_table_status_enum.dart';
@@ -31,6 +33,9 @@ class OpenTablesViewModel extends ChangeNotifier with OfflineAwareMixin {
   int? _userId;
   String? _errorMessage;
   StreamSubscription<ServiceStatus>? _serviceStatusSubscription;
+  StreamSubscription<Set<String>>? _pendingSub;
+  // Keys of the actions waiting in the outbox (to show "Pendiente de enviar")
+  Set<String> _pendingKeys = {};
   bool _disposed = false;
 
   List<OpenTable> get openTables => _openTables;
@@ -47,11 +52,54 @@ class OpenTablesViewModel extends ChangeNotifier with OfflineAwareMixin {
   // The check of this table failed: we do not know if the user is in it, so the list does not offer Join
   bool isMembershipUnknown(OpenTable table) => _unknownTableIds.contains(table.id);
 
+  // A join of this table is waiting in the outbox (same key as the detail screen)
+  bool isJoinPending(OpenTable table) => _pendingKeys.contains(OpenTableOutbox.joinKey(_userId, table.id));
+
+  // EVENTUAL CONNECTIVITY MIGUEL: SQLite queue (join an Open Table offline, from the list)
+  // Eventual connectivity: without internet the join is saved in the SQLite outbox and sent when
+  // the network is back. The table title is the label the user is told about. Returns false without a user.
+  Future<bool> queueJoin(OpenTable table) async {
+    final userId = _userId;
+    if (userId == null) return false;
+
+    final key = OpenTableOutbox.joinKey(userId, table.id);
+    try {
+      await OutboxService.instance.enqueue(
+        type: OpenTableOutbox.joinType,
+        method: 'POST',
+        endpoint: '/open-table-participants/table/${table.id}/join?userId=$userId',
+        dedupeKey: key,
+        label: table.title,
+      );
+    } catch (e) {
+      debugPrint('Could not queue the join: $e');
+      return false;
+    }
+    _pendingKeys = {..._pendingKeys, key};
+    _notify();
+    return true;
+  }
+
   // Load the tables; reload them when the GPS is turned on or off and when the connection comes back
   Future<void> init() async {
     listenToConnectivity(onRestored: refresh);
     _listenToLocationChanges();
+    _watchOutbox();
     await refresh();
+  }
+
+  // When a queued join leaves the outbox, the list reloads so the button shows the real state
+  void _watchOutbox() {
+    try {
+      _pendingSub = OutboxService.instance.pendingKeys.listen((keys) {
+        final left = _pendingKeys.difference(keys);
+        _pendingKeys = keys;
+        _notify();
+        if (left.isNotEmpty) refresh();
+      }, onError: (e) => debugPrint('Error watching the outbox: $e'));
+    } catch (e) {
+      debugPrint('Could not watch the outbox: $e');
+    }
   }
 
   // Reload the list when the GPS is turned on or off
@@ -213,6 +261,7 @@ class OpenTablesViewModel extends ChangeNotifier with OfflineAwareMixin {
   void dispose() {
     _disposed = true;
     _serviceStatusSubscription?.cancel();
+    _pendingSub?.cancel();
     super.dispose();
   }
 }

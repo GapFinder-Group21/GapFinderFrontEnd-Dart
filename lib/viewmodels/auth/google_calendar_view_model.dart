@@ -10,6 +10,7 @@ import 'package:gapfinderfrontend_dart/viewmodels/offline_aware_mixin.dart';
 // Steps of the Google Calendar import (offline: there is no connection, so nothing is tried)
 enum GoogleImportPhase { connecting, success, error, offline }
 
+// EVENTUAL CONNECTIVITY MIGUEL: Network only (Google import)
 // State and logic of the Google Calendar import screen (network only: the import needs the back)
 class GoogleCalendarViewModel extends ChangeNotifier with OfflineAwareMixin {
   static const offlineTitle = 'Importar tu horario necesita conexión';

@@ -14,6 +14,19 @@ class Building {
     this.radiusMeters = 0,
   });
 
+  // Some buildings are split in numbered parts ("Bobo 1", "Bobo 2") for the GPS; the user sees one
+  // building without the number. Same rule as the back uses in its stats.
+  static String baseName(String name) => name.replaceFirst(RegExp(r'\s+\d+$'), '');
+
+  // Name shown to the user ("Bobo", not "Bobo 2")
+  String get displayName => baseName(name);
+
+  // One building per base name (its first part), in the same order
+  static List<Building> mergeParts(List<Building> buildings) {
+    final seen = <String>{};
+    return buildings.where((b) => seen.add(b.displayName)).toList();
+  }
+
   factory Building.fromJson(Map<String, dynamic> json) {
     return Building(
       id: json['id'],

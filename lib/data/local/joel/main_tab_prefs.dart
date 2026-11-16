@@ -1,5 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
+// STORAGE JOEL: SharedPreferences (last tab)
 // Last tab opened in the main screen (SharedPreferences key main_last_tab)
 class MainTabPrefs {
   static const key = 'main_last_tab';

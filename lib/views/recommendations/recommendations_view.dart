@@ -1,3 +1,4 @@
+import 'package:gapfinderfrontend_dart/models/building.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_palette.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -196,7 +197,7 @@ class RecommendationsView extends StatelessWidget {
                                     const SizedBox(width: 10),
                                     Expanded(
                                       child: Text(
-                                        data.buildingName ?? 'No frequent building yet',
+                                        (data.buildingName == null ? null : Building.baseName(data.buildingName!)) ?? 'No frequent building yet',
                                         style: AppFonts.display(weight: FontWeight.w900).copyWith(
                                           fontSize: 16,
                                           color: context.palette.contrast,
@@ -359,7 +360,7 @@ class RecommendationsView extends StatelessWidget {
                           Icon(Icons.location_on_rounded, size: 12, color: AppColors.accent2),
                           const SizedBox(width: 4),
                           Text(
-                            table.building?.name ?? 'Unknown location',
+                            table.building?.displayName ?? 'Unknown location',
                             style: AppFonts.body().copyWith(
                               fontSize: 12,
                               fontWeight: FontWeight.w700,

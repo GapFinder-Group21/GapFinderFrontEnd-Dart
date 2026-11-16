@@ -4,6 +4,7 @@ import 'package:gapfinderfrontend_dart/core/network/api_client.dart';
 import 'package:gapfinderfrontend_dart/core/storage/outbox_service.dart';
 import 'package:gapfinderfrontend_dart/data/local/miguel/user_interests_dao.dart';
 
+// EVENTUAL CONNECTIVITY MIGUEL: Own SQLite queue (save interests)
 // Saving the interests is one request per interest, not a single request, so the outbox cannot send
 // it alone: this handler does it. The queued row body is
 // {"userId": 1, "interestIds": [1, 2], "addIds": [2], "removeIds": [3]}: interestIds is the whole

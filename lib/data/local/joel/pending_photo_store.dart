@@ -4,6 +4,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:gapfinderfrontend_dart/core/storage/local_file_store.dart';
 
+// STORAGE JOEL: Local file (pending table photo)
 // Copy of the open table photo, kept until the table is published.
 // The camera leaves the photo in a temp folder the OS may clean, so it is copied to
 // pending_photos/<timestamp>.jpg and its relative path is saved.

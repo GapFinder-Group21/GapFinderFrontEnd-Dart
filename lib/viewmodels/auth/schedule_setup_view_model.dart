@@ -3,6 +3,7 @@ import 'package:gapfinderfrontend_dart/data/local/miguel/miguel_local_cache.dart
 import 'package:gapfinderfrontend_dart/data/local/miguel/onboarding_prefs.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/offline_aware_mixin.dart';
 
+// EVENTUAL CONNECTIVITY MIGUEL: Works locally (Schedule setup)
 // State of the schedule setup step. Connecting Google needs internet; without it the user can
 // leave this step for later and still enter the app.
 class ScheduleSetupViewModel extends ChangeNotifier with OfflineAwareMixin {

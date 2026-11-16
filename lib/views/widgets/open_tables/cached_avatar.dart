@@ -4,6 +4,7 @@ import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_palette.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/avatar_widget.dart';
 
+// CACHING MIGUEL: Image cache (cached_network_image, avatars)
 // Avatar of a table creator whose image is kept on disk by cached_network_image, so it still shows
 // without connection after it was loaded once. While it loads, a spinner; with no URL or if it
 // fails, the same initials avatar as AvatarWidget.

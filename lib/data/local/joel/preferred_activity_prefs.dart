@@ -1,5 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
+// STORAGE JOEL: SharedPreferences (favorite activity per user)
 // Last preferred activity of each user (SharedPreferences key preferred_activity_<userId>).
 // It is one small number, so SharedPreferences is enough, and it lets the wizard preselect the
 // activity without connection.

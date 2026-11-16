@@ -1,5 +1,6 @@
 import 'package:gapfinderfrontend_dart/core/storage/database_module.dart';
 
+// STORAGE JOEL: SQLite (friends, requests, notifications and matches)
 // Tables of friends, friend requests, notifications and matches.
 // Each row keeps the whole object as JSON plus the columns used to filter it.
 const joelDatabaseModule = DatabaseModule(

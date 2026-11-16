@@ -21,6 +21,7 @@ class GoogleImportState {
       );
 }
 
+// STORAGE MIGUEL: Local file (last Google import)
 // State of the last import in a file (imports/last_google_import.json)
 class GoogleImportStore {
   static const path = 'imports/last_google_import.json';
