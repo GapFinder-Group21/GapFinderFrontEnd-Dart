@@ -7,6 +7,7 @@ class OutboxTypes {
   static const friendRequestReject = 'friend_request_reject';
   static const matchInvitationAccept = 'match_invitation_accept';
   static const matchInvitationDecline = 'match_invitation_decline';
+  static const chatMessage = 'chat_message';
 }
 
 class OutboxKeys {
@@ -21,4 +22,10 @@ class OutboxKeys {
 
   // Keys that belong to the friends screen
   static bool isFriendKey(String key) => key.startsWith('friend_request_');
+
+  // One row per chat message (the user id keeps it from being sent with another user's token)
+  static String chatMessage(int userId, String clientId) => 'chat_message:$userId:$clientId';
+
+  // Chat keys of this user
+  static bool isChatKey(String key, int userId) => key.startsWith('chat_message:$userId:');
 }

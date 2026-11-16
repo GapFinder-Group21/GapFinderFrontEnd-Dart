@@ -6,6 +6,7 @@ import 'package:gapfinderfrontend_dart/core/theme/app_fonts.dart';
 import 'package:gapfinderfrontend_dart/core/utils/display_formatters.dart';
 import 'package:gapfinderfrontend_dart/models/user.dart';
 import 'package:gapfinderfrontend_dart/models/gap.dart';
+import 'package:gapfinderfrontend_dart/navigation/app_routes.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/friends/friends_view_model.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/avatar_widget.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/offline_banner.dart';
@@ -83,6 +84,11 @@ class _FriendsViewState extends State<FriendsView> {
     );
   }
 
+  // Opens the chat with a friend (it also works without internet: it shows the saved messages)
+  void _openChat(User friend) {
+    Navigator.pushNamed(context, AppRoutes.chat, arguments: {'friend': friend});
+  }
+
   // Start and end time of a gap, e.g. "9:30 – 11:00"
   String? _gapWindowLabel(Gap? gap) {
     if (gap == null) return null;
@@ -99,6 +105,18 @@ class _FriendsViewState extends State<FriendsView> {
         child: Column(
           children: [
             _buildHeader(),
+            // Tells the user that a friend card opens the chat
+            if (vm.allFriends.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 10, 20, 0),
+                child: Text(
+                  'Toca la card de un amigo para abrir su chat',
+                  style: AppFonts.body().copyWith(
+                    fontSize: 12,
+                    color: context.palette.contrast.withValues(alpha: 0.5),
+                  ),
+                ),
+              ),
             // Without connection: the friends on screen are the saved ones
             if (vm.isOffline)
               OfflineBanner(
@@ -499,7 +517,9 @@ class _FriendsViewState extends State<FriendsView> {
     final user = f.user;
     final windowLabel = _gapWindowLabel(f.gap);
 
-    return Container(
+    return GestureDetector(
+      onTap: () => _openChat(user),
+      child: Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
         color: context.palette.surface,
@@ -561,6 +581,8 @@ class _FriendsViewState extends State<FriendsView> {
                     ],
                   ),
                 ),
+                // Hint that the card opens the chat
+                const Icon(Icons.chat_bubble_outline_rounded, size: 18, color: AppColors.accent1),
               ],
             ),
           ),
@@ -614,6 +636,7 @@ class _FriendsViewState extends State<FriendsView> {
           ),
         ],
       ),
+      ),
     );
   }
 
@@ -626,7 +649,11 @@ class _FriendsViewState extends State<FriendsView> {
         final screenWidth = MediaQuery.of(context).size.width;
         final itemWidth = (screenWidth - 32 - 24) / 3; // 3 columns minus padding and spacing
 
-        return Opacity(
+        return GestureDetector(
+          onTap: () => _openChat(user),
+          child: Stack(
+          children: [
+          Opacity(
           opacity: 0.7,
           child: Container(
             width: itemWidth,
@@ -659,6 +686,15 @@ class _FriendsViewState extends State<FriendsView> {
                 ),
               ],
             ),
+          ),
+          ),
+          // Hint that the tile opens the chat
+          const Positioned(
+            top: 6,
+            right: 6,
+            child: Icon(Icons.chat_bubble_outline_rounded, size: 14, color: AppColors.accent1),
+          ),
+          ],
           ),
         );
       }).toList(),

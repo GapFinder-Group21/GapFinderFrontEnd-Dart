@@ -21,6 +21,8 @@ class OutboxMessages {
         return 'Unirte a la mesa$name';
       case OpenTableOutbox.leaveType:
         return 'Salir de la mesa$name';
+      case 'chat_message':
+        return label == null ? 'Enviar un mensaje de chat' : 'Enviar un mensaje a $label';
       case 'friend_request_send':
         return 'Enviar una solicitud de amistad';
       case 'friend_request_accept':

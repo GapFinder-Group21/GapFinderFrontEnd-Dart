@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:gapfinderfrontend_dart/models/enums/match_mode_enum.dart';
 import 'package:gapfinderfrontend_dart/models/responses/match_candidate.dart';
+import 'package:gapfinderfrontend_dart/models/user.dart';
+import 'package:gapfinderfrontend_dart/viewmodels/friends/chat_view_model.dart';
+import 'package:gapfinderfrontend_dart/views/friends/chat_view.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/auth/google_calendar_view_model.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/auth/google_connect_view_model.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/auth/interests_view_model.dart';
@@ -62,6 +65,7 @@ class AppRoutes {
   static const createOpenTable = '/create-open-table';
   static const myOpenTables = '/my-open-tables';
   static const openTableDetail = '/open-table-detail';
+  static const chat = '/chat';
 
   static Map<String, WidgetBuilder> get routes => {
         welcome: (context) => const WelcomeView(),
@@ -126,6 +130,12 @@ class AppRoutes {
         createOpenTable: (context) =>
             withViewModel(() => CreateOpenTableViewModel()..init(), const CreateOpenTableView()),
         myOpenTables: (context) => withViewModel(() => MyOpenTablesViewModel()..init(), const MyOpenTablesView()),
+        // Chat with a friend: argument {'friend': User}
+        chat: (context) {
+          final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
+          final friend = args['friend'] as User;
+          return withViewModel(() => ChatViewModel(friend)..init(), const ChatView());
+        },
         openTableDetail: (context) {
           final openTableId = ModalRoute.of(context)!.settings.arguments as int;
           return withViewModel(

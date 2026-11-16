@@ -44,5 +44,21 @@ const joelDatabaseModule = DatabaseModule(
     'CREATE INDEX IF NOT EXISTS idx_friend_requests_user ON friend_requests(user_id)',
     'CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id)',
     'CREATE INDEX IF NOT EXISTS idx_matches_user ON matches(user_id)',
+    // STORAGE JOEL: SQLite (chat messages with each friend)
+    // Estrategia: SQLite. One row per message; client_id (UUID made by the app) is the key, so a
+    // message saved while pending and later confirmed by the back stays one row.
+    '''
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      client_id TEXT PRIMARY KEY,
+      server_id INTEGER,
+      user_id INTEGER,
+      friend_id INTEGER,
+      sender_id INTEGER,
+      content TEXT,
+      created_at TEXT,
+      status TEXT
+    )
+    ''',
+    'CREATE INDEX IF NOT EXISTS idx_chat_messages_chat ON chat_messages(user_id, friend_id)',
   ],
 );
