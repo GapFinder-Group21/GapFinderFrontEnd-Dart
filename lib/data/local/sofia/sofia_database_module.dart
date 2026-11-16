@@ -45,5 +45,17 @@ const sofiaDatabaseModule = DatabaseModule(
       saved_at TEXT
     )
     ''',
+    // Estrategia: Local storage (SQLite). History of "Mis matches", one row per match of each user.
+    // The key is (id, user_id): the same match is seen by its two students, each with their own rating.
+    '''
+    CREATE TABLE IF NOT EXISTS match_history (
+      id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      json TEXT,
+      saved_at TEXT,
+      PRIMARY KEY (id, user_id)
+    )
+    ''',
+    'CREATE INDEX IF NOT EXISTS idx_match_history_user ON match_history(user_id)',
   ],
 );

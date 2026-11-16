@@ -36,18 +36,35 @@ class MatchView extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            // Top bar
+            // Top bar with the "Mis matches" button (same style as "Mine" in Open Table)
             Container(
               width: double.infinity,
               color: AppColors.contrast,
               padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
-              child: Text(
-                'MATCH',
-                style: AppFonts.display(weight: FontWeight.w900).copyWith(
-                  fontSize: 20,
-                  color: Colors.white,
-                  letterSpacing: 1.5,
-                ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'MATCH',
+                    style: AppFonts.display(weight: FontWeight.w900).copyWith(
+                      fontSize: 20,
+                      color: Colors.white,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: () => Navigator.pushNamed(context, AppRoutes.myMatches),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.accent3,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                      textStyle: AppFonts.subtitle(weight: FontWeight.w700).copyWith(fontSize: 12),
+                    ),
+                    child: const Text('Mis matches'),
+                  ),
+                ],
               ),
             ),
             // Without connection: the gap and the match are the saved ones
