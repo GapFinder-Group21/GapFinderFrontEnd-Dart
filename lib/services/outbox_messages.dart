@@ -35,6 +35,8 @@ class OutboxMessages {
         return 'Aceptar una invitación';
       case 'match_invitation_decline':
         return 'Rechazar una invitación';
+      case 'match_rating':
+        return label == null ? 'Calificar tu match' : 'Calificar tu match con $label';
       case 'user_interests_save':
         return 'Guardar tus intereses';
       default:

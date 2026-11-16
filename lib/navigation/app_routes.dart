@@ -22,12 +22,14 @@ import 'package:gapfinderfrontend_dart/views/auth/schedule_setup_view.dart';
 import 'package:gapfinderfrontend_dart/views/welcome/welcome_view.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/match/match_found_view_model.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/match/match_invitation_view_model.dart';
+import 'package:gapfinderfrontend_dart/viewmodels/match/my_matches_view_model.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/match/its_a_match_view_model.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/match/searching_match_view_model.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/match/waiting_view_model.dart';
 import 'package:gapfinderfrontend_dart/views/match/its_a_match_view.dart';
 import 'package:gapfinderfrontend_dart/views/match/match_found_view.dart';
 import 'package:gapfinderfrontend_dart/views/match/match_invitation_view.dart';
+import 'package:gapfinderfrontend_dart/views/match/my_matches_view.dart';
 import 'package:gapfinderfrontend_dart/views/match/searching_match_view.dart';
 import 'package:gapfinderfrontend_dart/views/match/waiting_view.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/open_tables/create_open_table_view_model.dart';
@@ -66,6 +68,7 @@ class AppRoutes {
   static const myOpenTables = '/my-open-tables';
   static const openTableDetail = '/open-table-detail';
   static const chat = '/chat';
+  static const myMatches = '/my-matches';
 
   static Map<String, WidgetBuilder> get routes => {
         welcome: (context) => const WelcomeView(),
@@ -130,6 +133,8 @@ class AppRoutes {
         createOpenTable: (context) =>
             withViewModel(() => CreateOpenTableViewModel()..init(), const CreateOpenTableView()),
         myOpenTables: (context) => withViewModel(() => MyOpenTablesViewModel()..init(), const MyOpenTablesView()),
+        // History of my matches and their ratings
+        myMatches: (context) => withViewModel(() => MyMatchesViewModel()..init(), const MyMatchesView()),
         // Chat with a friend: argument {'friend': User}
         chat: (context) {
           final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
