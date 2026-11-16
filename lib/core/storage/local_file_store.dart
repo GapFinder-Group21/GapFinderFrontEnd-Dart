@@ -46,6 +46,19 @@ class LocalFileStore {
     return file.lastModified();
   }
 
+  // Removes a whole folder and its files (e.g. 'outbox_photos')
+  Future<void> deleteFolder(String path) async {
+    final root = await getApplicationDocumentsDirectory();
+    final folder = Directory(p.join(root.path, path));
+    if (await folder.exists()) await folder.delete(recursive: true);
+  }
+
+  // Full path on the phone of a relative path
+  Future<String> absolutePath(String path) async {
+    final root = await getApplicationDocumentsDirectory();
+    return p.join(root.path, path);
+  }
+
   Future<File> _file(String path, {bool createFolder = false}) async {
     final root = await getApplicationDocumentsDirectory();
     final file = File(p.join(root.path, path));

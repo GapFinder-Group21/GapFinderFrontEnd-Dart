@@ -6,6 +6,7 @@ import 'package:gapfinderfrontend_dart/data/local/joel/joel_local_cache.dart';
 import 'package:gapfinderfrontend_dart/models/match.dart';
 import 'package:gapfinderfrontend_dart/services/match_service.dart';
 
+// EVENTUAL CONNECTIVITY JOEL: Network falling back to cache (It's a match)
 // "It's a match" screen: shows the match that was saved on the device (read only).
 // With connection it also updates it from the back; without connection the actions that
 // need the network are disabled.

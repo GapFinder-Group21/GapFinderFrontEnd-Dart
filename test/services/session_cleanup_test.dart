@@ -100,9 +100,9 @@ void main() {
       expect(Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM outbox')), 1);
       expect(await cache.myTablesOwner(), 1);
 
-      // The user logs out (the reminders step cannot run in a test: there is no notification plugin)
+      // The user logs out (reminders and photo folder steps need platform plugins, not in tests)
       final failed = await SessionCleanup.run(1);
-      expect(failed.where((name) => name != 'reminders'), isEmpty);
+      expect(failed.where((name) => name != 'reminders' && name != 'queued table photos'), isEmpty);
 
       // The user that logs in next finds nothing of the first one
       expect(Sqflite.firstIntValue(await db.rawQuery('SELECT COUNT(*) FROM outbox')), 0);

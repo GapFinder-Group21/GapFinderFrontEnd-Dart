@@ -16,10 +16,12 @@ import 'package:gapfinderfrontend_dart/services/interest_service.dart';
 import 'package:gapfinderfrontend_dart/services/user_service.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/offline_aware_mixin.dart';
 
+// EVENTUAL CONNECTIVITY MIGUEL: Cache falling back to network + cached on network response (Interests)
 // State and logic of the interests onboarding step.
 // The catalog is read from SQLite (the network is only asked when nothing is saved) and the
 // selection is queued in the outbox when there is no connection.
 class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
+  // CACHING MIGUEL: LRU with expiry (interests catalog, 1 entry)
   // The catalog of interests, in memory. Order: memory (LRU) -> SQLite -> network.
   // 1 entry: there is only one catalog, so a single key ("catalog") is enough.
   // 1 hour with interests: the back almost never adds an interest, so an hour old catalog is still
@@ -115,6 +117,7 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
     return notice;
   }
 
+  // MULTITHREADING MIGUEL: Future with handler + async/await (load the catalog)
   // Loads the catalog when the screen opens. It loads again by itself when the connection comes
   // back (if there was no catalog, or the saved one is older than an hour) and when the outbox sends
   // the pending selection.
@@ -140,6 +143,7 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
     });
   }
 
+  // MULTITHREADING MIGUEL: Stream (pending keys of the queue)
   // Estrategia: Stream. The outbox sends a new set of pending keys every time the queue changes;
   // the subscription is cancelled in dispose.
   void _watchOutbox() {
@@ -282,6 +286,7 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
   @visibleForTesting
   Future<void>? get refreshing => _refreshing;
 
+  // MULTITHREADING MIGUEL: Isolate (process the interests catalog)
   // Estrategia: Isolate. Normalizing the names, removing the duplicates and sorting runs in another
   // isolate so a long catalog never blocks the screen. processInterests is a top-level function and
   // gets only simple data (maps), because an isolate does not share memory with the app.
@@ -301,6 +306,7 @@ class InterestsViewModel extends ChangeNotifier with OfflineAwareMixin {
     return processed.map((item) => Interest(id: item['id'] as int, name: item['name'] as String)).toList();
   }
 
+  // MULTITHREADING MIGUEL: Future (read the saved interests from SQLite)
   // Estrategia: Future. It returns when the saved interests of this user are read from SQLite.
   Future<void> _loadSelection() async {
     final userId = _userId;

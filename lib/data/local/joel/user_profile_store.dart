@@ -3,6 +3,7 @@ import 'package:gapfinderfrontend_dart/core/storage/hive_store.dart';
 import 'package:gapfinderfrontend_dart/data/local/joel/cache_json.dart';
 import 'package:gapfinderfrontend_dart/models/user.dart';
 
+// STORAGE JOEL: Hive (user profile)
 // Profile of the logged user in Hive (box joel_user_profile, key profile_<userId>)
 class UserProfileStore {
   static const boxName = 'joel_user_profile';

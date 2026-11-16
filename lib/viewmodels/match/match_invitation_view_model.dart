@@ -13,6 +13,7 @@ import 'package:gapfinderfrontend_dart/services/match_service.dart';
 // What happened with an answer to the invitation (queued: saved to be sent when the connection is back)
 enum InvitationAnswer { done, queued, noSession, failed }
 
+// EVENTUAL CONNECTIVITY JOEL: Network falling back to cache + queue (Match invitation)
 // A match request received: load it, accept it or decline it.
 // Network falling back to cache: the invitation comes from the back or from what was saved.
 // Without connection, accept and decline go to the outbox with one key per invitation.

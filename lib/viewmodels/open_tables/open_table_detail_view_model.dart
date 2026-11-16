@@ -5,6 +5,7 @@ import 'package:gapfinderfrontend_dart/core/cache/lru_cache.dart';
 import 'package:gapfinderfrontend_dart/core/network/network_errors.dart';
 import 'package:gapfinderfrontend_dart/core/storage/outbox_service.dart';
 import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
+import 'package:gapfinderfrontend_dart/data/local/sofia/open_table_outbox.dart';
 import 'package:gapfinderfrontend_dart/data/local/sofia/sofia_local_cache.dart';
 import 'package:gapfinderfrontend_dart/models/enums/open_table_status_enum.dart';
 import 'package:gapfinderfrontend_dart/models/open_table.dart';
@@ -83,10 +84,12 @@ class OpenTableDetailViewModel extends ChangeNotifier with OfflineAwareMixin {
   String? _syncError;
   // Pending actions the user cancelled by hand: their key leaving the outbox is not a failure
   final Set<String> _cancelledKeys = {};
+  // The last join / leave went to the outbox (the View shows the "Solicitud enviada" dialog)
+  bool _queued = false;
 
   // The user id is part of the keys: a pending action of one user is never shown to (or cancelled by) the next one
-  String get _joinKey => 'open_table_join:${_currentUserId ?? ''}:$openTableId';
-  String get _leaveKey => 'open_table_leave:${_currentUserId ?? ''}:$openTableId';
+  String get _joinKey => OpenTableOutbox.joinKey(_currentUserId, openTableId);
+  String get _leaveKey => OpenTableOutbox.leaveKey(_currentUserId, openTableId);
 
   OpenTable? get table => _table;
   List<OpenTableParticipant> get participants => _participants;
@@ -107,6 +110,13 @@ class OpenTableDetailViewModel extends ChangeNotifier with OfflineAwareMixin {
     final notice = _notice;
     _notice = null;
     return notice;
+  }
+
+  // True once if the last join / leave was saved in the outbox to be sent later
+  bool takeQueued() {
+    final queued = _queued;
+    _queued = false;
+    return queued;
   }
 
   bool get isCreator => _table?.creator?.id == _currentUserId;
@@ -297,13 +307,14 @@ class OpenTableDetailViewModel extends ChangeNotifier with OfflineAwareMixin {
     }
   }
 
+  // EVENTUAL CONNECTIVITY MIGUEL: SQLite queue (join an Open Table offline)
   // Join the table - POST /open-table-participants/table/{tableId}/join
   // Returns null when it worked (or was queued: see takeNotice), or the error message.
   // Without connection the action goes to the outbox; the table is reloaded in every case.
   Future<String?> join() => _act(
         key: _joinKey,
         oppositeKey: _leaveKey,
-        type: 'open_table_join',
+        type: OpenTableOutbox.joinType,
         method: 'POST',
         endpoint: (userId) => '/open-table-participants/table/$openTableId/join?userId=$userId',
         send: (userId) => _participantService.join(openTableId, userId),
@@ -314,7 +325,7 @@ class OpenTableDetailViewModel extends ChangeNotifier with OfflineAwareMixin {
   Future<String?> leave() => _act(
         key: _leaveKey,
         oppositeKey: _joinKey,
-        type: 'open_table_leave',
+        type: OpenTableOutbox.leaveType,
         method: 'DELETE',
         endpoint: (userId) => '/open-table-participants/table/$openTableId/leave?userId=$userId',
         send: (userId) => _participantService.leave(openTableId, userId),
@@ -401,15 +412,24 @@ class OpenTableDetailViewModel extends ChangeNotifier with OfflineAwareMixin {
     }
   }
 
-  // The dedupeKey lets only one equal action wait in the outbox, so many taps send it once
+  // Eventual connectivity: the action is saved in the SQLite outbox and sent when the internet is back.
+  // The dedupeKey lets only one equal action wait in the outbox, so many taps send it once.
+  // The label (table title) is what the user is told when it is sent.
   Future<void> _queue({
     required String key,
     required String type,
     required String method,
     required String endpoint,
   }) async {
-    await OutboxService.instance.enqueue(type: type, method: method, endpoint: endpoint, dedupeKey: key);
+    await OutboxService.instance.enqueue(
+      type: type,
+      method: method,
+      endpoint: endpoint,
+      dedupeKey: key,
+      label: _table?.title,
+    );
     _pendingKeys = {..._pendingKeys, key};
+    _queued = true;
     _notice = 'Se enviará cuando vuelva la conexión';
   }
 

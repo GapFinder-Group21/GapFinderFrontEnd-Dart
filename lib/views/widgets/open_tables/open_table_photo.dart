@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/avatar_widget.dart';
 
+// CACHING JOEL: Image cache (cached_network_image, table photos)
 // Photo of an open table. Draws nothing when the table has no photo
 class OpenTablePhoto extends StatelessWidget {
   final String? url;

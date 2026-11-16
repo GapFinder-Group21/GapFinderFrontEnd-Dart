@@ -19,6 +19,7 @@ class MatchInvitationEvent {
   MatchInvitationEvent(this.matchId, this.notificationId);
 }
 
+// EVENTUAL CONNECTIVITY JOEL: Paused polling (Main / notifications)
 // Home screen: selected tab and the poller of match invitations.
 // Navigation between tabs is local, so it works without connection. The poller needs the back:
 // it pauses without connection (the notifications come from SQLite) and resumes when it is back.
@@ -69,6 +70,7 @@ class MainViewModel extends ChangeNotifier {
     suggestionsTab: 'suggest',
   };
 
+  // MULTITHREADING JOEL: Stream (new match invitations)
   // Estrategia: Stream. A broadcast StreamController sends one event per new match request
   // and the View listens to it to open the invitation screen.
   final _events = StreamController<MatchInvitationEvent>.broadcast();
@@ -199,6 +201,7 @@ class MainViewModel extends ChangeNotifier {
   // Registers that the user opened the app - POST /app-sessions/user/{userId}
   // Never blocks the user: it is not awaited and an error only prints
   void registerAppOpen() {
+    // MULTITHREADING JOEL: Future with handler (app open report)
     // Estrategia: Future con handler (.then + .catchError)
     TokenStorage.getUserId().then((userId) {
       if (userId == null) return null;

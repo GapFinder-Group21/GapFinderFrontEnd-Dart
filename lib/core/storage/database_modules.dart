@@ -8,6 +8,7 @@ import 'package:gapfinderfrontend_dart/data/local/miguel/miguel_database_module.
 final List<DatabaseModule> databaseModules = [
   outboxModule,
   outboxRefusalsModule,
+  outboxLabelsModule,
   sofiaDatabaseModule,
   joelDatabaseModule,
   miguelDatabaseModule,

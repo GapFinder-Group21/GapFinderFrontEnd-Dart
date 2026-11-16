@@ -5,6 +5,9 @@ import 'package:provider/provider.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_fonts.dart';
 import 'package:gapfinderfrontend_dart/models/open_table_abandonment.dart';
+import 'package:gapfinderfrontend_dart/services/gap_reminder_service.dart';
+import 'package:gapfinderfrontend_dart/services/outbox_messages.dart';
+import 'package:gapfinderfrontend_dart/views/widgets/common/queued_action_dialog.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/open_tables/create_open_table_view_model.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/custom_top_bar.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/custom_button.dart';
@@ -163,7 +166,7 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
                           color: isSelected ? AppColors.accent2 : context.palette.contrast.withValues(alpha: 0.2),
                         ),
                         title: Text(
-                          b.name,
+                          b.displayName,
                           style: AppFonts.body(
                             weight: isSelected ? FontWeight.w700 : FontWeight.w400,
                           ).copyWith(
@@ -218,6 +221,18 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
     switch (result) {
       case PublishResult.published:
         Navigator.pop(context, true);
+      case PublishResult.queued:
+        // Saved offline: it is published alone when the internet is back
+        await showQueuedActionDialog(
+          context,
+          title: OutboxMessages.createQueuedTitle,
+          message: OutboxMessages.createQueuedBody,
+        );
+        GapReminderService().requestPermission().catchError((Object e) {
+          debugPrint('Could not ask the notification permission: $e');
+          return false;
+        });
+        if (mounted) Navigator.pop(context, false);
       case PublishResult.missingFields:
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Please select an activity and location')),
@@ -229,10 +244,6 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
       case PublishResult.failed:
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(_vm.publishError ?? '')),
-        );
-      case PublishResult.offline:
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Publicar necesita conexión; no perderás lo que llenaste')),
         );
       case PublishResult.noSession:
       case PublishResult.alreadyPublishing:
@@ -397,7 +408,7 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
             // Building selector
             _buildSelectableField(
               title: 'Location',
-              value: vm.selectedBuilding?.name ?? 'Select a building',
+              value: vm.selectedBuilding?.displayName ?? 'Select a building',
               onTap: _showBuildingPicker,
             ),
 
@@ -409,13 +420,13 @@ class _CreateOpenTableViewState extends State<CreateOpenTableView> {
               children: [
                 CustomButton(
                   label: 'Publish Open Table',
-                  color: vm.canPublish ? AppColors.accent3 : Colors.grey[400]!,
-                  onClick: vm.canPublish ? _publish : null,
+                  color: AppColors.accent3,
+                  onClick: _publish,
                 ),
-                if (!vm.canPublish) ...[
+                if (vm.willQueue) ...[
                   const SizedBox(height: 8),
                   Text(
-                    'Publicar necesita conexión; no perderás lo que llenaste',
+                    OutboxMessages.publishOfflineHint,
                     textAlign: TextAlign.center,
                     style: AppFonts.body(weight: FontWeight.w700).copyWith(
                       fontSize: 12,

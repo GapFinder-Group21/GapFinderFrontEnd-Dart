@@ -9,6 +9,9 @@ import 'package:gapfinderfrontend_dart/core/network/network_errors.dart';
 import 'package:gapfinderfrontend_dart/core/storage/app_database.dart';
 import 'package:gapfinderfrontend_dart/core/storage/database_module.dart';
 
+// Eventual connectivity: an action done without internet is not lost. It is saved in the local
+// SQLite database (gapfinder.db, table outbox) and sent by itself when the network comes back.
+
 // Table of the actions waiting to be sent to the back.
 // The unique index lets the database itself refuse two equal pending actions: if the user taps
 // "join" nine times without connection, only one row exists, so when the network comes back the
@@ -52,14 +55,54 @@ const outboxRefusalsModule = DatabaseModule(
   ],
 );
 
+// Name the user knows for each queued action (e.g. the table title), by dedupe_key.
+// Separate table so the outbox table needs no migration.
+const outboxLabelsModule = DatabaseModule(
+  name: 'outbox_labels',
+  createStatements: [
+    '''
+    CREATE TABLE IF NOT EXISTS outbox_labels (
+      dedupe_key TEXT PRIMARY KEY,
+      label TEXT NOT NULL
+    )
+    ''',
+  ],
+);
+
 // An action that the back refused for good
 class OutboxRefusal {
   final String key;
   final String type;
   final String message;
   final DateTime createdAt;
+  // Name of the action for the user (null = silent action)
+  final String? label;
 
-  const OutboxRefusal({required this.key, required this.type, required this.message, required this.createdAt});
+  const OutboxRefusal({
+    required this.key,
+    required this.type,
+    required this.message,
+    required this.createdAt,
+    this.label,
+  });
+}
+
+// A queued action that finally reached the back
+class OutboxDelivery {
+  final String key;
+  final String type;
+  final String label;
+
+  const OutboxDelivery({required this.key, required this.type, required this.label});
+}
+
+// An action still waiting in the outbox
+class PendingAction {
+  final String type;
+  final String? key;
+  final String? label;
+
+  const PendingAction({required this.type, this.key, this.label});
 }
 
 // Sends one request to the back (replaced in tests)
@@ -116,6 +159,9 @@ class OutboxService {
   final Map<String, Future<bool> Function(Map<String, dynamic> row)> _handlers = {};
   final _changes = StreamController<void>.broadcast();
   final _refusals = StreamController<OutboxRefusal>.broadcast();
+  final _deliveries = StreamController<OutboxDelivery>.broadcast();
+  // Rows a handler refused by itself: they are dropped but not announced as sent
+  final Set<int> _refusedRowIds = {};
   StreamSubscription<bool>? _connectivitySub;
   Timer? _retryTimer;
   bool _initialized = false;
@@ -144,6 +190,7 @@ class OutboxService {
   // With a dedupeKey only one pending action with that key can exist: returns false if there is
   // already one (it is not duplicated), unless replaceIfPending is true, which replaces its body.
   // A row that already used all its attempts does not count as pending and is replaced.
+  // label: name shown to the user (e.g. table title); only labeled actions are announced.
   Future<bool> enqueue({
     required String type,
     required String method,
@@ -151,6 +198,7 @@ class OutboxService {
     Map<String, dynamic>? body,
     String? dedupeKey,
     bool replaceIfPending = false,
+    String? label,
   }) async {
     final db = await _database();
     final encodedBody = body == null ? null : jsonEncode(body);
@@ -204,6 +252,10 @@ class OutboxService {
       // A new action with the same key: the old refusal of that key is no longer valid
       if (dedupeKey != null) {
         await db.delete('outbox_refusals', where: 'key = ?', whereArgs: [dedupeKey]);
+        if (label != null) {
+          await db.insert('outbox_labels', {'dedupe_key': dedupeKey, 'label': label},
+              conflictAlgorithm: ConflictAlgorithm.replace);
+        }
       }
       _changes.add(null);
       // With connection it leaves at once; without it, flush checks the real state of the network
@@ -245,6 +297,7 @@ class OutboxService {
   Future<void> cancelPending(String dedupeKey) async {
     final db = await _database();
     await db.delete('outbox', where: 'dedupe_key = ?', whereArgs: [dedupeKey]);
+    await db.delete('outbox_labels', where: 'dedupe_key = ?', whereArgs: [dedupeKey]);
     _changes.add(null);
   }
 
@@ -255,11 +308,46 @@ class OutboxService {
     final db = await _database();
     await db.delete('outbox');
     await db.delete('outbox_refusals');
+    await db.delete('outbox_labels');
     _changes.add(null);
   }
 
   // Actions that the back refused for good, as they happen
   Stream<OutboxRefusal> get refusals => _refusals.stream;
+
+  // Labeled actions that finally reached the back, as they happen
+  Stream<OutboxDelivery> get deliveries => _deliveries.stream;
+
+  // Everything still waiting in the outbox, oldest first, with its label (used by the logout warning)
+  Future<List<PendingAction>> pendingActions() async {
+    final db = await _database();
+    final rows = await db.rawQuery(
+      'SELECT o.type, o.dedupe_key, l.label FROM outbox o '
+      'LEFT JOIN outbox_labels l ON l.dedupe_key = o.dedupe_key '
+      'WHERE o.attempts < ? ORDER BY o.id ASC',
+      [maxAttempts],
+    );
+    return rows
+        .map((r) => PendingAction(
+              type: r['type'] as String,
+              key: r['dedupe_key'] as String?,
+              label: r['label'] as String?,
+            ))
+        .toList();
+  }
+
+  // The label saved for a key (null if there is none)
+  Future<String?> _labelFor(Database db, String? key) async {
+    if (key == null) return null;
+    final rows = await db.query('outbox_labels', columns: ['label'], where: 'dedupe_key = ?', whereArgs: [key], limit: 1);
+    return rows.isEmpty ? null : rows.first['label'] as String?;
+  }
+
+  // Drops the label once its action left the outbox
+  Future<void> _dropLabel(Database db, String? key) async {
+    if (key == null) return;
+    await db.delete('outbox_labels', where: 'dedupe_key = ?', whereArgs: [key]);
+  }
 
   // The last refusal of the action with this key (null if there is none)
   Future<OutboxRefusal?> lastRefusalFor(String key) async {
@@ -377,15 +465,32 @@ class OutboxService {
 
       // Only if the body is still the one that was sent: if the user replaced it while it was being sent
       // (replaceIfPending), the row stays with the newer body and the next flush sends it
-      await db.delete('outbox', where: 'id = ? AND body IS ?', whereArgs: [id, row['body']]);
+      final deleted = await db.delete('outbox', where: 'id = ? AND body IS ?', whereArgs: [id, row['body']]);
+      final refused = _refusedRowIds.remove(id);
+      if (deleted > 0 && !refused) await _announceDelivery(db, row);
       return true;
     } catch (e) {
+      _refusedRowIds.remove(id);
       if (isNetworkError(e)) return false;
       await db.rawUpdate(
         'UPDATE outbox SET attempts = attempts + 1, last_error = ? WHERE id = ?',
         [e.toString(), id],
       );
       return true;
+    }
+  }
+
+  // Tells the listeners that a labeled action was done, then forgets its label
+  Future<void> _announceDelivery(Database db, Map<String, dynamic> row) async {
+    final key = row['dedupe_key'] as String?;
+    try {
+      final label = await _labelFor(db, key);
+      await _dropLabel(db, key);
+      if (label != null && key != null && !_deliveries.isClosed) {
+        _deliveries.add(OutboxDelivery(key: key, type: row['type'] as String, label: label));
+      }
+    } catch (e) {
+      debugPrint('Outbox: could not announce the delivery: $e');
     }
   }
 
@@ -396,6 +501,8 @@ class OutboxService {
   // For a handler that found out by itself that the back refused its action for good: it saves the
   // refusal (so the screen can tell the user) and then returns true so the row is dropped
   Future<void> recordRefusal(Map<String, dynamic> row, String message) async {
+    final id = row['id'];
+    if (id is int) _refusedRowIds.add(id);
     await _storeRefusal(await _database(), row, message);
   }
 
@@ -418,11 +525,20 @@ class OutboxService {
 
   // Saves the refusal of the back and tells whoever is listening
   Future<void> _storeRefusal(Database db, Map<String, dynamic> row, String message) async {
+    final key = row['dedupe_key'] as String?;
+    String? label;
+    try {
+      label = await _labelFor(db, key);
+      await _dropLabel(db, key);
+    } catch (e) {
+      debugPrint('Outbox: could not read the label: $e');
+    }
     final refusal = OutboxRefusal(
-      key: (row['dedupe_key'] as String?) ?? '',
+      key: key ?? '',
       type: row['type'] as String,
       message: message,
       createdAt: DateTime.now(),
+      label: label,
     );
 
     try {
@@ -505,5 +621,6 @@ class OutboxService {
     await _connectivitySub?.cancel();
     await _changes.close();
     await _refusals.close();
+    await _deliveries.close();
   }
 }

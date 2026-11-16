@@ -50,12 +50,27 @@ class OpenTableService {
   // Se manda como multipart: "openTable" con los datos en JSON y "photo" con la foto (obligatoria)
   Future<OpenTable> createOpenTable(
       int creatorId, int buildingId, OpenTable openTable, File photo) async {
-    final res = await ApiClient.postMultipart(
+    final res = await postCreate(createPayload(openTable, creatorId, buildingId), photo);
+
+    if (res.statusCode != 201) {
+      throw Exception(createRefusalMessage(res));
+    }
+
+    return OpenTable.fromJson(jsonDecode(utf8.decode(res.bodyBytes)));
+  }
+
+  // The JSON part of the create request (also saved by the outbox)
+  Map<String, dynamic> createPayload(OpenTable openTable, int creatorId, int buildingId) =>
+      _withRelations(openTable, creatorId, buildingId);
+
+  // Sends the create request and returns the raw answer (reused by the outbox handler)
+  Future<http.Response> postCreate(Map<String, dynamic> payload, File photo) {
+    return ApiClient.postMultipart(
       '/open-tables',
       files: () async => [
         http.MultipartFile.fromString(
           'openTable',
-          jsonEncode(_withRelations(openTable, creatorId, buildingId)),
+          jsonEncode(payload),
           contentType: MediaType('application', 'json'),
         ),
         await http.MultipartFile.fromPath(
@@ -65,13 +80,10 @@ class OpenTableService {
         ),
       ],
     );
-
-    if (res.statusCode != 201) {
-      throw Exception(_errorMessage(res, 'Error creating open table'));
-    }
-
-    return OpenTable.fromJson(jsonDecode(utf8.decode(res.bodyBytes)));
   }
+
+  // Why the back refused to create the table
+  String createRefusalMessage(http.Response res) => _errorMessage(res, 'Error creating open table');
 
   // Update an existing open table - PUT /open-tables/{id}
   Future<OpenTable> updateOpenTable(

@@ -18,6 +18,7 @@ enum OnboardingStep {
   }
 }
 
+// STORAGE MIGUEL: SharedPreferences (onboarding step per user)
 // The step of the onboarding where each user is (SharedPreferences key onboarding_step:<userId>).
 // It is saved per user: a second account on the same phone never inherits the step of the first one.
 class OnboardingPrefs {

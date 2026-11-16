@@ -240,6 +240,9 @@ class ScheduleViewModel extends ChangeNotifier with OfflineAwareMixin {
     return ScheduleData(blocks, gaps);
   }
 
+  // What logging out will remove from the phone (for the confirm dialog)
+  Future<LogoutWarning> logoutWarning() => SessionCleanup.describe();
+
   // Logs out: first what is saved on this phone is removed (it does not need the network), then the back is
   // told - POST /auth/logout, with a short limit in AuthService. It never throws and the screen can show
   // a spinner with isLoggingOut, so a bad network does not look like a frozen button.

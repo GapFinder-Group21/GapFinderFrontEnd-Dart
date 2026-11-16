@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:gapfinderfrontend_dart/core/constants/careers.dart';
 import 'package:gapfinderfrontend_dart/core/network/connectivity_service.dart';
 import 'package:gapfinderfrontend_dart/core/network/network_errors.dart';
+import 'package:gapfinderfrontend_dart/core/validators/register_validators.dart';
 import 'package:gapfinderfrontend_dart/data/local/miguel/miguel_local_cache.dart';
 import 'package:gapfinderfrontend_dart/data/local/miguel/onboarding_prefs.dart';
 import 'package:gapfinderfrontend_dart/data/local/miguel/register_draft_store.dart';
@@ -9,6 +10,7 @@ import 'package:gapfinderfrontend_dart/models/enums/effort_type_enum.dart';
 import 'package:gapfinderfrontend_dart/services/auth_service.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/offline_aware_mixin.dart';
 
+// EVENTUAL CONNECTIVITY MIGUEL: Network only (Sign up)
 // State and logic of the sign up form (network only to send it; the form works without internet)
 class RegisterViewModel extends ChangeNotifier with OfflineAwareMixin {
   // Shown by the banner and by the error when there is no connection
@@ -34,6 +36,10 @@ class RegisterViewModel extends ChangeNotifier with OfflineAwareMixin {
   bool _isLoading = false;
   String? _errorMessage;
   bool _disposed = false;
+
+  // Error of each field ('name', 'email', ...). Empty = all good
+  Map<String, String> _fieldErrors = {};
+  bool _triedSubmit = false;
 
   // Starts listening to the connection; the form itself needs nothing from the network
   void init() {
@@ -65,9 +71,13 @@ class RegisterViewModel extends ChangeNotifier with OfflineAwareMixin {
   EffortTypeEnum get selectedEffort => _selectedEffort;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
+  bool get triedSubmit => _triedSubmit;
+
+  String? fieldError(String field) => _fieldErrors[field];
 
   void selectCareer(String? career) {
     _selectedCareer = career;
+    if (_triedSubmit && career != null) _fieldErrors.remove('career');
     _persistDraft();
     _notify();
   }
@@ -96,8 +106,34 @@ class RegisterViewModel extends ChangeNotifier with OfflineAwareMixin {
     _notify();
   }
 
+  // Checks all fields and stores the messages. Returns true when there are no errors
+  bool validateFields({
+    required String name,
+    required String email,
+    required String password,
+    required String confirmPassword,
+    required String semesterText,
+    required String phone,
+  }) {
+    final errors = <String, String?>{
+      'name': RegisterValidators.name(name),
+      'email': RegisterValidators.email(email),
+      'semester': RegisterValidators.semester(semesterText),
+      'phone': RegisterValidators.phone(phone),
+      'password': RegisterValidators.password(password),
+      'confirmPassword': RegisterValidators.confirmPassword(password, confirmPassword),
+      'career': _selectedCareer == null ? 'Por favor selecciona una carrera' : null,
+    };
+    _fieldErrors = {
+      for (final e in errors.entries)
+        if (e.value != null) e.key: e.value!,
+    };
+    _notify();
+    return _fieldErrors.isEmpty;
+  }
+
   // Validates every field and creates the account - POST /auth/register
-  // Returns true when the account was created; otherwise errorMessage has the reason
+  // Returns true when the account was created; server errors go to errorMessage
   Future<bool> register({
     required String name,
     required String email,
@@ -113,40 +149,19 @@ class RegisterViewModel extends ChangeNotifier with OfflineAwareMixin {
       return _fail(offlineMessage);
     }
 
-    if (name.isEmpty) {
-      return _fail('Por favor ingresa tu nombre');
-    }
+    _triedSubmit = true;
+    final valid = validateFields(
+      name: name,
+      email: email,
+      password: password,
+      confirmPassword: confirmPassword,
+      semesterText: semesterText,
+      phone: phone,
+    );
+    // Field errors are already shown under each field
+    if (!valid) return false;
 
-    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
-      return _fail('Por favor ingresa un correo electrónico válido');
-    }
-
-    if (password.length < 8) {
-      return _fail('La contraseña debe tener al menos 8 caracteres');
-    }
-
-    if (password != confirmPassword) {
-      return _fail('Las contraseñas no coinciden');
-    }
-
-    final semester = int.tryParse(semesterText);
-    if (semester == null || semester < 1 || semester > 12) {
-      return _fail('El semestre debe ser un número entre 1 y 12');
-    }
-
-    if (_selectedCareer == null) {
-      return _fail('Por favor selecciona una carrera');
-    }
-
-    if (phone.isEmpty) {
-      return _fail('Por favor ingresa tu número de teléfono');
-    }
-
-    // Same rule as the backend: optional + and 7 to 15 digits
-    final normalizedPhone = phone.replaceAll(RegExp(r'[\s-]'), '');
-    if (!RegExp(r'^\+?\d{7,15}$').hasMatch(normalizedPhone)) {
-      return _fail('El teléfono debe tener de 7 a 15 dígitos (puede empezar con +)');
-    }
+    final semester = int.parse(semesterText);
 
     _isLoading = true;
     _notify();
@@ -160,7 +175,7 @@ class RegisterViewModel extends ChangeNotifier with OfflineAwareMixin {
             career: _selectedCareer!,
             semester: semester,
             preferredEffort: _selectedEffort,
-            phoneNumber: normalizedPhone,
+            phoneNumber: phone,
           )
           .timeout(requestTimeout);
       // The account exists: the draft is not needed anymore and the next step is the interests

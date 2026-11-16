@@ -6,6 +6,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:gapfinderfrontend_dart/core/network/network_errors.dart';
 import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
 import 'package:gapfinderfrontend_dart/core/utils/photo_compression.dart';
+import 'package:gapfinderfrontend_dart/data/local/sofia/open_table_outbox.dart';
 import 'package:gapfinderfrontend_dart/data/local/sofia/sofia_local_cache.dart';
 import 'package:gapfinderfrontend_dart/data/local/joel/joel_local_cache.dart';
 import 'package:gapfinderfrontend_dart/models/activity.dart';
@@ -20,8 +21,8 @@ import 'package:gapfinderfrontend_dart/services/open_table_service.dart';
 import 'package:gapfinderfrontend_dart/services/preferred_activity_service.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/offline_aware_mixin.dart';
 
-// What happened when the user tapped "Publish"
-enum PublishResult { published, missingFields, missingPhoto, noSession, offline, failed, alreadyPublishing }
+// What happened when the user tapped "Publish" (queued = saved offline, published later)
+enum PublishResult { published, queued, missingFields, missingPhoto, noSession, failed, alreadyPublishing }
 
 // What happened when the user tried to take the table photo
 enum PhotoResult { taken, cancelled, denied, permanentlyDenied, failed }
@@ -111,10 +112,16 @@ class CreateOpenTableViewModel extends ChangeNotifier with OfflineAwareMixin {
   bool get canDecrementParticipants => _maxParticipants > 2;
   bool get canIncrementParticipants => _maxParticipants < 20;
 
-  // Publishing sends the table and the photo, so it needs the network; the form can still be filled
-  // It asks the connection, not "the catalogs came from the saved files": old catalogs and a slow refresh
-  // also mark the screen as offline while the phone is connected
-  bool get canPublish => hasConnection;
+  // Publish is never blocked: without internet the table is queued (eventual connectivity)
+  bool get canPublish => true;
+
+  // True when tapping Publish now would queue the table instead of sending it
+  // It asks the connection, not "the catalogs came from the saved files"
+  bool get willQueue => !hasConnection;
+
+  // Name of the last queued table, e.g. "Café en ML" (for the dialog)
+  String? _queuedLabel;
+  String? get queuedLabel => _queuedLabel;
 
   // Load the activities and buildings when the screen opens; if the catalogs are missing or old,
   // they are asked again by themselves when the connection comes back.
@@ -213,7 +220,8 @@ class CreateOpenTableViewModel extends ChangeNotifier with OfflineAwareMixin {
   // Keeps what the user already picked if it is still in the new lists
   void _applyCatalogs(List<Activity> activities, List<Building> buildings) {
     _activities = activities;
-    _buildings = buildings;
+    // "Bobo 1" and "Bobo 2" are shown as one "Bobo"
+    _buildings = Building.mergeParts(buildings);
 
     final pickedActivity = _selectedActivity == null
         ? null
@@ -224,7 +232,7 @@ class CreateOpenTableViewModel extends ChangeNotifier with OfflineAwareMixin {
 
     _selectedBuilding = _selectedBuilding == null
         ? null
-        : buildings.where((b) => b.id == _selectedBuilding!.id).firstOrNull;
+        : _buildings.where((b) => b.displayName == _selectedBuilding!.displayName).firstOrNull;
   }
 
   // The catalogs saved as files, or null if one of them is missing
@@ -252,6 +260,7 @@ class CreateOpenTableViewModel extends ChangeNotifier with OfflineAwareMixin {
     _currentStep = step;
   }
 
+  // BUSINESS QUESTION JOEL: BQ 6 type 2 (preselect the favorite activity)
   // BQ 6 (type 2): asks for the activity the user creates most often. Network falling back to cache:
   // without connection (or if the back fails) the last one saved in SharedPreferences is used.
   // When the answer arrives it is applied only if the catalogs are loaded and the user has not picked
@@ -374,6 +383,7 @@ class CreateOpenTableViewModel extends ChangeNotifier with OfflineAwareMixin {
     }
   }
 
+  // MULTITHREADING JOEL: Isolate (compress the table photo)
   // Estrategia: Isolate. Compressing decodes and encodes the whole image, which is heavy,
   // so it runs in another isolate (its own thread and memory) and the screen does not freeze.
   // If it fails the original photo is kept.
@@ -405,9 +415,6 @@ class CreateOpenTableViewModel extends ChangeNotifier with OfflineAwareMixin {
 
     if (_photo == null) return PublishResult.missingPhoto;
 
-    // The table and the photo need the network; what the user filled stays in the form
-    if (!canPublish) return PublishResult.offline;
-
     _isPublishing = true;
     _publishError = null;
     _notify();
@@ -428,7 +435,16 @@ class CreateOpenTableViewModel extends ChangeNotifier with OfflineAwareMixin {
         activity: _selectedActivity,
       );
 
-      await _openTableService.createOpenTable(userId, _selectedBuilding!.id, newTable, _photo!);
+      // Without internet the table goes to the outbox and is published when the network is back
+      if (!hasConnection) return await _queueTable(userId, newTable);
+
+      try {
+        await _openTableService.createOpenTable(userId, _selectedBuilding!.id, newTable, _photo!);
+      } catch (e) {
+        // The network failed while sending: queue it so what the user filled is not lost
+        if (isNetworkError(e)) return await _queueTable(userId, newTable);
+        rethrow;
+      }
       JoelLocalCache.instance.clearPendingPhoto();
       return PublishResult.published;
     } catch (e) {
@@ -438,6 +454,26 @@ class CreateOpenTableViewModel extends ChangeNotifier with OfflineAwareMixin {
       _isPublishing = false;
       _notify();
     }
+  }
+
+  // EVENTUAL CONNECTIVITY JOEL: SQLite queue + local file (create an Open Table offline)
+  // Saves the table and a copy of its photo in the SQLite outbox (key = user + time the form opened,
+  // so many taps leave one table). The form photo is cleared so the next table starts empty.
+  Future<PublishResult> _queueTable(int userId, OpenTable table) async {
+    await OpenTableOutbox.enqueueCreate(
+      userId: userId,
+      buildingId: _selectedBuilding!.id,
+      buildingName: _selectedBuilding!.displayName,
+      table: table,
+      durationMinutes: _durationMinutes,
+      photo: _photo!,
+      openedAt: _openedAt,
+      service: _openTableService,
+    );
+    _queuedLabel = OpenTableOutbox.createLabel(table.title, _selectedBuilding!.displayName);
+    JoelLocalCache.instance.clearPendingPhoto();
+    _photo = null;
+    return PublishResult.queued;
   }
 
   // Reports the step where the user quit - POST /open-table-abandonments/user/{userId}.

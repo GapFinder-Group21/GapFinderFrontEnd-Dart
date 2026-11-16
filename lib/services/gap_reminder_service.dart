@@ -175,6 +175,31 @@ class GapReminderService {
     await _saveScheduledIds(scheduledIds);
   }
 
+  // Ids of instant notifications start here, so they never clash with the gap reminders (30 bits)
+  static const _instantIdBase = 0x40000000;
+  int _instantCount = 0;
+
+  // Shows a notification right now (e.g. a queued action was sent while the app was in background)
+  Future<void> showNow(String title, String body) async {
+    await init();
+    _instantCount = (_instantCount + 1) % 100000;
+    await _plugin.show(
+      id: _instantIdBase + _instantCount,
+      title: title,
+      body: body,
+      notificationDetails: const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'outbox_actions',
+          'Acciones enviadas',
+          channelDescription: 'Avisos cuando se envía algo que hiciste sin internet',
+          importance: Importance.defaultImportance,
+          priority: Priority.defaultPriority,
+        ),
+        iOS: DarwinNotificationDetails(),
+      ),
+    );
+  }
+
   // Cancels every reminder of this service (for example when the user logs out). Other notifications stay.
   Future<void> cancelAll() async {
     await init();

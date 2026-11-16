@@ -1,3 +1,4 @@
+// CACHING JOEL: Expiry policy for the LRU (Fixed, Sliding, ValueBased)
 // Decides how long a cache entry lives. It is asked every time an entry is created, updated or read,
 // so the lifetime can depend on the moment and on the value itself.
 // Every method returns the time to live from now; null means the entry never expires.

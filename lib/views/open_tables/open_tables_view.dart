@@ -5,10 +5,13 @@ import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_fonts.dart';
 import 'package:gapfinderfrontend_dart/models/open_table.dart';
 import 'package:gapfinderfrontend_dart/navigation/app_routes.dart';
+import 'package:gapfinderfrontend_dart/services/gap_reminder_service.dart';
+import 'package:gapfinderfrontend_dart/services/outbox_messages.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/open_tables/open_tables_view_model.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/open_tables/cached_avatar.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/custom_button.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/offline_banner.dart';
+import 'package:gapfinderfrontend_dart/views/widgets/common/queued_action_dialog.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/open_tables/current_location_banner.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/open_tables/open_table_photo.dart';
 
@@ -23,6 +26,26 @@ class OpenTablesView extends StatefulWidget {
 class _OpenTablesViewState extends State<OpenTablesView> {
   // ViewModel for callbacks and helper builders (build() watches it)
   OpenTablesViewModel get _vm => context.read<OpenTablesViewModel>();
+
+  // Join from the list: offline it is queued and the user is told it will be sent later;
+  // online it opens the detail, as before
+  Future<void> _onJoin(OpenTable table) async {
+    if (!_vm.isOffline) {
+      Navigator.pushNamed(context, AppRoutes.openTableDetail, arguments: table.id).then((_) => _vm.refresh());
+      return;
+    }
+
+    if (!await _vm.queueJoin(table) || !mounted) return;
+    await showQueuedActionDialog(
+      context,
+      title: OutboxMessages.joinQueuedTitle,
+      message: OutboxMessages.joinQueuedBody,
+    );
+    GapReminderService().requestPermission().catchError((Object e) {
+      debugPrint('Could not ask the notification permission: $e');
+      return false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -202,10 +225,10 @@ class _OpenTablesViewState extends State<OpenTablesView> {
     final bool isCreator = _vm.isCreator(table);
     final bool isMember = _vm.isMember(table);
     final bool alreadyIn = isCreator || isMember;
-    // Joining needs the network: without it the button is off and the list is read only
-    final bool needsConnection = !alreadyIn && _vm.isOffline;
+    // Offline Join is queued in the outbox; after that the button says "Pendiente de enviar"
+    final bool pending = !alreadyIn && _vm.isJoinPending(table);
     // The check of this table failed: Join is not offered until a refresh can tell if the user is already in
-    final bool unknown = !alreadyIn && _vm.isMembershipUnknown(table);
+    final bool unknown = !alreadyIn && !pending && _vm.isMembershipUnknown(table);
     
     return GestureDetector(
       // The whole card opens the detail (saved in SQLite), so navigating works without internet
@@ -264,7 +287,7 @@ class _OpenTablesViewState extends State<OpenTablesView> {
                               Icon(Icons.location_on_rounded, size: 12, color: context.palette.contrast.withValues(alpha: 0.35)),
                               const SizedBox(width: 4),
                               Text(
-                                table.building?.name ?? 'Unknown location',
+                                table.building?.displayName ?? 'Unknown location',
                                 style: AppFonts.body().copyWith(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,
@@ -359,9 +382,11 @@ class _OpenTablesViewState extends State<OpenTablesView> {
                 const Spacer(),
                 Flexible(
                   child: ElevatedButton(
-                  onPressed: needsConnection || unknown
-                      ? null
-                      : () => Navigator.pushNamed(context, AppRoutes.openTableDetail, arguments: table.id).then((_) => _vm.refresh()),
+                  onPressed: alreadyIn
+                      ? () => Navigator.pushNamed(context, AppRoutes.openTableDetail, arguments: table.id).then((_) => _vm.refresh())
+                      : pending || unknown
+                          ? null
+                          : () => _onJoin(table),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: alreadyIn ? context.palette.disabled : AppColors.accent3,
                     disabledBackgroundColor: context.palette.disabled,
@@ -374,8 +399,8 @@ class _OpenTablesViewState extends State<OpenTablesView> {
                   ),
                   child: Text(alreadyIn
                       ? 'Joined'
-                      : needsConnection
-                          ? 'Necesitas conexión para unirte'
+                      : pending
+                          ? 'Pendiente de enviar'
                           : unknown
                               ? 'Actualiza para unirte'
                               : 'Join', textAlign: TextAlign.center),

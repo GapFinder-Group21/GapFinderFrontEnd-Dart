@@ -8,6 +8,7 @@ import 'package:gapfinderfrontend_dart/core/theme/app_theme.dart';
 import 'package:gapfinderfrontend_dart/navigation/app_routes.dart';
 import 'package:gapfinderfrontend_dart/navigation/navigator_key.dart';
 import 'package:gapfinderfrontend_dart/navigation/session_gate.dart';
+import 'package:gapfinderfrontend_dart/services/outbox_notifier.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/theme/theme_controller.dart';
 
 Future<void> main() async {
@@ -23,6 +24,8 @@ Future<void> _initInfrastructure() async {
     await AppDatabase.instance.database;
     await ConnectivityService.instance.init(); // the first connection check runs in the background
     registerOutboxHandlers();
+    // Before the first flush, so it also announces what was pending from a previous run
+    OutboxNotifier.instance.start();
     await OutboxService.instance.init(); // sending the pending actions is not awaited
   } catch (e) {
     debugPrint('Error starting the local storage: $e');
@@ -53,6 +56,7 @@ class _MyAppState extends State<MyApp> {
       builder: (context, _) => MaterialApp(
         title: 'GAP FINDER',
         navigatorKey: navigatorKey,
+        scaffoldMessengerKey: scaffoldMessengerKey,
         debugShowCheckedModeBanner: false,
         theme: AppTheme.light,
         darkTheme: AppTheme.dark,

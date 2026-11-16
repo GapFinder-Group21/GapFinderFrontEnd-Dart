@@ -79,26 +79,31 @@ class _CurrentLocationBannerViewState extends State<_CurrentLocationBannerView> 
       case LocationBannerStatus.unavailable:
         text = 'Location unavailable';
       case LocationBannerStatus.offline:
-        // No connection: the last building saved, and nothing is sent to the back
+        // No connection: the last calculated location (saved on the phone), nothing is sent to the back
         text = vm.lastBuildingName == null
-            ? 'Sin conexión · ubicación no disponible'
-            : 'Último edificio: ${vm.lastBuildingName} · ${vm.lastBuildingAgo}';
+            ? 'Sin internet · aún no hay una ubicación calculada'
+            : 'Sin internet · última ubicación calculada: ${vm.lastBuildingName} · ${vm.lastBuildingAgo}';
         icon = Icons.wifi_off_rounded;
         iconColor = AppColors.accent1.withValues(alpha: 0.7);
     }
 
     return Row(
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 14, color: iconColor),
+        Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Icon(icon, size: 14, color: iconColor),
+        ),
         const SizedBox(width: 6),
         Flexible(
           child: Text(
           text,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+          // No line limit: the whole message is always shown, it wraps if needed
+          softWrap: true,
           style: AppFonts.subtitle().copyWith(
             fontSize: 13,
+            height: 1.3,
             color: Colors.white.withValues(alpha: 0.5),
           ),
         ),

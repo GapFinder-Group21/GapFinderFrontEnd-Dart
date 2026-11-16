@@ -8,6 +8,7 @@ import 'package:gapfinderfrontend_dart/models/user.dart';
 import 'package:gapfinderfrontend_dart/services/auth_service.dart';
 import 'package:gapfinderfrontend_dart/services/user_service.dart';
 
+// EVENTUAL CONNECTIVITY JOEL: Network only (Login)
 // State and logic of the log in screen (network only: logging in needs the back)
 class LoginViewModel extends ChangeNotifier {
   // The spinner never lasts longer than this

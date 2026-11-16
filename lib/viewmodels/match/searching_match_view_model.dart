@@ -35,6 +35,7 @@ class CandidateFound extends SearchOutcome {
   CandidateFound(this.currentGapId, this.candidate);
 }
 
+// EVENTUAL CONNECTIVITY JOEL: Cancel and retry (Searching match)
 // Looks for match candidates for the current gap.
 // The search needs the back: if the connection is lost while it runs, it is cancelled and the
 // screen offers "Reintentar" instead of waiting forever.
