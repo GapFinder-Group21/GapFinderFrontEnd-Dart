@@ -1,12 +1,17 @@
 import 'noop_local_cache.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:gapfinderfrontend_dart/core/storage/app_database.dart';
+import 'package:gapfinderfrontend_dart/data/local/miguel/study_period_dao.dart';
 import 'package:gapfinderfrontend_dart/models/enums/match_mode_enum.dart';
 import 'package:gapfinderfrontend_dart/models/enums/match_status_enum.dart';
 import 'package:gapfinderfrontend_dart/models/gap.dart';
 import 'package:gapfinderfrontend_dart/models/match.dart';
+import 'package:gapfinderfrontend_dart/models/study_period.dart';
 import 'package:gapfinderfrontend_dart/services/gap_service.dart';
 import 'package:gapfinderfrontend_dart/services/match_service.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/match/match_view_model.dart';
+import 'package:gapfinderfrontend_dart/viewmodels/match/study_periods_cache.dart';
 
 import 'secure_storage_mock.dart';
 
@@ -119,6 +124,115 @@ void main() {
       expect(vm.currentGap, isNull);
       expect(vm.canMatch, isFalse);
       expect(vm.selectedMode, MatchModeEnum.values.last);
+    });
+  });
+
+  // Study mode: the banner and the search button read the periods the study mode screen shares
+  group('MatchViewModel study mode (banner and search button)', () {
+    late Database db;
+    late StudyPeriodDao studyDao;
+    late MatchViewModel studyVm;
+
+    StudyPeriod period({Duration start = const Duration(minutes: -5), Duration end = const Duration(hours: 1)}) {
+      return StudyPeriod(
+        clientId: 'a',
+        userId: 1,
+        startTime: DateTime.now().add(start),
+        endTime: DateTime.now().add(end),
+        serverId: 3,
+        synced: true,
+      );
+    }
+
+    setUp(() async {
+      sqfliteFfiInit();
+      db = await databaseFactoryFfi.openDatabase(inMemoryDatabasePath);
+      await AppDatabase.createModuleTables(db);
+      studyDao = StudyPeriodDao(database: () async => db);
+      StudyPeriodsCache.clearStudyCache();
+      gapService.gaps = [currentGap];
+      studyVm = MatchViewModel(
+        gapService: gapService,
+        matchService: matchService,
+        localCache: NoopLocalCache(),
+        studyDao: studyDao,
+      );
+    });
+
+    tearDown(() async {
+      studyVm.dispose();
+      await db.close();
+      StudyPeriodsCache.clearStudyCache();
+    });
+
+    test('an active study period shows the banner and turns the search off', () async {
+      await studyDao.upsert(period());
+
+      await studyVm.init();
+      await studyVm.loadStudy();
+
+      expect(studyVm.currentGap?.id, 5);
+      expect(studyVm.studyActiveUntil, isNotNull);
+      expect(studyVm.isStudying, isTrue);
+      expect(studyVm.canMatch, isFalse);
+    });
+
+    test('without a study period the search stays on', () async {
+      await studyVm.init();
+      await studyVm.loadStudy();
+
+      expect(studyVm.studyActiveUntil, isNull);
+      expect(studyVm.canMatch, isTrue);
+    });
+
+    test('a period that already ended does not block the search', () async {
+      await studyDao.upsert(period(start: const Duration(hours: -2), end: const Duration(hours: -1)));
+
+      await studyVm.init();
+      await studyVm.loadStudy();
+
+      expect(studyVm.isStudying, isFalse);
+      expect(studyVm.canMatch, isTrue);
+    });
+
+    test('it reads the periods from the shared cache without asking SQLite', () async {
+      // SQLite is empty: if the banner shows, the periods came from memory
+      StudyPeriodsCache.write(1, [period()], notify: false);
+
+      await studyVm.init();
+      await studyVm.loadStudy();
+
+      expect(studyVm.isStudying, isTrue);
+      expect(await studyDao.getForUser(1), isEmpty);
+    });
+
+    test('the study mode screen tells the tab through the shared cache', () async {
+      await studyVm.init();
+      expect(studyVm.canMatch, isTrue);
+
+      StudyPeriodsCache.write(1, [period()]);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(studyVm.isStudying, isTrue);
+      expect(studyVm.canMatch, isFalse);
+
+      StudyPeriodsCache.write(1, const []);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(studyVm.isStudying, isFalse);
+      expect(studyVm.canMatch, isTrue);
+    });
+
+    test('when the period ends the cache expires, the periods are read again and the search is back', () async {
+      StudyPeriodsCache.write(1, [period(end: const Duration(milliseconds: 400))], notify: false);
+      await studyVm.init();
+      await studyVm.loadStudy();
+      expect(studyVm.isStudying, isTrue);
+
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+
+      expect(StudyPeriodsCache.read(1), isNull); // the entry expired at the end time
+      await studyVm.checkStudyExpiry();
+      expect(studyVm.isStudying, isFalse);
+      expect(studyVm.canMatch, isTrue);
     });
   });
 }

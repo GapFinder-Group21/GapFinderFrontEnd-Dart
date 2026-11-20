@@ -3,12 +3,16 @@ import 'package:flutter/foundation.dart';
 import 'package:gapfinderfrontend_dart/core/network/connectivity_service.dart';
 import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
 import 'package:gapfinderfrontend_dart/data/local/joel/joel_local_cache.dart';
+import 'package:gapfinderfrontend_dart/data/local/miguel/study_period_dao.dart';
 import 'package:gapfinderfrontend_dart/models/enums/match_mode_enum.dart';
 import 'package:gapfinderfrontend_dart/models/enums/match_status_enum.dart';
 import 'package:gapfinderfrontend_dart/models/gap.dart';
 import 'package:gapfinderfrontend_dart/models/match.dart';
+import 'package:gapfinderfrontend_dart/models/study_period.dart';
 import 'package:gapfinderfrontend_dart/services/gap_service.dart';
 import 'package:gapfinderfrontend_dart/services/match_service.dart';
+import 'package:gapfinderfrontend_dart/viewmodels/match/study_periods_cache.dart';
+import 'package:gapfinderfrontend_dart/viewmodels/match/study_plan_processing.dart';
 
 // EVENTUAL CONNECTIVITY JOEL: Network falling back to cache (Match)
 // State and logic of the match tab.
@@ -22,18 +26,24 @@ class MatchViewModel extends ChangeNotifier {
   final MatchService _matchService;
   final JoelLocalCache _localCache;
   final ConnectivityService _connectivity;
+  final StudyPeriodDao _studyDao;
 
   MatchViewModel({
     GapService? gapService,
     MatchService? matchService,
     JoelLocalCache? localCache,
     ConnectivityService? connectivity,
+    StudyPeriodDao? studyDao,
   })  : _gapService = gapService ?? GapService(),
         _matchService = matchService ?? MatchService(),
         _localCache = localCache ?? JoelLocalCache.instance,
-        _connectivity = connectivity ?? ConnectivityService.instance;
+        _connectivity = connectivity ?? ConnectivityService.instance,
+        _studyDao = studyDao ?? StudyPeriodDao();
 
   StreamSubscription<bool>? _connectivitySub;
+  StreamSubscription<int>? _studySub;
+  // The study periods that have not ended (the same list the study mode screen keeps in the shared cache)
+  List<StudyPeriod> _studyPeriods = [];
   bool _isOffline = false;
   DateTime? _lastUpdated;
 
@@ -61,9 +71,16 @@ class MatchViewModel extends ChangeNotifier {
   // When the gap and the match on screen were last updated (the network answer or the saved copy)
   DateTime? get lastUpdated => _lastUpdated;
 
-  // The user can look for a match only in a gap that has no booked match, and with connection
-  // (the search asks the back for candidates)
-  bool get canMatch => currentGap != null && gapMatch == null && !_isOffline;
+  // When the study mode the user is in right now ends (null if they are not studying now). It is read
+  // against the clock every time, so the banner goes away by itself when the period ends.
+  DateTime? get studyActiveUntil => activeStudyUntil(_studyPeriods, DateTime.now());
+
+  // In study mode the user is hidden from the matches, so the back gives no candidates and the search is off
+  bool get isStudying => studyActiveUntil != null;
+
+  // The user can look for a match only in a gap that has no booked match, with connection
+  // (the search asks the back for candidates) and out of the study mode
+  bool get canMatch => currentGap != null && gapMatch == null && !_isOffline && !isStudying;
 
   // An accepted match whose meeting has not ended yet (the back moves it to COMPLETED every 5 minutes)
   bool get isOngoing =>
@@ -82,6 +99,8 @@ class MatchViewModel extends ChangeNotifier {
     // MULTITHREADING JOEL: Stream (connection changes)
     // Estrategia: Stream. The connectivity service emits true/false every time the network changes
     _connectivitySub ??= _connectivity.onStatusChange.listen(_onConnectivityChanged);
+    // Estrategia: Stream. The study mode screen tells (through the shared cache) when the periods change
+    _studySub ??= StudyPeriodsCache.changes.listen(_onStudyChanged);
     return refresh();
   }
 
@@ -130,6 +149,50 @@ class MatchViewModel extends ChangeNotifier {
       _isLoading = false;
       _notify();
     });
+
+    // The study mode is read apart (not awaited): the tab never waits for it and a failure only prints
+    unawaited(loadStudy());
+  }
+
+  // Estrategia: Caching. The banner reads the study periods from the cache that the study mode screen
+  // shares (memory), so it does not ask SQLite or the back again. Only a miss (nothing saved yet, or the
+  // nearest period ended and the entry expired) reads SQLite, and the cache is filled again.
+  Future<void> loadStudy() async {
+    final userId = _userId;
+    if (userId == null) return;
+    try {
+      var periods = StudyPeriodsCache.read(userId);
+      if (periods == null) {
+        final now = DateTime.now();
+        final saved = await _studyDao.getForUser(userId);
+        final fromSqlite = saved.where((p) => !p.hasEndedAt(now)).toList();
+        // The study mode screen may have filled the cache while SQLite was being read: that list is newer
+        periods = StudyPeriodsCache.read(userId);
+        if (periods == null) {
+          periods = fromSqlite;
+          StudyPeriodsCache.write(userId, periods, notify: false);
+        }
+      }
+      _setStudyPeriods(periods);
+    } catch (e) {
+      debugPrint('No se pudo leer el modo estudio: $e');
+    }
+  }
+
+  // The banner calls this when the study mode should end: if the cache expired, the periods are read again
+  // and the banner and the search button update
+  Future<void> checkStudyExpiry() => loadStudy();
+
+  // The study mode screen changed the periods of a user
+  void _onStudyChanged(int changedUserId) {
+    if (changedUserId != _userId) return;
+    final cached = StudyPeriodsCache.read(changedUserId);
+    if (cached != null) _setStudyPeriods(cached);
+  }
+
+  void _setStudyPeriods(List<StudyPeriod> periods) {
+    _studyPeriods = periods;
+    _notify();
   }
 
   // MULTITHREADING JOEL: Future (read the active gap)
@@ -220,6 +283,7 @@ class MatchViewModel extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _connectivitySub?.cancel();
+    _studySub?.cancel();
     super.dispose();
   }
 }

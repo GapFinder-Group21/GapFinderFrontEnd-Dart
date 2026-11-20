@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:gapfinderfrontend_dart/core/theme/app_palette.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -52,17 +53,31 @@ class MatchView extends StatelessWidget {
                       letterSpacing: 1.5,
                     ),
                   ),
-                  ElevatedButton(
-                    onPressed: () => Navigator.pushNamed(context, AppRoutes.myMatches),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.accent3,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-                      textStyle: AppFonts.subtitle(weight: FontWeight.w700).copyWith(fontSize: 12),
-                    ),
-                    child: const Text('Mis matches'),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Settings of the match: the study mode (hide from the matches while studying)
+                      IconButton(
+                        tooltip: 'Modo estudio',
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                        icon: const Icon(Icons.settings_rounded, color: Colors.white, size: 22),
+                        onPressed: () => Navigator.pushNamed(context, AppRoutes.studyMode),
+                      ),
+                      const SizedBox(width: 6),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pushNamed(context, AppRoutes.myMatches),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.accent3,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                          textStyle: AppFonts.subtitle(weight: FontWeight.w700).copyWith(fontSize: 12),
+                        ),
+                        child: const Text('Mis matches'),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -190,6 +205,13 @@ class MatchView extends StatelessWidget {
                               ),
                             ),
 
+                          // Study mode: the user is hidden from the matches until the period ends
+                          if (vm.studyActiveUntil != null)
+                            _StudyBanner(
+                              until: vm.studyActiveUntil!,
+                              onEnded: vm.checkStudyExpiry,
+                            ),
+
                           if (gapMatch != null)
                             Container(
                               padding: const EdgeInsets.all(12),
@@ -225,6 +247,19 @@ class MatchView extends StatelessWidget {
                             onTap: () => _startMatch(context),
                           ),
 
+                          // The button is off because of the study mode: how to get it back
+                          if (vm.isStudying) ...[
+                            const SizedBox(height: 14),
+                            Text(
+                              'Quita el modo estudio para buscar un match',
+                              textAlign: TextAlign.center,
+                              style: AppFonts.body(weight: FontWeight.w700).copyWith(
+                                fontSize: 13,
+                                color: AppColors.accent1,
+                              ),
+                            ),
+                          ],
+
                           // Looking for a match asks the back for candidates, so it needs connection
                           if (vm.isOffline) ...[
                             const SizedBox(height: 14),
@@ -254,6 +289,81 @@ class MatchView extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Banner of the study mode, with the same look as the "active match in this gap" banner.
+/// UI only: a one-shot Timer wakes it up when the period ends so it goes away by itself (the cache expiry
+/// and the reload are done by the ViewModel; this Timer is not a multithreading strategy).
+class _StudyBanner extends StatefulWidget {
+  final DateTime until;
+  final Future<void> Function() onEnded;
+
+  const _StudyBanner({required this.until, required this.onEnded});
+
+  @override
+  State<_StudyBanner> createState() => _StudyBannerState();
+}
+
+class _StudyBannerState extends State<_StudyBanner> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _schedule();
+  }
+
+  @override
+  void didUpdateWidget(_StudyBanner old) {
+    super.didUpdateWidget(old);
+    if (old.until != widget.until) _schedule();
+  }
+
+  void _schedule() {
+    _timer?.cancel();
+    final wait = widget.until.difference(DateTime.now());
+    // A little after the end, so the clock is already past it when the ViewModel checks
+    _timer = Timer(wait.isNegative ? Duration.zero : wait + const Duration(milliseconds: 500), widget.onEnded);
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  // HH:mm (24 hours: it is a moment of the day, like the time of the OfflineBanner)
+  String _hhmm(DateTime date) =>
+      '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 24),
+      decoration: BoxDecoration(
+        color: AppColors.accent2.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.accent2.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.menu_book_rounded, color: AppColors.accent2, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Modo estudio activo hasta ${_hhmm(widget.until)} — no apareces en matches',
+              style: AppFonts.body(weight: FontWeight.w800).copyWith(
+                fontSize: 12,
+                color: AppColors.accent2,
+                letterSpacing: 1,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

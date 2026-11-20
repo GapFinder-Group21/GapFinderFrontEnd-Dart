@@ -23,6 +23,7 @@ import 'package:gapfinderfrontend_dart/views/welcome/welcome_view.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/match/match_found_view_model.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/match/match_invitation_view_model.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/match/my_matches_view_model.dart';
+import 'package:gapfinderfrontend_dart/viewmodels/match/study_mode_view_model.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/match/its_a_match_view_model.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/match/searching_match_view_model.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/match/waiting_view_model.dart';
@@ -30,6 +31,7 @@ import 'package:gapfinderfrontend_dart/views/match/its_a_match_view.dart';
 import 'package:gapfinderfrontend_dart/views/match/match_found_view.dart';
 import 'package:gapfinderfrontend_dart/views/match/match_invitation_view.dart';
 import 'package:gapfinderfrontend_dart/views/match/my_matches_view.dart';
+import 'package:gapfinderfrontend_dart/views/match/study_mode_view.dart';
 import 'package:gapfinderfrontend_dart/views/match/searching_match_view.dart';
 import 'package:gapfinderfrontend_dart/views/match/waiting_view.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/open_tables/create_open_table_view_model.dart';
@@ -69,6 +71,7 @@ class AppRoutes {
   static const openTableDetail = '/open-table-detail';
   static const chat = '/chat';
   static const myMatches = '/my-matches';
+  static const studyMode = '/study-mode';
 
   static Map<String, WidgetBuilder> get routes => {
         welcome: (context) => const WelcomeView(),
@@ -135,6 +138,8 @@ class AppRoutes {
         myOpenTables: (context) => withViewModel(() => MyOpenTablesViewModel()..init(), const MyOpenTablesView()),
         // History of my matches and their ratings
         myMatches: (context) => withViewModel(() => MyMatchesViewModel()..init(), const MyMatchesView()),
+        // Study mode (settings of the match): hide from the matches while the user studies
+        studyMode: (context) => withViewModel(() => StudyModeViewModel()..init(), const StudyModeView()),
         // Chat with a friend: argument {'friend': User}
         chat: (context) {
           final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;

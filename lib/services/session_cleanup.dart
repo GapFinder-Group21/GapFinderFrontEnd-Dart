@@ -5,6 +5,8 @@ import 'package:gapfinderfrontend_dart/core/storage/outbox_service.dart';
 import 'package:gapfinderfrontend_dart/data/local/joel/chat_message_dao.dart';
 import 'package:gapfinderfrontend_dart/data/local/joel/joel_local_cache.dart';
 import 'package:gapfinderfrontend_dart/data/local/miguel/onboarding_prefs.dart';
+import 'package:gapfinderfrontend_dart/data/local/miguel/study_mode_prefs.dart';
+import 'package:gapfinderfrontend_dart/data/local/miguel/study_period_dao.dart';
 import 'package:gapfinderfrontend_dart/data/local/sofia/match_history_dao.dart';
 import 'package:gapfinderfrontend_dart/data/local/sofia/open_table_outbox.dart';
 import 'package:gapfinderfrontend_dart/data/local/sofia/rating_drafts_hive_store.dart';
@@ -14,6 +16,7 @@ import 'package:gapfinderfrontend_dart/services/gap_reminder_service.dart';
 import 'package:gapfinderfrontend_dart/services/outbox_messages.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/friends/chat_view_model.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/match/my_matches_view_model.dart';
+import 'package:gapfinderfrontend_dart/viewmodels/match/study_periods_cache.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/open_tables/open_table_detail_view_model.dart';
 
 // One step of the cleanup when the session ends
@@ -60,6 +63,18 @@ class SessionCleanup {
         await RatingDraftsHiveStore().clear();
         if (userId != null) await MatchHistoryDao().deleteForUser(userId);
       }),
+      // Study mode: the periods saved in SQLite, the preferred duration and the periods in memory
+      SessionCleanupStep('study mode', () async {
+        StudyPeriodsCache.clearStudyCache();
+        if (userId != null) {
+          await StudyPeriodDao().deleteForUser(userId);
+          await StudyModePrefs().clear(userId);
+        } else {
+          // The session expired and the user is not known: nothing of any user is kept
+          await StudyPeriodDao().deleteAll();
+          await StudyModePrefs().clearAll();
+        }
+      }),
       SessionCleanupStep('week of gaps', () => GapGenerationGuard.invalidateAll()),
       SessionCleanupStep('saved data', () => SofiaLocalCache.instance.clearUserData(userId)),
       SessionCleanupStep('onboarding step', () async {
@@ -100,6 +115,7 @@ class SessionCleanup {
         'Los recordatorios de tus huecos',
         'Tus mensajes de chat guardados',
         'Tus matches y los borradores de tus calificaciones',
+        'Tus periodos de modo estudio',
         if (photo) 'La foto de la mesa que empezaste y no publicaste',
       ],
       isOffline: isOffline ?? !ConnectivityService.instance.isOnline,
