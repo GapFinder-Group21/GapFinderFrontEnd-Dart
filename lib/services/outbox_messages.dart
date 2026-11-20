@@ -1,3 +1,4 @@
+import 'package:gapfinderfrontend_dart/data/local/miguel/study_mode_outbox.dart';
 import 'package:gapfinderfrontend_dart/data/local/sofia/open_table_outbox.dart';
 
 // Every text about queued actions, in one place (shown to the user, so in Spanish)
@@ -39,6 +40,10 @@ class OutboxMessages {
         return label == null ? 'Calificar tu match' : 'Calificar tu match con $label';
       case 'user_interests_save':
         return 'Guardar tus intereses';
+      case StudyModeOutbox.addType:
+        return 'Activar el modo estudio';
+      case StudyModeOutbox.removeType:
+        return 'Quitar un periodo de modo estudio';
       default:
         return null;
     }
