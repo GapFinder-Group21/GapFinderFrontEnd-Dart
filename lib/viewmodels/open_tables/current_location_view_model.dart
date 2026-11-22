@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleListener, AppLifecycleState;
 import 'package:geolocator/geolocator.dart';
 import 'package:gapfinderfrontend_dart/core/network/connectivity_service.dart';
 import 'package:gapfinderfrontend_dart/core/network/network_errors.dart';
@@ -49,6 +50,9 @@ class CurrentLocationViewModel extends ChangeNotifier with OfflineAwareMixin {
   Timer? _timer;
   StreamSubscription<ServiceStatus>? _serviceStatusSubscription;
   StreamSubscription<bool>? _offlineSub;
+  AppLifecycleListener? _lifecycle;
+  // True while the app is in the background: no GPS and no requests
+  bool _inBackground = false;
   bool _disposed = false;
   // Last building saved in SharedPreferences, shown while there is no connection
   String? _lastBuildingName;
@@ -99,9 +103,44 @@ class CurrentLocationViewModel extends ChangeNotifier with OfflineAwareMixin {
       if (!online) _showLastBuilding();
     });
     updateLocation();
-    _timer = Timer.periodic(const Duration(minutes: 2), (_) => updateLocation());
+    _startTimer();
     _listenToLocationChanges();
+    _watchAppLifecycle();
   }
+
+  void _startTimer() {
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(minutes: 2), (_) => updateLocation());
+  }
+
+  // Without a Flutter binding (plain unit tests) there is no listener: tests call handleAppLifecycle
+  void _watchAppLifecycle() {
+    try {
+      _lifecycle = AppLifecycleListener(onStateChange: handleAppLifecycle);
+    } catch (_) {}
+  }
+
+  // Micro-optimización (lifecycle): the 2 min timer and the GPS listener stop while the app is in the background
+  @visibleForTesting
+  void handleAppLifecycle(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      if (_inBackground) return;
+      _inBackground = true;
+      _timer?.cancel();
+      _timer = null;
+      // Cancelled, not paused: a paused broadcast stream would replay the buffered events on resume
+      _serviceStatusSubscription?.cancel();
+      _serviceStatusSubscription = null;
+    } else if (state == AppLifecycleState.resumed && _inBackground) {
+      _inBackground = false;
+      _listenToLocationChanges();
+      _startTimer();
+      updateLocation(); // the banner is up to date at once
+    }
+  }
+
+  @visibleForTesting
+  bool get isTimerActive => _timer?.isActive ?? false;
 
   void _listenToLocationChanges() {
     if (!kIsWeb) {
@@ -113,7 +152,8 @@ class CurrentLocationViewModel extends ChangeNotifier with OfflineAwareMixin {
   }
 
   Future<void> updateLocation() async {
-    if (_disposed) return;
+    // Micro-optimización (lifecycle): no GPS or requests in the background (also when the network comes back there)
+    if (_disposed || _inBackground) return;
 
     // Without connection the location is not sent: the last building saved is shown instead
     if (!hasConnection) {
@@ -318,6 +358,7 @@ class CurrentLocationViewModel extends ChangeNotifier with OfflineAwareMixin {
   @override
   void dispose() {
     _disposed = true;
+    _lifecycle?.dispose();
     _timer?.cancel();
     _serviceStatusSubscription?.cancel();
     _offlineSub?.cancel();
