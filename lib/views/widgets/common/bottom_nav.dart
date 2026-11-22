@@ -149,10 +149,15 @@ class BottomNav extends StatelessWidget {
                     child: Padding(
                       padding: const EdgeInsets.all(8.0),
                       child: Builder(builder: (context) {
-                        // Same image as before; the provider is shared with the decode log
-                        const logo = AssetImage('assets/images/logo_sin_fondo.png');
+                        // Micro-optimización (image size): decode the logo at the size it is drawn
+                        // The provider is shared with the decode log
+                        final logo = ResizeImage.resizeIfNeeded(
+                          (40 * MediaQuery.devicePixelRatioOf(context)).round(),
+                          null,
+                          const AssetImage('assets/images/logo_sin_fondo.png'),
+                        );
                         PerfImages.watch(context, logo, 'logo_sin_fondo.png (bottom bar)', const Size(40, 40));
-                        return const Image(image: logo, fit: BoxFit.contain);
+                        return Image(image: logo, fit: BoxFit.contain);
                       }),
                     ),
                   ),

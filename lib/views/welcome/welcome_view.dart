@@ -61,10 +61,15 @@ class _WelcomeBody extends StatelessWidget {
               ClipRRect(
                 borderRadius: BorderRadius.circular(28),
                 child: Builder(builder: (context) {
-                  // Same image as before; the provider is shared with the decode log
-                  const logo = AssetImage('assets/images/logo_gap_finder.png');
+                  // Micro-optimización (image size): decode the logo at the size it is drawn
+                  // The provider is shared with the decode log
+                  final logo = ResizeImage.resizeIfNeeded(
+                    (110 * MediaQuery.devicePixelRatioOf(context)).round(),
+                    null,
+                    const AssetImage('assets/images/logo_gap_finder.png'),
+                  );
                   PerfImages.watch(context, logo, 'logo_gap_finder.png', const Size(110, 110));
-                  return const Image(image: logo, width: 110, height: 110, fit: BoxFit.contain);
+                  return Image(image: logo, width: 110, height: 110, fit: BoxFit.contain);
                 }),
               ),
 
