@@ -14,6 +14,7 @@ import 'package:gapfinderfrontend_dart/views/open_tables/open_tables_view.dart';
 import 'package:gapfinderfrontend_dart/views/recommendations/recommendations_view.dart';
 import 'package:gapfinderfrontend_dart/views/schedule/schedule_view.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/bottom_nav.dart';
+import 'package:gapfinderfrontend_dart/core/perf/perf_log.dart';
 
 /// Home screen with the bottom navigation bar (Schedule, Friends, Match, Open Tables, Suggestions).
 /// It also checks the notifications to show match invitations.
@@ -53,6 +54,10 @@ class _MainTabsState extends State<_MainTabs> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Image cache after the first frame of Main (only with PERF_LOGS)
+    if (PerfLog.enabled) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => PerfImages.logCache('after Main'));
+    }
     final vm = context.read<MainViewModel>();
     vm.registerAppOpen(); // first open
     _eventsSub = vm.events.listen((event) async {
@@ -97,6 +102,10 @@ class _MainTabsState extends State<_MainTabs> with WidgetsBindingObserver {
         context.read<FriendsViewModel>().refresh();
       case MainViewModel.matchTab:
         context.read<MatchViewModel>().refresh();
+        // Image cache once the Match tab is on screen (only with PERF_LOGS, logged once)
+        if (PerfLog.enabled) {
+          WidgetsBinding.instance.addPostFrameCallback((_) => PerfImages.logCache('after Match'));
+        }
       case MainViewModel.suggestionsTab:
         context.read<RecommendationsViewModel>().refresh();
       default:

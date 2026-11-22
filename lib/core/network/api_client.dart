@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:gapfinderfrontend_dart/core/network/api_config.dart';
+import 'package:gapfinderfrontend_dart/core/perf/perf_log.dart';
 import 'package:gapfinderfrontend_dart/core/storage/token_storage.dart';
 import 'package:gapfinderfrontend_dart/navigation/navigator_key.dart'; // Para acceder al navigatorKey
 import 'package:gapfinderfrontend_dart/services/session_cleanup.dart';
@@ -8,12 +9,12 @@ import 'package:gapfinderfrontend_dart/services/session_cleanup.dart';
 class ApiClient {
   // GET autenticado
   static Future<http.Response> get(String path) async {
-    return _sendWithAuth((headers) => http.get(Uri.parse('${ApiConfig.baseUrl}$path'), headers: headers));
+    return _sendWithAuth('GET', path, (headers) => http.get(Uri.parse('${ApiConfig.baseUrl}$path'), headers: headers));
   }
 
   // POST autenticado
   static Future<http.Response> post(String path, {Object? body}) async {
-    return _sendWithAuth((headers) => http.post(
+    return _sendWithAuth('POST', path, (headers) => http.post(
           Uri.parse('${ApiConfig.baseUrl}$path'),
           headers: {...headers, 'Content-Type': 'application/json'},
           body: body != null ? jsonEncode(body) : null,
@@ -22,7 +23,7 @@ class ApiClient {
 
   // PUT autenticado
   static Future<http.Response> put(String path, {Object? body}) async {
-    return _sendWithAuth((headers) => http.put(
+    return _sendWithAuth('PUT', path, (headers) => http.put(
           Uri.parse('${ApiConfig.baseUrl}$path'),
           headers: {...headers, 'Content-Type': 'application/json'},
           body: body != null ? jsonEncode(body) : null,
@@ -31,7 +32,7 @@ class ApiClient {
 
   // PATCH autenticado
   static Future<http.Response> patch(String path, {Object? body}) async {
-    return _sendWithAuth((headers) => http.patch(
+    return _sendWithAuth('PATCH', path, (headers) => http.patch(
           Uri.parse('${ApiConfig.baseUrl}$path'),
           headers: {...headers, 'Content-Type': 'application/json'},
           body: body != null ? jsonEncode(body) : null,
@@ -44,7 +45,7 @@ class ApiClient {
     String path, {
     Future<List<http.MultipartFile>> Function()? files,
   }) async {
-    return _sendWithAuth((headers) async {
+    return _sendWithAuth('POST', path, (headers) async {
       final request = http.MultipartRequest('POST', Uri.parse('${ApiConfig.baseUrl}$path'))
         ..headers.addAll(headers);
       if (files != null) request.files.addAll(await files());
@@ -54,11 +55,31 @@ class ApiClient {
 
   // DELETE autenticado
   static Future<http.Response> delete(String path) async {
-    return _sendWithAuth((headers) => http.delete(Uri.parse('${ApiConfig.baseUrl}$path'), headers: headers));
+    return _sendWithAuth('DELETE', path, (headers) => http.delete(Uri.parse('${ApiConfig.baseUrl}$path'), headers: headers));
+  }
+
+  // Measures each request (only with PERF_LOGS): counted when it goes out, one line when it ends
+  static Future<http.Response> _sendWithAuth(
+    String method,
+    String path,
+    Future<http.Response> Function(Map<String, String> headers) request,
+  ) async {
+    if (!PerfLog.enabled) return _sendWithToken(request);
+
+    final n = PerfStats.httpStart();
+    final watch = Stopwatch()..start();
+    try {
+      final res = await _sendWithToken(request);
+      PerfStats.httpEnd(n, method, path, '${res.statusCode}', watch.elapsedMilliseconds, res.bodyBytes.length);
+      return res;
+    } catch (e) {
+      PerfStats.httpEnd(n, method, path, 'ERR', watch.elapsedMilliseconds, 0);
+      rethrow;
+    }
   }
 
   // Manda la petición con el token, y si da 401 o 403, refresca y reintenta una vez
-  static Future<http.Response> _sendWithAuth(
+  static Future<http.Response> _sendWithToken(
     Future<http.Response> Function(Map<String, String> headers) request,
   ) async {
     final accessToken = await TokenStorage.getAccessToken();

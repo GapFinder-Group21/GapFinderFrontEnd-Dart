@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:gapfinderfrontend_dart/core/network/connectivity_service.dart';
+import 'package:gapfinderfrontend_dart/core/perf/perf_log.dart';
 import 'package:gapfinderfrontend_dart/core/storage/app_database.dart';
 import 'package:gapfinderfrontend_dart/core/storage/hive_store.dart';
 import 'package:gapfinderfrontend_dart/core/storage/outbox_handlers.dart';
@@ -12,9 +13,13 @@ import 'package:gapfinderfrontend_dart/services/outbox_notifier.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/theme/theme_controller.dart';
 
 Future<void> main() async {
+  // Measurement clock: t=0 is the real start of the app (logs only with PERF_LOGS)
+  PerfLog.start();
+  PerfLog.log('startup', 'main start');
   WidgetsFlutterBinding.ensureInitialized();
   await _initInfrastructure();
   runApp(const MyApp());
+  PerfLog.startAppMonitors();
 }
 
 // Local storage, connectivity and the outbox. If something fails the app still opens (online only).

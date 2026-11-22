@@ -6,6 +6,7 @@ import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_fonts.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/welcome/welcome_view_model.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/offline_banner.dart';
+import 'package:gapfinderfrontend_dart/core/perf/perf_log.dart';
 
 // It brings its own ViewModel, so the route and the session gate can keep using it as a const
 class WelcomeView extends StatelessWidget {
@@ -26,6 +27,10 @@ class _WelcomeBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final vm = context.watch<WelcomeViewModel>();
+    // Image cache after the first frame of Welcome (only with PERF_LOGS, logged once)
+    if (PerfLog.enabled) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => PerfImages.logCache('after Welcome'));
+    }
 
     return Scaffold(
       backgroundColor: AppColors.contrast,
@@ -55,12 +60,12 @@ class _WelcomeBody extends StatelessWidget {
               // Logo
               ClipRRect(
                 borderRadius: BorderRadius.circular(28),
-                child: Image.asset(
-                  'assets/images/logo_gap_finder.png',
-                  width: 110,
-                  height: 110,
-                  fit: BoxFit.contain,
-                ),
+                child: Builder(builder: (context) {
+                  // Same image as before; the provider is shared with the decode log
+                  const logo = AssetImage('assets/images/logo_gap_finder.png');
+                  PerfImages.watch(context, logo, 'logo_gap_finder.png', const Size(110, 110));
+                  return const Image(image: logo, width: 110, height: 110, fit: BoxFit.contain);
+                }),
               ),
 
               const SizedBox(height: 16),

@@ -14,6 +14,7 @@ import 'package:gapfinderfrontend_dart/services/location_service.dart';
 import 'package:gapfinderfrontend_dart/services/open_table_participant_service.dart';
 import 'package:gapfinderfrontend_dart/services/open_table_service.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/offline_aware_mixin.dart';
+import 'package:gapfinderfrontend_dart/core/perf/perf_log.dart';
 
 // State and logic of the open tables tab
 class OpenTablesViewModel extends ChangeNotifier with OfflineAwareMixin {
@@ -82,6 +83,7 @@ class OpenTablesViewModel extends ChangeNotifier with OfflineAwareMixin {
 
   // Load the tables; reload them when the GPS is turned on or off and when the connection comes back
   Future<void> init() async {
+    PerfStats.tabCreated('OpenTables');
     listenToConnectivity(onRestored: refresh);
     _listenToLocationChanges();
     _watchOutbox();
