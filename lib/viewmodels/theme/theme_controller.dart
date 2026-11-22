@@ -3,6 +3,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart' show ThemeMode;
 import 'package:light/light.dart';
+import 'package:gapfinderfrontend_dart/core/perf/perf_log.dart';
 
 // Switches the app to dark mode when the ambient light is low and back to light mode when it is bright
 class ThemeController extends ChangeNotifier {
@@ -44,6 +45,7 @@ class ThemeController extends ChangeNotifier {
   // Applies one reading; the mode only changes (and notifies) when it really changes
   @visibleForTesting
   void onLux(int lux) {
+    PerfStats.luxEvent();
     if (lux < 0) return; // the plugin sends -1 when it cannot read the value
 
     if (lux < darkBelowLux) {

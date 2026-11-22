@@ -10,6 +10,7 @@ import 'package:gapfinderfrontend_dart/services/building_service.dart';
 import 'package:gapfinderfrontend_dart/services/location_service.dart';
 import 'package:gapfinderfrontend_dart/services/nearby_friends_service.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/offline_aware_mixin.dart';
+import 'package:gapfinderfrontend_dart/core/perf/perf_log.dart';
 
 // What the location banner shows
 enum LocationBannerStatus { locating, disabled, inBuilding, outsideCampus, unavailable, offline }
@@ -91,6 +92,7 @@ class CurrentLocationViewModel extends ChangeNotifier with OfflineAwareMixin {
 
   // Update now, every 2 minutes, and when the GPS is turned on or off
   void init() {
+    PerfStats.tabCreated('LocationBanner');
     listenToConnectivity(onRestored: updateLocation);
     // The moment the internet drops, switch to the last calculated location (no wait for the timer)
     _offlineSub = ConnectivityService.instance.onStatusChange.listen((online) {
@@ -142,6 +144,8 @@ class CurrentLocationViewModel extends ChangeNotifier with OfflineAwareMixin {
     // The GPS has its own try: a slow or failed GPS is not a network problem, so it must not show
     // the "last building" banner
     final Position position;
+    // Measures the GPS time (only with PERF_LOGS)
+    final gpsWatch = PerfLog.enabled ? (Stopwatch()..start()) : null;
     try {
       debugPrint('DEBUG: [Banner] Requesting current GPS position...');
       position = await Geolocator.getCurrentPosition(
@@ -178,6 +182,8 @@ class CurrentLocationViewModel extends ChangeNotifier with OfflineAwareMixin {
         position.latitude,
         position.longitude,
       );
+      // One location tick: GPS + 2 requests (nearby friends and building)
+      PerfStats.gpsRead(gpsWatch?.elapsedMilliseconds ?? 0, 2);
 
       // Without the part number, so moving from "Bobo 1" to "Bobo 2" is not a new building
       final newBuildingName = building?.displayName;

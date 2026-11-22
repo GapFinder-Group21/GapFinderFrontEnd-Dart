@@ -6,6 +6,7 @@ import 'package:gapfinderfrontend_dart/data/local/sofia/sofia_local_cache.dart';
 import 'package:gapfinderfrontend_dart/models/responses/recommendation_response.dart';
 import 'package:gapfinderfrontend_dart/services/recommendation_service.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/offline_aware_mixin.dart';
+import 'package:gapfinderfrontend_dart/core/perf/perf_log.dart';
 
 // State of the suggestions tab
 class RecommendationsViewModel extends ChangeNotifier with OfflineAwareMixin {
@@ -29,6 +30,7 @@ class RecommendationsViewModel extends ChangeNotifier with OfflineAwareMixin {
 
   // Load the recommendations when the screen opens; they reload by themselves when the connection comes back
   Future<void> init() {
+    PerfStats.tabCreated('Recommendations');
     listenToConnectivity(onRestored: refresh);
     return refresh();
   }

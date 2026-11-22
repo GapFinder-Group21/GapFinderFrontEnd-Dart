@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_fonts.dart';
+import 'package:gapfinderfrontend_dart/core/perf/perf_log.dart';
 
 class AnimatedMatchButton extends StatefulWidget {
   final VoidCallback? onTap;
@@ -104,12 +105,12 @@ class _AnimatedMatchButtonState extends State<AnimatedMatchButton>
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Image.asset(
-                            'assets/images/logo_sin_fondo.png',
-                            width: 80,
-                            height: 80,
-                            fit: BoxFit.contain,
-                          ),
+                          Builder(builder: (context) {
+                            // Same image as before; the provider is shared with the decode log
+                            const logo = AssetImage('assets/images/logo_sin_fondo.png');
+                            PerfImages.watch(context, logo, 'logo_sin_fondo.png (match button)', const Size(80, 80));
+                            return const Image(image: logo, width: 80, height: 80, fit: BoxFit.contain);
+                          }),
                           Text(
                             'MATCH',
                             style: AppFonts.display(weight: FontWeight.w900).copyWith(

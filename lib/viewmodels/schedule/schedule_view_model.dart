@@ -15,6 +15,7 @@ import 'package:gapfinderfrontend_dart/services/gap_service.dart';
 import 'package:gapfinderfrontend_dart/services/session_cleanup.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/offline_aware_mixin.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/schedule/schedule_processing.dart';
+import 'package:gapfinderfrontend_dart/core/perf/perf_log.dart';
 
 // The view and the tests keep importing ScheduleItem from here
 export 'package:gapfinderfrontend_dart/viewmodels/schedule/schedule_processing.dart'
@@ -71,6 +72,7 @@ class ScheduleViewModel extends ChangeNotifier with OfflineAwareMixin {
 
   // Load the schedule when the screen opens; it reloads by itself when the connection comes back
   Future<void> init() {
+    PerfStats.tabCreated('Schedule');
     listenToConnectivity(onRestored: refresh);
     return refresh();
   }

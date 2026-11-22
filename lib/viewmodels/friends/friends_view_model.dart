@@ -14,6 +14,7 @@ import 'package:gapfinderfrontend_dart/models/user.dart';
 import 'package:gapfinderfrontend_dart/services/friendship_service.dart';
 import 'package:gapfinderfrontend_dart/services/gap_service.dart';
 import 'package:gapfinderfrontend_dart/services/user_service.dart';
+import 'package:gapfinderfrontend_dart/core/perf/perf_log.dart';
 
 // A friend together with their current free gap (if any)
 class FriendWithGap {
@@ -165,6 +166,7 @@ class FriendsViewModel extends ChangeNotifier {
 
   // Load the friends when the screen opens and start listening to the connection and the outbox
   Future<void> init() {
+    PerfStats.tabCreated('Friends');
     _isOffline = !_connectivity.isOnline;
     _connectivitySub ??= _connectivity.onStatusChange.listen(_onConnectivityChanged);
     // MULTITHREADING JOEL: Stream (pending keys of the queue)

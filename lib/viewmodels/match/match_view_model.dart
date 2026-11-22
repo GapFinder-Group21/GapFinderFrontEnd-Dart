@@ -13,6 +13,7 @@ import 'package:gapfinderfrontend_dart/services/gap_service.dart';
 import 'package:gapfinderfrontend_dart/services/match_service.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/match/study_periods_cache.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/match/study_plan_processing.dart';
+import 'package:gapfinderfrontend_dart/core/perf/perf_log.dart';
 
 // EVENTUAL CONNECTIVITY JOEL: Network falling back to cache (Match)
 // State and logic of the match tab.
@@ -95,6 +96,7 @@ class MatchViewModel extends ChangeNotifier {
 
   // Load the current gap and its match, and listen to the connection
   Future<void> init() {
+    PerfStats.tabCreated('Match');
     _isOffline = !_connectivity.isOnline;
     // MULTITHREADING JOEL: Stream (connection changes)
     // Estrategia: Stream. The connectivity service emits true/false every time the network changes

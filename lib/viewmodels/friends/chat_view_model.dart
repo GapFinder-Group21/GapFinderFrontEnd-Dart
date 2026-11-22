@@ -13,6 +13,7 @@ import 'package:gapfinderfrontend_dart/models/chat_message.dart';
 import 'package:gapfinderfrontend_dart/models/user.dart';
 import 'package:gapfinderfrontend_dart/services/chat_service.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/friends/chat_processing.dart';
+import 'package:gapfinderfrontend_dart/core/perf/perf_log.dart';
 
 // Runs mergeChatMessages somewhere (an isolate in the app; replaced in tests if needed)
 typedef ChatMerger = Future<List<Map<String, dynamic>>> Function(Map<String, dynamic> payload);
@@ -127,6 +128,7 @@ class ChatViewModel extends ChangeNotifier {
     if (userId == null || _fetching || _isOffline || _disposed) return;
     _fetching = true;
     try {
+      PerfStats.chatPoll(_lastServerId());
       final body = await _chatService
           .getConversationBody(userId, friend.id, afterId: _lastServerId())
           .timeout(const Duration(seconds: 10));

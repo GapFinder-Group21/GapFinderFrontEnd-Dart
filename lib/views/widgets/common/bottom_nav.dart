@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_fonts.dart';
+import 'package:gapfinderfrontend_dart/core/perf/perf_log.dart';
 
 class BottomNav extends StatelessWidget {
   final String activeTab;
@@ -33,7 +34,7 @@ class BottomNav extends StatelessWidget {
                 label: 'Friends',
                 icon: Icons.people_outline_rounded,
               ),
-              _buildMainNavItem(),
+              _buildMainNavItem(context),
               _buildNavItem(
                 id: 'map',
                 label: 'Open Tables',
@@ -105,7 +106,7 @@ class BottomNav extends StatelessWidget {
   }
 
   // Botón central flotante (Match)
-  Widget _buildMainNavItem() {
+  Widget _buildMainNavItem(BuildContext context) {
     return Expanded(
       flex: 1,
       child: GestureDetector(
@@ -147,10 +148,12 @@ class BottomNav extends StatelessWidget {
                   child: Center(
                     child: Padding(
                       padding: const EdgeInsets.all(8.0),
-                      child: Image.asset(
-                        'assets/images/logo_sin_fondo.png',
-                        fit: BoxFit.contain,
-                      ),
+                      child: Builder(builder: (context) {
+                        // Same image as before; the provider is shared with the decode log
+                        const logo = AssetImage('assets/images/logo_sin_fondo.png');
+                        PerfImages.watch(context, logo, 'logo_sin_fondo.png (bottom bar)', const Size(40, 40));
+                        return const Image(image: logo, fit: BoxFit.contain);
+                      }),
                     ),
                   ),
                 ),
