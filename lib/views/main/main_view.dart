@@ -18,7 +18,7 @@ import 'package:gapfinderfrontend_dart/core/perf/perf_log.dart';
 
 /// Home screen with the bottom navigation bar (Schedule, Friends, Match, Open Tables, Suggestions).
 /// It also checks the notifications to show match invitations.
-/// It creates the ViewModel of every tab.
+/// Each tab and its ViewModel are created the first time the user opens that tab.
 class MainView extends StatelessWidget {
   const MainView({super.key});
 
@@ -33,21 +33,36 @@ class MainView extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => OpenTablesViewModel()..init()),
         ChangeNotifierProvider(create: (_) => RecommendationsViewModel()..init()),
       ],
-      child: const _MainTabs(),
+      child: const MainTabs(),
     );
   }
 }
 
-class _MainTabs extends StatefulWidget {
-  const _MainTabs();
+// The five tab screens, in the order of the bottom bar
+const _tabViews = <Widget>[
+  ScheduleView(),
+  FriendsView(),
+  MatchView(),
+  OpenTablesView(),
+  RecommendationsView(),
+];
+
+// Public only so a test can pass light tabs instead of the real screens
+@visibleForTesting
+class MainTabs extends StatefulWidget {
+  const MainTabs({super.key, this.tabs = _tabViews});
+
+  final List<Widget> tabs;
 
   @override
-  State<_MainTabs> createState() => _MainTabsState();
+  State<MainTabs> createState() => _MainTabsState();
 }
 
-class _MainTabsState extends State<_MainTabs> with WidgetsBindingObserver {
+class _MainTabsState extends State<MainTabs> with WidgetsBindingObserver {
   StreamSubscription<MatchInvitationEvent>? _eventsSub;
   bool _wasInBackground = false;
+  // Micro-optimización (lazy tabs): a tab and its ViewModel are built only the first time it is opened
+  final Set<int> _visited = {};
 
   @override
   // Open the invitation screen for each new match request
@@ -93,41 +108,43 @@ class _MainTabsState extends State<_MainTabs> with WidgetsBindingObserver {
 
   // Switch tab and reload it, like every time the user comes back to a tab
   // (the Open Tables tab is not reloaded, it listens to the GPS instead)
+  // The first time a tab opens it is not reloaded: its ViewModel is created now and init() already loads it
   void _onTabChanged(String tabId) {
     final newIndex = context.read<MainViewModel>().selectTab(tabId);
+    final firstOpen = newIndex != null && !_visited.contains(newIndex);
     switch (newIndex) {
       case MainViewModel.scheduleTab:
-        context.read<ScheduleViewModel>().refresh();
+        if (!firstOpen) context.read<ScheduleViewModel>().refresh();
       case MainViewModel.friendsTab:
-        context.read<FriendsViewModel>().refresh();
+        if (!firstOpen) context.read<FriendsViewModel>().refresh();
       case MainViewModel.matchTab:
-        context.read<MatchViewModel>().refresh();
+        if (!firstOpen) context.read<MatchViewModel>().refresh();
         // Image cache once the Match tab is on screen (only with PERF_LOGS, logged once)
         if (PerfLog.enabled) {
           WidgetsBinding.instance.addPostFrameCallback((_) => PerfImages.logCache('after Match'));
         }
       case MainViewModel.suggestionsTab:
-        context.read<RecommendationsViewModel>().refresh();
+        if (!firstOpen) context.read<RecommendationsViewModel>().refresh();
       default:
         break;
     }
   }
 
   @override
-  // IndexedStack keeps every tab alive, so switching tabs does not reload them
+  // IndexedStack keeps the opened tabs alive, so switching back to them does not rebuild them
   Widget build(BuildContext context) {
     final vm = context.watch<MainViewModel>();
+    // Covers the first tab, the one restored from the last session and the ones opened from a reminder
+    _visited.add(vm.selectedIndex);
 
     return Scaffold(
       // No global offline banner here: each tab shows its own offline notice
       body: IndexedStack(
         index: vm.selectedIndex,
-        children: const [
-          ScheduleView(),
-          FriendsView(),
-          MatchView(),
-          OpenTablesView(),
-          RecommendationsView(),
+        children: [
+          for (var i = 0; i < widget.tabs.length; i++)
+            // A tab that was never opened is an empty box that reads no ViewModel
+            _visited.contains(i) ? widget.tabs[i] : const SizedBox.shrink(),
         ],
       ),
       bottomNavigationBar: BottomNav(
