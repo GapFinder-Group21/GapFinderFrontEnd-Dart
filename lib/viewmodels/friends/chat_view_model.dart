@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleListener, AppLifecycleState;
 import 'package:gapfinderfrontend_dart/core/cache/expiry_policy.dart';
 import 'package:gapfinderfrontend_dart/core/cache/lru_cache.dart';
 import 'package:gapfinderfrontend_dart/core/network/connectivity_service.dart';
@@ -76,6 +77,9 @@ class ChatViewModel extends ChangeNotifier {
   final Map<String, String> _failReasons = {};
   Set<String> _pendingKeys = {};
   Timer? _pollTimer;
+  AppLifecycleListener? _lifecycle;
+  // True while the app is in the background: no polling
+  bool _inBackground = false;
   StreamSubscription<bool>? _connectivitySub;
   StreamSubscription<Set<String>>? _pendingSub;
 
@@ -93,6 +97,7 @@ class ChatViewModel extends ChangeNotifier {
 
     _isOffline = !_connectivity.isOnline;
     _connectivitySub = _connectivity.onStatusChange.listen(_onConnectivityChanged);
+    _watchAppLifecycle();
 
     final cached = _cache.get(friend.id);
     if (cached != null) {
@@ -125,7 +130,8 @@ class ChatViewModel extends ChangeNotifier {
   // in an isolate. Used when the chat opens and by the polling every 5 s.
   Future<void> fetchNew() async {
     final userId = _userId;
-    if (userId == null || _fetching || _isOffline || _disposed) return;
+    // Micro-optimización (lifecycle): no requests to the back while the app is in the background
+    if (userId == null || _fetching || _isOffline || _disposed || _inBackground) return;
     _fetching = true;
     try {
       PerfStats.chatPoll(_lastServerId());
@@ -282,7 +288,8 @@ class ChatViewModel extends ChangeNotifier {
   void _onConnectivityChanged(bool online) {
     _isOffline = !online;
     _notify();
-    if (online) {
+    // In the background the polling waits: it starts again when the app comes back
+    if (online && !_inBackground) {
       fetchNew();
       _startPolling();
     } else {
@@ -293,13 +300,36 @@ class ChatViewModel extends ChangeNotifier {
   // Polling is part of the feature (new messages every 5 s while the chat is open and online).
   // A Timer runs on the same isolate, so it is not a multithreading strategy.
   void _startPolling() {
-    if (_pollTimer != null || _disposed) return;
+    if (_pollTimer != null || _disposed || _inBackground) return;
     _pollTimer = Timer.periodic(pollEvery, (_) => fetchNew());
   }
 
   void _stopPolling() {
     _pollTimer?.cancel();
     _pollTimer = null;
+  }
+
+  // Without a Flutter binding (plain unit tests) there is no listener: tests call handleAppLifecycle
+  void _watchAppLifecycle() {
+    if (_lifecycle != null) return;
+    try {
+      _lifecycle = AppLifecycleListener(onStateChange: handleAppLifecycle);
+    } catch (_) {}
+  }
+
+  // Micro-optimización (lifecycle): the 5 s polling stops while the app is in the background
+  @visibleForTesting
+  void handleAppLifecycle(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      _inBackground = true;
+      _stopPolling();
+    } else if (state == AppLifecycleState.resumed && _inBackground) {
+      _inBackground = false;
+      if (!_isOffline) {
+        fetchNew(); // new messages at once
+        _startPolling();
+      }
+    }
   }
 
   int _lastServerId() {

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleListener, AppLifecycleState;
 import 'package:flutter/material.dart' show ThemeMode;
 import 'package:light/light.dart';
 import 'package:gapfinderfrontend_dart/core/perf/perf_log.dart';
@@ -16,6 +17,10 @@ class ThemeController extends ChangeNotifier {
   static const Duration settleTime = Duration(seconds: 3);
 
   final Duration _settle;
+  // Kept to listen again when the app comes back (null = the real sensor)
+  final Stream<int>? _lightStream;
+  AppLifecycleListener? _lifecycle;
+  bool _inBackground = false;
   Timer? _pendingTimer;
   ThemeMode? _pendingMode;
   StreamSubscription<int>? _subscription;
@@ -23,8 +28,11 @@ class ThemeController extends ChangeNotifier {
   bool _disposed = false;
 
   // lightStream is only for tests; the real one reads the sensor (Android only)
-  ThemeController({Stream<int>? lightStream, Duration settle = settleTime}) : _settle = settle {
+  ThemeController({Stream<int>? lightStream, Duration settle = settleTime})
+      : _settle = settle,
+        _lightStream = lightStream {
     _listen(lightStream);
+    _watchAppLifecycle();
   }
 
   // system until the sensor gives a clear reading, and always on iOS or when there is no sensor
@@ -80,6 +88,29 @@ class ThemeController extends ChangeNotifier {
     _pendingMode = null;
   }
 
+  // Without a Flutter binding (plain unit tests) there is no listener: tests call handleAppLifecycle
+  void _watchAppLifecycle() {
+    try {
+      _lifecycle = AppLifecycleListener(onStateChange: handleAppLifecycle);
+    } catch (_) {}
+  }
+
+  // Micro-optimización (lifecycle): the light sensor is off while the app is in the background
+  // (the current mode stays; readings start again when the app comes back)
+  @visibleForTesting
+  void handleAppLifecycle(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      if (_inBackground) return;
+      _inBackground = true;
+      _cancelPending();
+      _subscription?.cancel();
+      _subscription = null;
+    } else if (state == AppLifecycleState.resumed && _inBackground) {
+      _inBackground = false;
+      _listen(_lightStream);
+    }
+  }
+
   // If the sensor fails, go back to the system theme and keep the app working
   void _onSensorError(Object error) {
     debugPrint('Light sensor error: $error');
@@ -96,6 +127,7 @@ class ThemeController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _lifecycle?.dispose();
     _cancelPending();
     _subscription?.cancel();
     super.dispose();
