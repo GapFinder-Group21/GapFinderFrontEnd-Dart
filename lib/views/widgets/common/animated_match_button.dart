@@ -106,10 +106,15 @@ class _AnimatedMatchButtonState extends State<AnimatedMatchButton>
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Builder(builder: (context) {
-                            // Same image as before; the provider is shared with the decode log
-                            const logo = AssetImage('assets/images/logo_sin_fondo.png');
+                            // Micro-optimización (image size): decode the logo at the size it is drawn
+                            // The provider is shared with the decode log
+                            final logo = ResizeImage.resizeIfNeeded(
+                              (80 * MediaQuery.devicePixelRatioOf(context)).round(),
+                              null,
+                              const AssetImage('assets/images/logo_sin_fondo.png'),
+                            );
                             PerfImages.watch(context, logo, 'logo_sin_fondo.png (match button)', const Size(80, 80));
-                            return const Image(image: logo, width: 80, height: 80, fit: BoxFit.contain);
+                            return Image(image: logo, width: 80, height: 80, fit: BoxFit.contain);
                           }),
                           Text(
                             'MATCH',
