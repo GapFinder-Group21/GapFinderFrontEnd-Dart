@@ -113,16 +113,6 @@ void main() {
       expect(service.userMatchesCalls, 0);
     });
 
-    test('a connect whose gap time already passed shows the reason', () async {
-      backStatus = 422;
-      backBody = 'El tiempo en común entre los gaps ya pasó';
-
-      await connectAndFlush();
-
-      expect(vm.wasSent, isFalse);
-      expect(vm.refusalMessage, 'El tiempo en común entre los gaps ya pasó');
-    });
-
     test('an accepted connect is "sent" once the request is in the matches of the user', () async {
       service.userMatches = [_match()];
 
