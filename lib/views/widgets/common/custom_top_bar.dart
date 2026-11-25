@@ -9,6 +9,9 @@ class CustomTopBar extends StatelessWidget implements PreferredSizeWidget {
   final VoidCallback? onBack;
   // Optional widget before the title (for example the friend's avatar in the chat)
   final Widget? leading;
+  // Space after the back arrow and between the title and the subtitle (the chat uses 14 and 0)
+  final double backGap;
+  final double subtitleGap;
 
   const CustomTopBar({
     super.key,
@@ -17,6 +20,8 @@ class CustomTopBar extends StatelessWidget implements PreferredSizeWidget {
     this.showBack = true,
     this.onBack,
     this.leading,
+    this.backGap = 12,
+    this.subtitleGap = 1,
   });
 
   @override
@@ -39,7 +44,7 @@ class CustomTopBar extends StatelessWidget implements PreferredSizeWidget {
                 ),
                 onPressed: onBack ?? () => Navigator.of(context).pop(),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: backGap),
             ],
             if (leading != null) ...[
               leading!,
@@ -60,7 +65,7 @@ class CustomTopBar extends StatelessWidget implements PreferredSizeWidget {
                     ),
                   ),
                   if (subtitle != null) ...[
-                    const SizedBox(height: 1),
+                    SizedBox(height: subtitleGap),
                     Text(
                       subtitle!,
                       style: AppFonts.subtitle().copyWith(

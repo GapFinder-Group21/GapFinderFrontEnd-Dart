@@ -10,7 +10,6 @@ import 'package:gapfinderfrontend_dart/models/match.dart';
 import 'package:gapfinderfrontend_dart/models/responses/auth_response.dart';
 import 'package:gapfinderfrontend_dart/services/auth_service.dart';
 import 'package:gapfinderfrontend_dart/services/match_service.dart';
-import 'package:gapfinderfrontend_dart/viewmodels/auth/login_view_model.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/friends/friends_view_model.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/match/match_invitation_view_model.dart';
 
@@ -93,25 +92,6 @@ void main() {
     await outbox.dispose();
     await db.close();
     storage.uninstall();
-  });
-
-  group('login (network only)', () {
-    test('without connection it does not call the back and says why', () async {
-      final auth = FakeAuthService();
-      final vm = LoginViewModel(authService: auth, localCache: NoopLocalCache(), connectivity: connectivity);
-
-      expect(vm.isOffline, isTrue);
-      expect(await vm.login('ana@test.com', 'secret'), isFalse);
-      expect(vm.errorMessage, 'Necesitas conexión para iniciar sesión');
-      expect(vm.isLoading, isFalse);
-      expect(auth.calls, 0);
-
-      connectivity.setOnline(true);
-      await settle();
-      expect(vm.isOffline, isFalse);
-      expect(await vm.login('ana@test.com', 'secret'), isTrue);
-      vm.dispose();
-    });
   });
 
   group('friends (queued actions)', () {

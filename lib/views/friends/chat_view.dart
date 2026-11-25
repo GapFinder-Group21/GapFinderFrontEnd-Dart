@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_colors.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_fonts.dart';
 import 'package:gapfinderfrontend_dart/core/theme/app_palette.dart';
-import 'package:gapfinderfrontend_dart/core/utils/display_formatters.dart';
 import 'package:gapfinderfrontend_dart/models/chat_message.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/friends/chat_view_model.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/avatar_widget.dart';
@@ -20,7 +19,29 @@ class ChatView extends StatefulWidget {
 }
 
 class _ChatViewState extends State<ChatView> {
+  // Texts of this screen
+  static const _offlineText = "No connection · showing saved messages. New ones go out when you're back online";
+  static const _queuedText = "No connection: your message will be sent when you're back online";
+  // The counter appears when fewer than this many characters are left
+  static const _counterFrom = 50;
+
   final _textController = TextEditingController();
+
+  static const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+  // "13:44" (24 h); a message from another day: "Nov 18 · 13:44"
+  static String _chatTime(DateTime date) {
+    final hour = date.hour.toString().padLeft(2, '0');
+    final minute = date.minute.toString().padLeft(2, '0');
+    final now = DateTime.now();
+    final sameDay = date.year == now.year && date.month == now.month && date.day == now.day;
+    return sameDay ? '$hour:$minute' : '${_months[date.month - 1]} ${date.day} · $hour:$minute';
+  }
+
+  String _firstName(String name) {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    return parts.first;
+  }
 
   @override
   void dispose() {
@@ -40,7 +61,7 @@ class _ChatViewState extends State<ChatView> {
     if (vm.isOffline) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(content: Text(ChatViewModel.queuedNotice)));
+        ..showSnackBar(const SnackBar(content: Text(_queuedText)));
     }
   }
 
@@ -54,11 +75,19 @@ class _ChatViewState extends State<ChatView> {
       appBar: CustomTopBar(
         title: friend.name,
         subtitle: friend.career,
-        leading: AvatarWidget(url: friend.avatarUrl, name: friend.name, size: 36),
+        backGap: 14,
+        subtitleGap: 0,
+        leading: AvatarWidget(
+          url: friend.avatarUrl,
+          name: friend.name,
+          size: 36,
+          silhouette: true,
+          border: Border.all(color: AppColors.background.withValues(alpha: 0.25), width: 1.5),
+        ),
       ),
       body: Column(
         children: [
-          if (vm.isOffline) const OfflineBanner(message: ChatViewModel.offlineMessage),
+          if (vm.isOffline) const OfflineBanner(message: _offlineText, boxed: true),
           Expanded(child: _buildMessages(vm)),
           _buildInput(),
         ],
@@ -76,14 +105,14 @@ class _ChatViewState extends State<ChatView> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.chat_bubble_outline_rounded, size: 48, color: context.palette.contrast.withValues(alpha: 0.1)),
+              Icon(Icons.chat_bubble_outline_rounded, size: 56, color: context.palette.contrast.withValues(alpha: 0.12)),
               const SizedBox(height: 12),
               Text(
                 vm.isOffline
-                    ? 'Sin conexión y aún no hay mensajes guardados con ${vm.friend.name}'
-                    : 'Aún no hay mensajes. ¡Saluda a ${vm.friend.name}!',
+                    ? 'No connection and no saved messages with ${_firstName(vm.friend.name)} yet.'
+                    : 'No messages yet. Say hi to ${_firstName(vm.friend.name)}!',
                 textAlign: TextAlign.center,
-                style: AppFonts.body().copyWith(color: context.palette.contrast.withValues(alpha: 0.4)),
+                style: AppFonts.body().copyWith(color: context.palette.contrast.withValues(alpha: 0.45)),
               ),
             ],
           ),
@@ -126,7 +155,7 @@ class _ChatViewState extends State<ChatView> {
                   bottomLeft: Radius.circular(mine ? 16 : 4),
                   bottomRight: Radius.circular(mine ? 4 : 16),
                 ),
-                border: mine ? null : Border.all(color: AppColors.accent2.withValues(alpha: 0.3), width: 1.5),
+                border: mine ? null : Border.all(color: context.palette.contrast.withValues(alpha: 0.1), width: 1),
               ),
               child: Text(
                 message.content,
@@ -141,7 +170,7 @@ class _ChatViewState extends State<ChatView> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  DisplayFormatters.time(message.createdAt),
+                  _chatTime(message.createdAt),
                   style: AppFonts.body().copyWith(
                     fontSize: 10,
                     color: context.palette.contrast.withValues(alpha: 0.4),
@@ -173,7 +202,7 @@ class _ChatViewState extends State<ChatView> {
   }
 
   Widget _buildRetry(ChatViewModel vm, ChatMessage message) {
-    final reason = vm.failReason(message.clientId) ?? 'No se pudo enviar';
+    final reason = vm.failReason(message.clientId) ?? "Couldn't send this message";
     return Padding(
       padding: const EdgeInsets.only(top: 2),
       child: Wrap(
@@ -193,7 +222,7 @@ class _ChatViewState extends State<ChatView> {
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
             child: Text(
-              'Reintentar',
+              'Retry',
               style: AppFonts.body(weight: FontWeight.w700).copyWith(fontSize: 12, color: AppColors.accent1),
             ),
           ),
@@ -208,37 +237,67 @@ class _ChatViewState extends State<ChatView> {
       padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
       child: SafeArea(
         top: false,
-        child: Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _textController,
-                minLines: 1,
-                maxLines: 4,
-                textCapitalization: TextCapitalization.sentences,
-                inputFormatters: [LengthLimitingTextInputFormatter(ChatViewModel.maxLength)],
-                style: AppFonts.body().copyWith(fontSize: 14, color: context.palette.contrast),
-                decoration: InputDecoration(
-                  hintText: 'Escribe un mensaje',
-                  hintStyle: AppFonts.body().copyWith(color: context.palette.contrast.withValues(alpha: 0.4)),
-                  filled: true,
-                  fillColor: context.palette.background,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(20),
-                    borderSide: BorderSide.none,
+        child: ValueListenableBuilder<TextEditingValue>(
+          valueListenable: _textController,
+          builder: (context, value, _) {
+            final length = value.text.length;
+            final hasText = value.text.trim().isNotEmpty;
+            final showCounter = ChatViewModel.maxLength - length < _counterFrom;
+
+            return Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      TextField(
+                        controller: _textController,
+                        minLines: 1,
+                        maxLines: 4,
+                        textCapitalization: TextCapitalization.sentences,
+                        inputFormatters: [LengthLimitingTextInputFormatter(ChatViewModel.maxLength)],
+                        style: AppFonts.body().copyWith(fontSize: 14, color: context.palette.contrast),
+                        decoration: InputDecoration(
+                          hintText: 'Write a message',
+                          hintStyle: AppFonts.body().copyWith(color: context.palette.contrast.withValues(alpha: 0.4)),
+                          filled: true,
+                          fillColor: context.palette.background,
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(20),
+                            borderSide: BorderSide.none,
+                          ),
+                        ),
+                        onSubmitted: (_) => _send(),
+                      ),
+                      if (showCounter)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4, right: 4),
+                          child: Text(
+                            '$length/${ChatViewModel.maxLength}',
+                            style: AppFonts.body().copyWith(
+                              fontSize: 11,
+                              color: context.palette.contrast.withValues(alpha: 0.45),
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-                onSubmitted: (_) => _send(),
-              ),
-            ),
-            const SizedBox(width: 6),
-            IconButton(
-              onPressed: _send,
-              icon: const Icon(Icons.send_rounded, color: AppColors.accent1),
-              tooltip: 'Enviar',
-            ),
-          ],
+                const SizedBox(width: 6),
+                // Coral only when there is text; empty field: gray and it does not answer
+                IconButton(
+                  onPressed: hasText ? _send : null,
+                  icon: Icon(
+                    Icons.send_rounded,
+                    color: hasText ? AppColors.accent1 : context.palette.contrast.withValues(alpha: 0.25),
+                  ),
+                  tooltip: 'Enviar',
+                ),
+              ],
+            );
+          },
         ),
       ),
     );

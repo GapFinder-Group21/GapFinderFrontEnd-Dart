@@ -9,6 +9,8 @@ class AvatarWidget extends StatelessWidget {
   final String? name;
   final double size;
   final BoxBorder? border;
+  // Without a photo, a gray circle with a person silhouette instead of the initial (used in the chat)
+  final bool silhouette;
 
   const AvatarWidget({
     super.key,
@@ -16,6 +18,7 @@ class AvatarWidget extends StatelessWidget {
     this.name,
     this.size = 48,
     this.border,
+    this.silhouette = false,
   });
 
   static const _initialColors = [
@@ -36,7 +39,7 @@ class AvatarWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final resolved = resolveUrl(url);
-    final fallback = _buildFallback();
+    final fallback = silhouette ? _buildSilhouette(context) : _buildFallback();
 
     return Container(
       width: size,
@@ -58,6 +61,16 @@ class AvatarWidget extends StatelessWidget {
               errorBuilder: (_, _, _) => fallback,
               loadingBuilder: (context, child, progress) => progress == null ? child : fallback,
             ),
+    );
+  }
+
+  // Gray circle with a person silhouette
+  Widget _buildSilhouette(BuildContext context) {
+    final contrast = context.palette.contrast;
+    return Container(
+      color: contrast.withValues(alpha: 0.12),
+      alignment: Alignment.center,
+      child: Icon(Icons.person_rounded, size: size * 0.6, color: contrast.withValues(alpha: 0.4)),
     );
   }
 

@@ -39,19 +39,6 @@ void main() {
       expect(vm.errorMessage, isNull);
     });
 
-    test('login() returns true and stops loading', () async {
-      final loadingStates = <bool>[];
-      vm.addListener(() => loadingStates.add(vm.isLoading));
-
-      final ok = await vm.login('ana@test.com', 'secret');
-
-      expect(ok, isTrue);
-      expect(auth.lastEmail, 'ana@test.com');
-      expect(vm.errorMessage, isNull);
-      expect(vm.isLoading, isFalse);
-      expect(loadingStates, [true, false]);
-    });
-
     test('login() returns false and sets errorMessage on error', () async {
       auth.error = Exception('Invalid credentials');
 

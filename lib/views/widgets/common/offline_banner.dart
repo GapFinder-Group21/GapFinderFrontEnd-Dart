@@ -8,8 +8,10 @@ import 'package:gapfinderfrontend_dart/core/theme/app_palette.dart';
 class OfflineBanner extends StatelessWidget {
   final String message;
   final DateTime? lastUpdated;
+  // Soft rounded box (used in the chat) instead of the full-width strip
+  final bool boxed;
 
-  const OfflineBanner({super.key, required this.message, this.lastUpdated});
+  const OfflineBanner({super.key, required this.message, this.lastUpdated, this.boxed = false});
 
   // HH:mm of the last update
   String _time(DateTime date) {
@@ -24,6 +26,35 @@ class OfflineBanner extends StatelessWidget {
     final text = updated == null ? message : '$message · actualizado a las ${_time(updated)}';
 
     final palette = context.palette;
+
+    if (boxed) {
+      return Container(
+        width: double.infinity,
+        margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: palette.contrast.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.cloud_off_rounded, size: 18, color: palette.contrast.withValues(alpha: 0.75)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                text,
+                softWrap: true,
+                style: AppFonts.body(weight: FontWeight.w600).copyWith(
+                  fontSize: 13,
+                  color: palette.contrast.withValues(alpha: 0.75),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Container(
       width: double.infinity,
