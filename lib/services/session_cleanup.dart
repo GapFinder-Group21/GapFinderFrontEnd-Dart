@@ -11,6 +11,7 @@ import 'package:gapfinderfrontend_dart/data/local/sofia/match_history_dao.dart';
 import 'package:gapfinderfrontend_dart/data/local/sofia/open_table_outbox.dart';
 import 'package:gapfinderfrontend_dart/data/local/sofia/rating_drafts_hive_store.dart';
 import 'package:gapfinderfrontend_dart/data/local/sofia/sofia_local_cache.dart';
+import 'package:gapfinderfrontend_dart/services/chat_inbox_service.dart';
 import 'package:gapfinderfrontend_dart/services/gap_generation_guard.dart';
 import 'package:gapfinderfrontend_dart/services/gap_reminder_service.dart';
 import 'package:gapfinderfrontend_dart/services/outbox_messages.dart';
@@ -57,6 +58,8 @@ class SessionCleanup {
         if (userId != null) await ChatMessageDao().deleteForUser(userId);
       }),
       SessionCleanupStep('chat cache', () async => ChatViewModel.clearChatCache()),
+      // Unread counters and the order of the chats (memory + saved copy), and the message notifications
+      SessionCleanupStep('chat inbox', () => ChatInboxService.instance.reset()),
       // "Mis matches": the history in memory, the one saved in SQLite and the drafts of the ratings
       SessionCleanupStep('my matches', () async {
         MyMatchesViewModel.clearHistoryCache();

@@ -6,11 +6,14 @@ import 'package:gapfinderfrontend_dart/core/perf/perf_log.dart';
 class BottomNav extends StatelessWidget {
   final String activeTab;
   final ValueChanged<String> onTab;
+  // Unread chat messages, shown on the Friends icon (0 = no badge)
+  final int friendsBadge;
 
   const BottomNav({
     super.key,
     required this.activeTab,
     required this.onTab,
+    this.friendsBadge = 0,
   });
 
   @override
@@ -33,6 +36,7 @@ class BottomNav extends StatelessWidget {
                 id: 'friends',
                 label: 'Friends',
                 icon: Icons.people_outline_rounded,
+                badge: friendsBadge,
               ),
               _buildMainNavItem(context),
               _buildNavItem(
@@ -57,6 +61,7 @@ class BottomNav extends StatelessWidget {
     required String id,
     required String label,
     required IconData icon,
+    int badge = 0,
   }) {
     final bool isActive = activeTab == id;
     final Color itemColor = isActive
@@ -74,6 +79,24 @@ class BottomNav extends StatelessWidget {
               clipBehavior: Clip.none,
               children: [
                 Icon(icon, size: 22, color: itemColor),
+                if (badge > 0)
+                  Positioned(
+                    top: -6,
+                    right: -10,
+                    child: Container(
+                      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: const BoxDecoration(
+                        color: AppColors.accent3,
+                        borderRadius: BorderRadius.all(Radius.circular(8)),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        badge > 99 ? '99+' : '$badge',
+                        style: AppFonts.display(weight: FontWeight.w800).copyWith(fontSize: 9, color: Colors.white),
+                      ),
+                    ),
+                  ),
                 if (isActive)
                   Positioned(
                     bottom: -6,

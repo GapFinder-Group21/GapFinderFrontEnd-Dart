@@ -12,6 +12,7 @@ import 'package:gapfinderfrontend_dart/data/local/joel/chat_message_dao.dart';
 import 'package:gapfinderfrontend_dart/data/local/joel/outbox_keys.dart';
 import 'package:gapfinderfrontend_dart/models/chat_message.dart';
 import 'package:gapfinderfrontend_dart/models/user.dart';
+import 'package:gapfinderfrontend_dart/services/chat_inbox_service.dart';
 import 'package:gapfinderfrontend_dart/services/chat_service.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/friends/chat_processing.dart';
 import 'package:gapfinderfrontend_dart/core/perf/perf_log.dart';
@@ -48,6 +49,7 @@ class ChatViewModel extends ChangeNotifier {
   final OutboxService _outbox;
   final Future<int?> Function() _readUserId;
   final ChatMerger _merge;
+  final ChatInboxService _inbox;
   final Duration pollEvery;
 
   ChatViewModel(
@@ -58,12 +60,14 @@ class ChatViewModel extends ChangeNotifier {
     OutboxService? outbox,
     Future<int?> Function()? readUserId,
     ChatMerger? merge,
+    ChatInboxService? inbox,
     this.pollEvery = const Duration(seconds: 5),
   })  : _chatService = chatService ?? ChatService(),
         _dao = dao ?? ChatMessageDao(),
         _connectivity = connectivity ?? ConnectivityService.instance,
         _outbox = outbox ?? OutboxService.instance,
         _readUserId = readUserId ?? TokenStorage.getUserId,
+        _inbox = inbox ?? ChatInboxService.instance,
         // MULTITHREADING JOEL: Isolate (merge in compute)
         _merge = merge ?? ((payload) => compute(mergeChatMessages, payload));
 
@@ -112,6 +116,9 @@ class ChatViewModel extends ChangeNotifier {
       }
     }
     _isLoading = false;
+    // This chat is open: its messages are read (no unread number, no notification for this friend)
+    _inbox.openChat(friend.id);
+    _inbox.chatSeen(friend.id, _messages);
     _notify();
 
     // Watched after the chat is loaded, so pending messages saved before (even before a restart)
@@ -152,6 +159,7 @@ class ChatViewModel extends ChangeNotifier {
         if (m.status == ChatMessageStatus.sent) _failReasons.remove(m.clientId);
       }
       _saveChat();
+      _inbox.chatSeen(friend.id, _messages);
       _notify();
     } catch (e) {
       debugPrint('Could not load new chat messages: $e');
@@ -178,6 +186,7 @@ class ChatViewModel extends ChangeNotifier {
       status: ChatMessageStatus.pending,
     );
     _put(message);
+    _inbox.touch(friend.id, message.createdAt, content); // this friend goes up in the Friends list
     _deliver(message);
     return null;
   }
@@ -393,6 +402,7 @@ class ChatViewModel extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    _inbox.closeChat(friend.id);
     _stopPolling();
     _connectivitySub?.cancel();
     _pendingSub?.cancel();

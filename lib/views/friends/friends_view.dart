@@ -7,6 +7,7 @@ import 'package:gapfinderfrontend_dart/core/utils/display_formatters.dart';
 import 'package:gapfinderfrontend_dart/models/user.dart';
 import 'package:gapfinderfrontend_dart/models/gap.dart';
 import 'package:gapfinderfrontend_dart/navigation/app_routes.dart';
+import 'package:gapfinderfrontend_dart/services/chat_inbox_service.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/friends/friends_view_model.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/avatar_widget.dart';
 import 'package:gapfinderfrontend_dart/views/widgets/common/offline_banner.dart';
@@ -25,6 +26,9 @@ class _FriendsViewState extends State<FriendsView> {
 
   // ViewModel for callbacks and helper builders (build() watches it)
   FriendsViewModel get _vm => context.read<FriendsViewModel>();
+
+  // Unread messages and last message time of every friend (the screen rebuilds when it changes)
+  ChatInboxService get _inbox => ChatInboxService.instance;
 
   @override
   void dispose() {
@@ -99,6 +103,14 @@ class _FriendsViewState extends State<FriendsView> {
   Widget build(BuildContext context) {
     final vm = context.watch<FriendsViewModel>();
 
+    // Rebuilds when a message arrives: the order of the friends and the unread numbers change
+    return ListenableBuilder(
+      listenable: _inbox,
+      builder: (context, _) => _buildScreen(vm),
+    );
+  }
+
+  Widget _buildScreen(FriendsViewModel vm) {
     return Scaffold(
       backgroundColor: context.palette.background,
       body: SafeArea(
@@ -167,7 +179,8 @@ class _FriendsViewState extends State<FriendsView> {
                             dotColor: AppColors.accent1,
                           ),
                           const SizedBox(height: 14),
-                          ...data.freeNow.map(_buildFreeNowCard),
+                          // The friends with the most recent messages go first
+                          ..._inbox.sortByRecent(data.freeNow, (f) => f.user.id).map(_buildFreeNowCard),
                         ],
                         if (data.inClass.isNotEmpty) ...[
                           const SizedBox(height: 4),
@@ -179,7 +192,7 @@ class _FriendsViewState extends State<FriendsView> {
                             small: true,
                           ),
                           const SizedBox(height: 12),
-                          _buildInClassGrid(data.inClass, saved: data.fromCache),
+                          _buildInClassGrid(_inbox.sortByRecent(data.inClass, (u) => u.id), saved: data.fromCache),
                         ],
                         const SizedBox(height: 24),
                       ],
@@ -582,7 +595,7 @@ class _FriendsViewState extends State<FriendsView> {
                   ),
                 ),
                 // Hint that the card opens the chat
-                const Icon(Icons.chat_bubble_outline_rounded, size: 18, color: AppColors.accent1),
+                _buildChatHint(user.id, size: 18),
               ],
             ),
           ),
@@ -640,6 +653,27 @@ class _FriendsViewState extends State<FriendsView> {
     );
   }
 
+  // Chat icon of a friend; with unread messages it becomes a round badge with the number
+  Widget _buildChatHint(int friendId, {required double size}) {
+    final unread = _inbox.unreadFor(friendId);
+    if (unread == 0) {
+      return Icon(Icons.chat_bubble_outline_rounded, size: size, color: AppColors.accent1);
+    }
+    return Container(
+      constraints: BoxConstraints(minWidth: size + 4, minHeight: size + 4),
+      padding: const EdgeInsets.symmetric(horizontal: 5),
+      decoration: BoxDecoration(
+        color: AppColors.accent3,
+        borderRadius: BorderRadius.circular((size + 4) / 2),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        unread > 99 ? '99+' : '$unread',
+        style: AppFonts.display(weight: FontWeight.w800).copyWith(fontSize: size - 4, color: Colors.white),
+      ),
+    );
+  }
+
   // Grid of friends who are in class (Wrap so it never overflows)
   Widget _buildInClassGrid(List<User> users, {bool saved = false}) {
     return Wrap(
@@ -688,11 +722,11 @@ class _FriendsViewState extends State<FriendsView> {
             ),
           ),
           ),
-          // Hint that the tile opens the chat
-          const Positioned(
+          // Hint that the tile opens the chat (with the unread number if there is one)
+          Positioned(
             top: 6,
             right: 6,
-            child: Icon(Icons.chat_bubble_outline_rounded, size: 14, color: AppColors.accent1),
+            child: _buildChatHint(user.id, size: 14),
           ),
           ],
           ),

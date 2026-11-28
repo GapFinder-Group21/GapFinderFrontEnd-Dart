@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:gapfinderfrontend_dart/navigation/app_routes.dart';
+import 'package:gapfinderfrontend_dart/services/chat_inbox_service.dart';
+import 'package:gapfinderfrontend_dart/services/gap_reminder_service.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/friends/friends_view_model.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/main/main_view_model.dart';
 import 'package:gapfinderfrontend_dart/viewmodels/match/match_view_model.dart';
@@ -32,6 +34,19 @@ class MainView extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => MatchViewModel()..init()),
         ChangeNotifierProvider(create: (_) => OpenTablesViewModel()..init()),
         ChangeNotifierProvider(create: (_) => RecommendationsViewModel()..init()),
+        // New chat messages: notifications and unread counters (runs while the main screen is open)
+        Provider<ChatInboxService>(
+          // Nobody reads this provider, so without lazy: false it would never be created and never start
+          lazy: false,
+          create: (_) {
+            final inbox = ChatInboxService.instance;
+            inbox.start();
+            // Android 13+ / iOS: asks the notification permission (one time); without it nothing is shown
+            GapReminderService().requestPermission().catchError((Object e) => false);
+            return inbox;
+          },
+          dispose: (_, inbox) => inbox.stop(),
+        ),
       ],
       child: const MainTabs(),
     );
@@ -147,9 +162,14 @@ class _MainTabsState extends State<MainTabs> with WidgetsBindingObserver {
             _visited.contains(i) ? widget.tabs[i] : const SizedBox.shrink(),
         ],
       ),
-      bottomNavigationBar: BottomNav(
-        activeTab: vm.activeTabId,
-        onTab: _onTabChanged,
+      // The Friends icon shows how many chat messages are unread
+      bottomNavigationBar: ListenableBuilder(
+        listenable: ChatInboxService.instance,
+        builder: (context, _) => BottomNav(
+          activeTab: vm.activeTabId,
+          onTab: _onTabChanged,
+          friendsBadge: ChatInboxService.instance.totalUnread,
+        ),
       ),
     );
   }
