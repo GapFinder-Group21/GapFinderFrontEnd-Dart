@@ -200,6 +200,36 @@ class GapReminderService {
     );
   }
 
+  // Notification ids of the chat start here (one per friend, so a new message replaces the old one)
+  static const _chatIdBase = 0x50000000;
+  static int chatNotificationId(int friendId) => _chatIdBase + (friendId & 0xFFFFFF);
+
+  // Shows the notification of a new chat message from a friend
+  Future<void> showChatMessage(int friendId, String title, String body) async {
+    await init();
+    await _plugin.show(
+      id: chatNotificationId(friendId),
+      title: title,
+      body: body,
+      notificationDetails: const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'chat_messages',
+          'Mensajes de chat',
+          channelDescription: 'Avisos cuando un amigo te escribe',
+          importance: Importance.high,
+          priority: Priority.high,
+        ),
+        iOS: DarwinNotificationDetails(presentAlert: true, presentSound: true),
+      ),
+    );
+  }
+
+  // Removes the chat notification of a friend (the chat was opened)
+  Future<void> cancelChatMessage(int friendId) async {
+    await init();
+    await _plugin.cancel(id: chatNotificationId(friendId));
+  }
+
   // Cancels every reminder of this service (for example when the user logs out). Other notifications stay.
   Future<void> cancelAll() async {
     await init();
