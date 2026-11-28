@@ -36,6 +36,8 @@ class MainView extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => RecommendationsViewModel()..init()),
         // New chat messages: notifications and unread counters (runs while the main screen is open)
         Provider<ChatInboxService>(
+          // Nobody reads this provider, so without lazy: false it would never be created and never start
+          lazy: false,
           create: (_) {
             final inbox = ChatInboxService.instance;
             inbox.start();
